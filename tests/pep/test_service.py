@@ -71,9 +71,15 @@ class TestPEPClient(unittest.TestCase):
         self.assertTrue(issubclass(pep.PEPClient, aioxmpp.service.Service))
 
     def test_depends_on_entity_caps(self):
-        self.assertLess(
+        self.assertIn(
             aioxmpp.EntityCapsService,
-            pep.PEPClient,
+            pep.PEPClient.ORDER_AFTER,
+        )
+
+    def test_depends_on_pubsub(self):
+        self.assertIn(
+            aioxmpp.PubSubClient,
+            pep.PEPClient.ORDER_AFTER,
         )
 
     def test_check_for_pep(self):

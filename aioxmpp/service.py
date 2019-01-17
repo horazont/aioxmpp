@@ -329,60 +329,6 @@ class Descriptor(metaclass=abc.ABCMeta):
         """
 
 
-class DependencyGraphNode:
-    def __init__(self):
-        self.class_ = None
-
-    def __repr__(self):
-        return "DependencyGraphNode({!r})".format(self.class_)
-
-
-class DependencyGraph:
-
-    def __init__(self, edges=None, nodes=None):
-        if edges is None:
-            edges = []
-        if nodes is None:
-            nodes = []
-        self._edges = set(edges)
-        self._nodes = set(nodes)
-
-    def __deepcopy__(self, memo):
-        return DependencyGraph(self._edges, self._nodes)
-
-    def add_node(self, node):
-        self._nodes.add(node)
-
-    def add_edge(self, from_, to):
-        self._edges.add((from_, to))
-
-    def toposort(self):
-        edges = collections.defaultdict(lambda: set())
-        for from_, to in self._edges:
-            edges[from_].add(to)
-
-        sorted_ = []
-        marked = set()
-        done = set()
-
-        def visit(node):
-            if node in marked:
-                raise ValueError("dependency loop in service definitions")
-            if node in done:
-                return
-            done.add(node)
-            marked.add(node)
-            for dep in edges[node]:
-                visit(dep)
-            marked.remove(node)
-            sorted_.append(node)
-
-        for node in self._nodes:
-            visit(node)
-
-        return sorted_
-
-
 class Meta(abc.ABCMeta):
     """
     The metaclass for services. The :class:`Service` class uses it and in
@@ -459,21 +405,24 @@ class Meta(abc.ABCMeta):
 
        .. versionadded:: 0.9
 
-    .. attribute:: _DEPGRAPH_NODE
-
-       An internal token used for topological ordering. Consider this
-       name reserved by the metaclass.
-
-       It is an error to manually define :attr:`_DEPGRAPH_NODE` in a class
-       definition, doing so will raise a :class:`TypeError`.
-
-       .. versionadded:: 0.9
-
     .. versionchanged:: 0.9
 
        The :attr:`ORDER_AFTER` and :attr:`ORDER_BEFORE` attribtes do not
        change after class creation. In earlier versions they contained
        the transitive completion of the dependency relation.
+
+    The following attribute was generated in earlier version of
+    aioxmpp:
+
+    .. attribute:: _DEPGRAPH_NODE
+
+       For compatibility with earlier versions, a warning is issued
+       when :attr:`_DEPGRAPH_NODE` is defined in a service class
+       definition.
+
+       This behaviour will be removed in aioxmpp 1.0.
+
+       .. versionremoved:: 0.11
 
     Dependency relationships must not have cycles; a cycle results in a
     :class:`ValueError` when the class causing the cycle is declared.
@@ -502,11 +451,7 @@ class Meta(abc.ABCMeta):
     ``Baz`` and ``Fourth`` will be instanciated before ``Bar`` and ``Bar`` will
     be instanciated before ``Foo``. There is no dependency relationship between
     ``Baz`` and ``Fourth``.
-
     """
-
-    __dependency_graph = DependencyGraph()
-    __service_order = {}
 
     def __new__(mcls, name, bases, namespace, inherit_dependencies=True):
         if "SERVICE_BEFORE" in namespace or "SERVICE_AFTER" in namespace:
@@ -532,9 +477,17 @@ class Meta(abc.ABCMeta):
             )
 
         if "_DEPGRAPH_NODE" in namespace:
+            warnings.warn(
+                "_DEPGRAPH_NODE should not be defined manually. "
+                "In version before 0.11 it was supplied automatically by "
+                "the metaclass and defining it raised TypeError."
+            )
+
+        if any(isinstance(mcls, base)
+               for base in bases) and "service_order_index" in namespace:
             raise TypeError(
-                "_DEPGRAPH_NODE must not be defined manually. "
-                "it is supplied automatically by the metaclass."
+                "service_order_index must not be defined manually. "
+                "It is supplied automatically by the metaclass."
             )
 
         for base in bases:
@@ -555,19 +508,12 @@ class Meta(abc.ABCMeta):
             namespace.get("ORDER_AFTER", ()))
         namespace["PATCHED_ORDER_AFTER"] = namespace["ORDER_AFTER"]
 
-        new_deps = copy.deepcopy(mcls.__dependency_graph)
-
-        depgraph_node = namespace["_DEPGRAPH_NODE"] = DependencyGraphNode()
-        new_deps.add_node(depgraph_node)
-        for cls in namespace["ORDER_AFTER"]:
-            new_deps.add_edge(depgraph_node, cls._DEPGRAPH_NODE)
-        for cls in namespace["ORDER_BEFORE"]:
-            new_deps.add_edge(cls._DEPGRAPH_NODE, depgraph_node)
-        sorted_ = new_deps.toposort()
-        mcls.__dependency_graph = new_deps
-        mcls.__service_order = dict(
-            (node, i) for i, node in enumerate(sorted_)
-        )
+        if namespace["ORDER_BEFORE"] and namespace["ORDER_AFTER"]:
+            visited = set()
+            for item in namespace["PATCHED_ORDER_AFTER"]:
+                if item.orders_after_any(namespace["ORDER_BEFORE"],
+                                         visited=visited):
+                    raise ValueError("dependency loop in service definitions")
 
         SERVICE_HANDLERS = []
         existing_handlers = set()
@@ -637,7 +583,6 @@ class Meta(abc.ABCMeta):
         super().__init__(name, bases, namespace)
         for cls in self.ORDER_BEFORE:
             cls.PATCHED_ORDER_AFTER |= frozenset([self])
-        self._DEPGRAPH_NODE.class_ = self
 
     def __prepare__(*args, **kwargs):
         return collections.OrderedDict()
@@ -650,13 +595,58 @@ class Meta(abc.ABCMeta):
     def SERVICE_AFTER(self):
         return self.ORDER_AFTER
 
-    def __lt__(self, other):
-        return (self.__service_order[self._DEPGRAPH_NODE] <
-                self.__service_order[other._DEPGRAPH_NODE])
+    def orders_after(self, other, *, visited=None):
+        """
+        Return whether `self` depends on `other` and will be instanciated
+        later.
 
-    def __le__(self, other):
-        return (self.__service_order[self._DEPGRAPH_NODE] <=
-                self.__service_order[other._DEPGRAPH_NODE])
+        :param other: Another service.
+        :type other: :class:`aioxmpp.service.Service`
+
+        .. versionadded:: 0.11
+        """
+        return self.orders_after_any(frozenset([other]), visited=visited)
+
+    def orders_after_any(self, other, *, visited=None):
+        """
+        Return whether `self` orders after any of the services in the set
+        `other`.
+
+        :param other: Another service.
+        :type other: A :class:`set` of
+          :class:`aioxmpp.service.Service` instances
+
+        .. versionadded:: 0.11
+        """
+        if not other:
+            return False
+        if visited is None:
+            visited = set()
+        elif self in visited:
+            return False
+        visited.add(self)
+        for item in self.PATCHED_ORDER_AFTER:
+            if item in visited:
+                continue
+            if item in other:
+                return True
+            if item.orders_after_any(other, visited=visited):
+                return True
+        return False
+
+    def independent_from(self, other):
+        """
+        Return whether the services are independent (neither depends on
+        the other).
+
+        :param other: Another service.
+        :type other: :class:`aioxmpp.service.Service`
+
+        .. versionadded:: 0.11
+        """
+        if self is other:
+            return False
+        return not self.orders_after(other) and not other.orders_after(self)
 
 
 class Service(metaclass=Meta):
@@ -700,12 +690,15 @@ class Service(metaclass=Meta):
 
     .. autoattribute:: dependencies
 
+    .. autoattribute:: service_order_index
+
     .. automethod:: derive_logger
 
     .. automethod:: shutdown
     """
 
-    def __init__(self, client, *, logger_base=None, dependencies={}):
+    def __init__(self, client, *, logger_base=None, dependencies={},
+                 service_order_index=0):
         if logger_base is None:
             self.logger = logging.getLogger(".".join([
                 type(self).__module__, type(self).__qualname__
@@ -717,6 +710,7 @@ class Service(metaclass=Meta):
         self.__context = contextlib.ExitStack()
         self.__client = client
         self.__dependencies = dependencies
+        self.__service_order_index = service_order_index
 
         for item in self.SERVICE_HANDLERS:
             if isinstance(item, Descriptor):
@@ -732,6 +726,18 @@ class Service(metaclass=Meta):
                         **kwargs
                     )
                 )
+
+    @property
+    def service_order_index(self):
+        """
+        Return the index of this service in the toposort of summoned
+        services. This is primarily used to order filter chain
+        registrations consistently with the dependency relationship of
+        the services.
+
+        .. versionadded:: 0.11
+        """
+        return self.__service_order_index
 
     def derive_logger(self, logger):
         """
@@ -921,7 +927,7 @@ def _apply_inbound_message_filter(instance, stream, func):
     return aioxmpp.stream.stanza_filter(
         stream.service_inbound_message_filter,
         func,
-        type(instance),
+        instance.service_order_index,
     )
 
 
@@ -929,7 +935,7 @@ def _apply_inbound_presence_filter(instance, stream, func):
     return aioxmpp.stream.stanza_filter(
         stream.service_inbound_presence_filter,
         func,
-        type(instance),
+        instance.service_order_index,
     )
 
 
@@ -937,7 +943,7 @@ def _apply_outbound_message_filter(instance, stream, func):
     return aioxmpp.stream.stanza_filter(
         stream.service_outbound_message_filter,
         func,
-        type(instance),
+        instance.service_order_index,
     )
 
 
@@ -945,7 +951,7 @@ def _apply_outbound_presence_filter(instance, stream, func):
     return aioxmpp.stream.stanza_filter(
         stream.service_outbound_presence_filter,
         func,
-        type(instance),
+        instance.service_order_index,
     )
 
 
@@ -976,7 +982,7 @@ def _apply_connect_depfilter(instance, stream, func, dependency, filter_name):
     else:
         dependency = instance.dependencies[dependency]
     filter_ = getattr(dependency, filter_name)
-    return filter_.context_register(func, type(instance))
+    return filter_.context_register(func, instance.service_order_index)
 
 
 def _apply_connect_attrsignal(instance, stream, func, descriptor, signal_name,

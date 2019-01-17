@@ -76,6 +76,34 @@ Version 0.11
   used to enqueue the reply to the IQ before the handler has returned.
   This allows sequencing other actions after the reply has been sent.
 
+* **Breaking change:** The way the toposort of services is handled was
+  simplified: We no longer keep a toposort of all service
+  classes. *This implies that :class:`Service` subclasses are no
+  longer ordered objects.* However, we still guarantee a runtime error
+  when a dependency loop is declared – if a class uses only one of
+  `ORDER_BEFORE` respective `ORDER_AFTER` it cannot introduce a
+  dependency loop; only when a class uses both we have to do an
+  exhaustive search of the dependent nodes. This search touches only a
+  few nodes instead of the whole graph and is only triggered for very
+  few service classes.
+
+  Summon has been creating an independent toposort of only the
+  required classes anyway, so we use this for deriving ordering
+  indices for filter chains from now on – this also allows simpler
+  extension, modification of the filter order (e.g. ``-index`` orders
+  in reverse).
+
+  Methods for determining transitive dependency (and independency)
+  have been added to the service classes:
+  :meth:`aioxmpp.Service.orders_after`,
+  :meth:`aioxmpp.Service.orders_after_any`,
+  :meth:`aioxmpp.Service.independent_from`. These search the class
+  graph and are therefore not efficient (and the results may change
+  when new classes are defined).
+
+  Tests should always prefer to test the declared attributes when
+  checking for correct dependencies.
+
 .. _api-changelog-0.10:
 
 Version 0.10

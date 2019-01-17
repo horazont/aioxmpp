@@ -57,9 +57,9 @@ class TestService(unittest.TestCase):
         ))
 
     def test_orders_behind_disco(self):
-        self.assertGreater(
-            pubsub_service.PubSubClient,
+        self.assertIn(
             aioxmpp.DiscoClient,
+            pubsub_service.PubSubClient.ORDER_AFTER,
         )
 
     def setUp(self):

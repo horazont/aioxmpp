@@ -222,15 +222,15 @@ class TestService(unittest.TestCase):
         del self.cc
 
     def test_depends_on_conversation_service(self):
-        self.assertLess(
+        self.assertIn(
             im_service.ConversationService,
-            p2p.Service,
+            p2p.Service.ORDER_AFTER,
         )
 
     def test_depends_on_dispatcher_service(self):
-        self.assertLess(
+        self.assertIn(
             im_dispatcher.IMDispatcher,
-            p2p.Service,
+            p2p.Service.ORDER_AFTER,
         )
 
     def test_get_conversation_creates_conversation(self):

@@ -608,13 +608,13 @@ class TestService(unittest.TestCase):
         self.assertTrue(self.s._xep390_feature.enabled)
 
     def test_after_disco(self):
-        self.assertLess(
+        self.assertIn(
             disco.DiscoServer,
-            entitycaps_service.EntityCapsService
+            entitycaps_service.EntityCapsService.ORDER_AFTER
         )
-        self.assertLess(
+        self.assertIn(
             disco.DiscoClient,
-            entitycaps_service.EntityCapsService
+            entitycaps_service.EntityCapsService.ORDER_AFTER
         )
 
     def test_handle_outbound_presence_is_decorated(self):
