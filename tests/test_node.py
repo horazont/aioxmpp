@@ -3521,6 +3521,9 @@ class TestClient(xmltestutils.XMLTestCase):
                 super().__init__(*args, **kwargs)
                 getattr(svc_init, type(self).__name__)(*args, **kwargs)
 
+        # account for already present services
+        order = len(self.client._services)
+
         svc2 = self.client.summon(Svc2)
 
         self.assertSequenceEqual(
@@ -3532,13 +3535,15 @@ class TestClient(xmltestutils.XMLTestCase):
                         "aioxmpp.node.Client"
                     ),
                     dependencies={},
+                    service_order_index=order,
                 ),
                 unittest.mock.call.Svc2(
                     self.client,
                     logger_base=logging.getLogger(
                         "aioxmpp.node.Client"
                     ),
-                    dependencies={Svc3: unittest.mock.ANY}
+                    dependencies={Svc3: unittest.mock.ANY},
+                    service_order_index=order+1,
                 ),
             ],
         )
@@ -3571,7 +3576,8 @@ class TestClient(xmltestutils.XMLTestCase):
                     ),
                     dependencies={
                         Svc2: unittest.mock.ANY,
-                    }
+                    },
+                    service_order_index=order+2,
                 ),
             ],
             svc_init.mock_calls

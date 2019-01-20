@@ -1049,8 +1049,6 @@ class Client:
         self.logger.debug("stopping main task of %r", self, stack_info=True)
         self._main_task.cancel()
 
-    # services
-
     def _summon(self, class_, visited):
         # this is essentially a topological sort algorithm
         try:
@@ -1059,13 +1057,21 @@ class Client:
             if class_ in visited:
                 raise ValueError("dependency loop")
             visited.add(class_)
+
+            # summon dependencies before taking len(self._services) as
+            # the instanciation index of the service
+            dependencies = {
+                depclass: self._summon(depclass, visited)
+                for depclass in class_.PATCHED_ORDER_AFTER
+            }
+
+            service_order_index = len(self._services)
+
             instance = class_(
                 self,
                 logger_base=self.logger,
-                dependencies={
-                    depclass: self._summon(depclass, visited)
-                    for depclass in class_.PATCHED_ORDER_AFTER
-                }
+                dependencies=dependencies,
+                service_order_index=service_order_index,
             )
             self._services[class_] = instance
             return instance

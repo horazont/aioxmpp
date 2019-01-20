@@ -59,9 +59,9 @@ class TestService(unittest.TestCase):
         del self.disco
 
     def test_orders_before_disco_service(self):
-        self.assertLess(
+        self.assertIn(
             aioxmpp.DiscoServer,
-            shim_service.SHIMService,
+            shim_service.SHIMService.ORDER_AFTER,
         )
 
     def test_init(self):

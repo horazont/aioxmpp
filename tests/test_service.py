@@ -62,6 +62,12 @@ class TestServiceMeta(unittest.TestCase):
     def tearDown(self):
         del self.FooDescriptor
 
+    def _assertOrdersBefore(self, service1, service2):
+        self.assertTrue(service2.orders_after(service1))
+
+    def _assertOrdersAfter(self, service1, service2):
+        self.assertTrue(service1.orders_after(service2))
+
     def test_inherits_from_ABCMeta(self):
         self.assertTrue(issubclass(service.Meta, abc.ABCMeta))
 
@@ -90,12 +96,11 @@ class TestServiceMeta(unittest.TestCase):
             class Foo(metaclass=service.Meta):
                 PATCHED_ORDER_AFTER = [Bar]
 
-    def test_defining_DEPGRAPH_NODE_raises(self):
+    def test_defining_DEPGRAPH_NODE_warns(self):
 
-        with self.assertRaisesRegex(
-                TypeError,
-                "_DEPGRAPH_NODE must not be defined manually\. "
-                "it is supplied automatically by the metaclass\."):
+        with self.assertWarnsRegex(
+                Warning,
+                "^_DEPGRAPH_NODE should not be defined manually\."):
 
             class Foo(metaclass=service.Meta):
                 _DEPGRAPH_NODE = None
@@ -143,9 +148,9 @@ class TestServiceMeta(unittest.TestCase):
         class Baz(metaclass=service.Meta):
             ORDER_BEFORE = [Bar]
 
-        self.assertGreater(Foo, Bar)
-        self.assertGreater(Bar, Baz)
-        self.assertGreater(Foo, Baz)
+        self._assertOrdersAfter(Foo, Bar)
+        self._assertOrdersAfter(Bar, Baz)
+        self._assertOrdersAfter(Foo, Baz)
 
     def test_transitive_after_ordering(self):
         class Foo(metaclass=service.Meta):
@@ -157,9 +162,9 @@ class TestServiceMeta(unittest.TestCase):
         class Baz(metaclass=service.Meta):
             ORDER_AFTER = [Bar]
 
-        self.assertLess(Foo, Bar)
-        self.assertLess(Bar, Baz)
-        self.assertLess(Foo, Baz)
+        self._assertOrdersBefore(Foo, Bar)
+        self._assertOrdersBefore(Bar, Baz)
+        self._assertOrdersBefore(Foo, Baz)
 
     def test_loop_detect(self):
         class Foo(metaclass=service.Meta):
@@ -192,57 +197,11 @@ class TestServiceMeta(unittest.TestCase):
         class Fourth(metaclass=service.Meta):
             ORDER_BEFORE = [Bar]
 
-        self.assertLess(Baz, Bar)
-        self.assertLess(Fourth, Bar)
-        self.assertLess(Bar, Foo)
-        self.assertLess(Baz, Foo)
-        self.assertLess(Fourth, Foo)
-
-        self.assertLessEqual(Baz, Bar)
-        self.assertLessEqual(Fourth, Bar)
-        self.assertLessEqual(Bar, Foo)
-        self.assertLessEqual(Baz, Foo)
-        self.assertLessEqual(Fourth, Foo)
-
-        self.assertGreater(Foo, Bar)
-        self.assertGreater(Foo, Baz)
-        self.assertGreater(Foo, Fourth)
-        self.assertGreater(Bar, Baz)
-        self.assertGreater(Bar, Fourth)
-
-        self.assertGreaterEqual(Foo, Bar)
-        self.assertGreaterEqual(Foo, Baz)
-        self.assertGreaterEqual(Foo, Fourth)
-        self.assertGreaterEqual(Bar, Baz)
-        self.assertGreaterEqual(Bar, Fourth)
-
-    def test_topological_ordering_fail2(self):
-        class A(metaclass=service.Meta):
-            pass
-
-        self.assertEqual(A, A)
-        self.assertLessEqual(A, A)
-        self.assertGreaterEqual(A, A)
-
-    def test_topological_ordering_sort_fail(self):
-        class A(metaclass=service.Meta):
-            pass
-
-        class B(metaclass=service.Meta):
-            pass
-
-        class C(metaclass=service.Meta):
-            ORDER_AFTER = [B]
-
-        class D(metaclass=service.Meta):
-            ORDER_BEFORE = [A, C]
-
-        for services in itertools.permutations([A, B, C, D]):
-            services = list(services)
-            services.sort()
-
-            if services.index(C) < services.index(B):
-                self.fail(services)
+        self._assertOrdersBefore(Baz, Bar)
+        self._assertOrdersBefore(Fourth, Bar)
+        self._assertOrdersBefore(Bar, Foo)
+        self._assertOrdersBefore(Baz, Foo)
+        self._assertOrdersBefore(Fourth, Foo)
 
     def test_inheritance_ignores_non_service_classes(self):
         class Foo(metaclass=service.Meta):
@@ -267,9 +226,9 @@ class TestServiceMeta(unittest.TestCase):
             SERVICE_BEFORE = [Foo]
             SERVICE_AFTER = [Bar]
 
-        self.assertGreater(Foo, A)
-        self.assertGreater(A, Bar)
-        self.assertGreater(Foo, Bar)
+        self._assertOrdersAfter(Foo, A)
+        self._assertOrdersAfter(A, Bar)
+        self._assertOrdersAfter(Foo, Bar)
 
         self.assertEqual(
             Foo.PATCHED_ORDER_AFTER,
@@ -844,11 +803,14 @@ class Test_apply_iq_handler(unittest.TestCase):
 class Test_apply_inbound_message_filter(unittest.TestCase):
     def test_uses_stream_stanza_filter(self):
         stream = unittest.mock.Mock()
+        instance = unittest.mock.Mock()
+        instance.service_order_index = \
+            unittest.mock.sentinel.service_order_index
 
         with unittest.mock.patch(
                 "aioxmpp.stream.stanza_filter") as stanza_filter:
             service._apply_inbound_message_filter(
-                unittest.mock.sentinel.instance,
+                instance,
                 stream,
                 unittest.mock.sentinel.func,
             )
@@ -856,18 +818,21 @@ class Test_apply_inbound_message_filter(unittest.TestCase):
         stanza_filter.assert_called_with(
             stream.service_inbound_message_filter,
             unittest.mock.sentinel.func,
-            type(unittest.mock.sentinel.instance),
+            unittest.mock.sentinel.service_order_index,
         )
 
 
 class Test_apply_inbound_presence_filter(unittest.TestCase):
     def test_uses_stream_stanza_filter(self):
         stream = unittest.mock.Mock()
+        instance = unittest.mock.Mock()
+        instance.service_order_index = \
+            unittest.mock.sentinel.service_order_index
 
         with unittest.mock.patch(
                 "aioxmpp.stream.stanza_filter") as stanza_filter:
             service._apply_inbound_presence_filter(
-                unittest.mock.sentinel.instance,
+                instance,
                 stream,
                 unittest.mock.sentinel.func,
             )
@@ -875,18 +840,21 @@ class Test_apply_inbound_presence_filter(unittest.TestCase):
         stanza_filter.assert_called_with(
             stream.service_inbound_presence_filter,
             unittest.mock.sentinel.func,
-            type(unittest.mock.sentinel.instance),
+            unittest.mock.sentinel.service_order_index,
         )
 
 
 class Test_apply_outbound_message_filter(unittest.TestCase):
     def test_uses_stream_stanza_filter(self):
         stream = unittest.mock.Mock()
+        instance = unittest.mock.Mock()
+        instance.service_order_index = \
+            unittest.mock.sentinel.service_order_index
 
         with unittest.mock.patch(
                 "aioxmpp.stream.stanza_filter") as stanza_filter:
             service._apply_outbound_message_filter(
-                unittest.mock.sentinel.instance,
+                instance,
                 stream,
                 unittest.mock.sentinel.func,
             )
@@ -894,18 +862,21 @@ class Test_apply_outbound_message_filter(unittest.TestCase):
         stanza_filter.assert_called_with(
             stream.service_outbound_message_filter,
             unittest.mock.sentinel.func,
-            type(unittest.mock.sentinel.instance),
+            unittest.mock.sentinel.service_order_index,
         )
 
 
 class Test_apply_outbound_presence_filter(unittest.TestCase):
     def test_uses_stream_stanza_filter(self):
         stream = unittest.mock.Mock()
+        instance = unittest.mock.Mock()
+        instance.service_order_index = \
+            unittest.mock.sentinel.service_order_index
 
         with unittest.mock.patch(
                 "aioxmpp.stream.stanza_filter") as stanza_filter:
             service._apply_outbound_presence_filter(
-                unittest.mock.sentinel.instance,
+                instance,
                 stream,
                 unittest.mock.sentinel.func,
             )
@@ -913,7 +884,7 @@ class Test_apply_outbound_presence_filter(unittest.TestCase):
         stanza_filter.assert_called_with(
             stream.service_outbound_presence_filter,
             unittest.mock.sentinel.func,
-            type(unittest.mock.sentinel.instance),
+            unittest.mock.sentinel.service_order_index,
         )
 
 
@@ -1101,7 +1072,7 @@ class Test_apply_connect_depfilter(unittest.TestCase):
             [
                 unittest.mock.call.filter_name.context_register(
                     unittest.mock.sentinel.func,
-                    type(instance),
+                    instance.service_order_index,
                 )
             ]
         )
@@ -1129,7 +1100,7 @@ class Test_apply_connect_depfilter(unittest.TestCase):
             [
                 unittest.mock.call.filter_name.context_register(
                     unittest.mock.sentinel.func,
-                    type(instance),
+                    instance.service_order_index,
                 )
             ]
         )

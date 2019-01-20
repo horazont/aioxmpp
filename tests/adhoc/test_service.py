@@ -71,9 +71,9 @@ class TestAdHocClient(unittest.TestCase):
         ))
 
     def test_depends_on_disco(self):
-        self.assertLess(
+        self.assertIn(
             aioxmpp.disco.DiscoClient,
-            adhoc_service.AdHocClient,
+            adhoc_service.AdHocClient.ORDER_AFTER,
         )
 
     def test_detect_support_using_disco(self):

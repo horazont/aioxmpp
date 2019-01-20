@@ -69,9 +69,9 @@ class TestBlockingClient(unittest.TestCase):
         ))
 
     def test_service_order(self):
-        self.assertGreater(
-            blocking.BlockingClient,
-            aioxmpp.DiscoClient
+        self.assertIn(
+            aioxmpp.DiscoClient,
+            blocking.BlockingClient.ORDER_AFTER,
         )
 
     def test_get_initial_blocklist_is_depsignal_handler(self):
