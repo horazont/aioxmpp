@@ -76,6 +76,10 @@ Version 0.11
   used to enqueue the reply to the IQ before the handler has returned.
   This allows sequencing other actions after the reply has been sent.
 
+* :mod:`aioxmpp.hashes` now supports the `hashes-used` element and has a
+  service that handles registering the disco features and can determine
+  which hash functions are supported by us and another entity.
+
 .. _api-changelog-0.10:
 
 Version 0.10

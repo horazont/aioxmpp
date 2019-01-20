@@ -27,10 +27,14 @@
 Identifiers (usually called `algo`) are defined to refer to specific
 implementations and parametrisations of hashes (:func:`hash_from_algo`,
 :func:`algo_of_hash`) and there is a defined XML format for carrying hash
-digests (:class:`Hash`).
+digests (:class:`Hash`) and hash algorithms to be used (:class:`HashUsed`).
 
 This allows other extensions to easily embed hash digests in their protocols
-(:class:`HashesParent`).
+(:class:`HashesParent`, :class:`HashesUsedParent`).
+
+The service :class:`HashService` registeres the disco features for the
+supported hash functions and allows querying hash functions supported by
+you and another entity on the Jabber network supporting :xep:`300`.
 
 .. note::
 
@@ -63,20 +67,33 @@ Utilities for Working with Hash Algorithm Identifiers
     In a fully compliant build, this set consists of ``sha-256``, ``sha3-256``
     and ``blake2b-256``.
 
+Service
+=======
+
+.. autoclass:: HashService
+
 XSOs
 ====
 
 .. autoclass:: Hash
 
 .. autoclass:: HashesParent()
+
+.. autoclass:: HashUsed
+
+.. autoclass:: HashesUsedParent()
 """
+import asyncio
 import hashlib
 
+import aioxmpp.disco as disco
+import aioxmpp.service as service
 import aioxmpp.xso as xso
 
 from aioxmpp.utils import namespaces
 
 namespaces.xep0300_hashes2 = "urn:xmpp:hashes:2"
+namespaces.xep0300_hash_name_prefix = "urn:xmpp:hash-function-text-names:"
 
 
 _HASH_ALGO_MAPPING = [
@@ -110,6 +127,15 @@ def is_algo_supported(algo):
         return False
 
     return enabled and hasattr(hashlib, fun_name)
+
+
+SUPPORTED_HASH_FEATURES = set()
+for _hash in _HASH_ALGO_MAP:
+    if is_algo_supported(_hash):
+        SUPPORTED_HASH_FEATURES.add(
+            namespaces.xep0300_hash_name_prefix + _hash
+        )
+del _hash
 
 
 def hash_from_algo(algo):
@@ -229,6 +255,35 @@ class Hash(xso.XSO):
         return hash_from_algo(self.algo)
 
 
+class HashUsed(xso.XSO):
+    """
+    Represent a single hash-used algorithm spec.
+
+    .. attribute:: algo
+
+        The hash algorithm used. The name is as specified in :xep:`300`.
+
+    """
+    TAG = namespaces.xep0300_hashes2, "hash-used"
+
+    algo = xso.Attr(
+        "algo",
+    )
+
+    def __init__(self, algo):
+        super().__init__()
+        self.algo = algo
+
+    def get_impl(self):
+        """
+        Return a new :mod:`hashlib` hash for the :attr:`algo` set on this
+        object.
+
+        See :func:`hash_from_algo` for details and exceptions.
+        """
+        return hash_from_algo(self.algo)
+
+
 class HashType(xso.AbstractElementType):
     @classmethod
     def get_xso_types(cls):
@@ -256,8 +311,92 @@ class HashesParent(xso.XSO):
     )
 
 
+class HashUsedType(xso.AbstractElementType):
+    @classmethod
+    def get_xso_types(cls):
+        return [HashUsed]
+
+    def unpack(self, obj):
+        return obj.algo
+
+    def pack(self, item):
+        return HashUsed(item)
+
+
+class HashesUsedParent(xso.XSO):
+    """
+    Mix-in class for XSOs which use :class:`HashUsed` children.
+
+    .. attribute:: algos
+
+        A list of hash algorithms.
+    """
+
+    algos = xso.ChildValueList(
+        type_=HashUsedType(),
+    )
+
+
 default_hash_algorithms = {
     algo
     for algo in ["sha-256", "sha3-256", "blake2b-256"]
     if is_algo_supported(algo)
 }
+
+
+class HashService(service.Service):
+    """
+    The service component of the :xep:`300` support. This service registeres
+    the features and allows to query the hash functions supported by us and
+    a remote entity:
+
+    .. automethod:: select_common_hashes
+    """
+    ORDER_AFTER = [
+        disco.DiscoClient,
+        disco.DiscoServer,
+    ]
+
+    hashes_feature = disco.register_feature(namespaces.xep0300_hashes2)
+
+    def __init__(self, client, **kwargs):
+        super().__init__(client, **kwargs)
+        self._disco_client = self.dependencies[disco.DiscoClient]
+        self._disco_server = self.dependencies[disco.DiscoServer]
+
+        for feature in SUPPORTED_HASH_FEATURES:
+            self._disco_server.register_feature(feature)
+
+    @asyncio.coroutine
+    def _shutdown(self):
+        for feature in SUPPORTED_HASH_FEATURES:
+            self._disco_server.unregister_feature(feature)
+        yield from super()._shutdown()
+
+    @asyncio.coroutine
+    def select_common_hashes(self, other_entity):
+        """
+        Return the list of algos supported by us and `other_entity`. The
+        algorithms are represented by their :xep:`300` URNs
+        (`urn:xmpp:hash-function-text-names:...`).
+
+        :param other_entity: the address of another entity
+        :type other_entity: :class:`aioxmpp.JID`
+        :returns: the identifiers of the hash algorithms supported by
+           both us and the other entity
+        :rtype: :class:`set`
+        :raises RuntimeError: if the other entity does not support the
+           :xep:`300` feature nor does not publish hash functions
+           URNs we support.
+
+        Note: This assumes the protocol is supported if valid hash
+        function features are detected, even if `urn:xmpp:hashes:2` is
+        not listed as a feature.
+        """
+        disco_info = yield from self._disco_client.query_info(other_entity)
+        intersection = disco_info.features & SUPPORTED_HASH_FEATURES
+        if (not intersection and
+                namespaces.xep0300_hashes2 not in disco_info.features):
+            raise RuntimeError(
+                "Remote does not support the urn:xmpp:hashes:2 feature.")
+        return intersection
