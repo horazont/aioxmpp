@@ -34,12 +34,56 @@ from aioxmpp.testutils import (
 )
 
 
-class TestNamespaces(unittest.TestCase):
+class Testnamespaces(unittest.TestCase):
     def test_aioxmpp(self):
         self.assertEqual(
             utils.namespaces.aioxmpp_internal,
             "https://zombofant.net/xmlns/aioxmpp#internal"
         )
+
+    def test_namespaces_is_Namespaces_instance(self):
+        self.assertIsInstance(
+            utils.namespaces,
+            utils.Namespaces
+        )
+
+
+class TestNamespaces(unittest.TestCase):
+    def setUp(self):
+        self.namespaces = utils.Namespaces()
+        self.namespaces.aioxmpp_internal = \
+            "https://zombofant.net/xmlns/aioxmpp#internal"
+
+    def tearDown(self):
+        del self.namespaces
+
+    def test_aioxmpp(self):
+        self.assertEqual(
+            self.namespaces.aioxmpp_internal,
+            "https://zombofant.net/xmlns/aioxmpp#internal"
+        )
+
+    def test_inconsistent_rebinding_errors(self):
+        with self.assertRaisesRegex(ValueError,
+                                    "^inconsistent namespace redefinition$"):
+            self.namespaces.aioxmpp_internal = "fnord"
+
+    def test_allow_consistent_rebinding(self):
+        self.namespaces.aioxmpp_internal = \
+            "https://zombofant.net/xmlns/aioxmpp#internal"
+
+    def test_deleting_is_prohibited(self):
+        with self.assertRaisesRegex(AttributeError,
+                                    "^deleting short-hands is prohibited$"):
+            del self.namespaces.aioxmpp_internal
+
+    def test_namespace_redefinition_errors(self):
+        with self.assertRaisesRegex(
+                ValueError,
+                "^namespace https://zombofant.net/xmlns/aioxmpp#internal"
+                " already defined as aioxmpp_internal$"):
+            self.namespaces.aioxmpp_internal_clash = \
+                "https://zombofant.net/xmlns/aioxmpp#internal"
 
 
 class Testbackground_task(unittest.TestCase):

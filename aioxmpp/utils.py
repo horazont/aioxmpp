@@ -30,6 +30,13 @@ Miscellaneous utilities used throughout the aioxmpp codebase.
    Collects all the namespaces from the various standards. Each namespace
    is given a shortname and its value is the namespace string.
 
+   .. note:: This is intended to be promoted to the public API in a
+             future release. Third-party users should not assign
+             short-names for their own namespaces here, but instead
+             use a separate instance of :class:`Namespaces`.
+
+.. autoclass:: Namespaces
+
 .. autofunction:: gather_reraise_multi
 
 .. autofunction:: mkdir_exist_ok
@@ -56,7 +63,80 @@ __all__ = [
     "namespaces",
 ]
 
-namespaces = types.SimpleNamespace()
+
+class Namespaces:
+    """
+    Manage short-hands for XML namespaces.
+
+    Instances of this class may be used to assign mnemonic short-hands
+    to XML namespaces, for example:
+
+    .. code-block:: python
+
+        namespaces = Namespaces()
+        namespaces.foo = "urn:example:foo"
+        namespaces.bar = "urn:example:bar"
+
+    The class ensures that
+
+    1. only one short-hand is bound to each namespace, so continuing the
+       example, the following raises :class:`ValueError`:
+
+       .. code-block:: python
+
+           namespace.example_foo = "urn:example:foo"
+
+    2. no short-hand is redefined to point to a different namespace,
+       continuing the example, the following raises
+       :class:`ValueError`:
+
+       .. code-block:: python
+
+           namespaces.foo = "urn:example:foo:2"
+
+    3. deleting a short-hand is prohibited, the following raises
+       :class:`AttributeError`:
+
+       .. code-block:: python
+
+           del namespaces.foo
+
+    The defined short-hands MUST NOT start with an underscore.
+
+    .. note:: This is intended to be promoted to the public API in a
+              future release.
+    """
+
+    def __init__(self):
+        self._all_namespaces = {}
+
+    def __setattr__(self, attr, value):
+        if not attr.startswith("_"):
+            try:
+                existing_attr = self._all_namespaces[value]
+                if attr != existing_attr:
+                    raise ValueError(
+                        "namespace {} already defined as {}".format(
+                            value,
+                            existing_attr,
+                        )
+                    )
+            except KeyError:
+                try:
+                    if getattr(self, attr) != value:
+                        raise ValueError("inconsistent namespace redefinition")
+                except AttributeError:
+                    pass
+            self._all_namespaces[value] = attr
+        super().__setattr__(attr, value)
+
+    def __delattr__(self, attr):
+        if not attr.startswith("_"):
+            raise AttributeError("deleting short-hands is prohibited")
+        super().__delattr__(attr)
+
+
+namespaces = Namespaces()
 namespaces.xmlstream = "http://etherx.jabber.org/streams"
 namespaces.client = "jabber:client"
 namespaces.starttls = "urn:ietf:params:xml:ns:xmpp-tls"
@@ -64,7 +144,6 @@ namespaces.sasl = "urn:ietf:params:xml:ns:xmpp-sasl"
 namespaces.stanzas = "urn:ietf:params:xml:ns:xmpp-stanzas"
 namespaces.streams = "urn:ietf:params:xml:ns:xmpp-streams"
 namespaces.stream_management = "urn:xmpp:sm:3"
-namespaces.bind = "urn:ietf:params:xml:ns:xmpp-bind"
 namespaces.aioxmpp = "https://zombofant.net/xmlns/aioxmpp"
 namespaces.aioxmpp_test = "https://zombofant.net/xmlns/aioxmpp#test"
 namespaces.aioxmpp_internal = "https://zombofant.net/xmlns/aioxmpp#internal"
