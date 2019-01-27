@@ -4722,12 +4722,29 @@ class TestRoom(unittest.TestCase):
 
         self.listener.on_muc_fresh.assert_called_once_with
 
-    def test__monitor_exited_calls__disconnect(self):
-        with unittest.mock.patch.object(
-                self.jmuc, "_disconnect") as _disconnect:
+    def test__monitor_exited_calls__disconnect_if_no_autorejoin(self):
+        self.assertFalse(self.jmuc.muc_autorejoin)
+
+        with contextlib.ExitStack() as stack:
+            _disconnect = stack.enter_context(unittest.mock.patch.object(
+                self.jmuc, "_disconnect"
+            ))
+
+            _suspend = stack.enter_context(unittest.mock.patch.object(
+                self.jmuc, "_suspend"
+            ))
+
             self.jmuc._monitor_exited()
 
         _disconnect.assert_called_once_with()
+        self.base.service._cycle.assert_not_called()
+
+    def test__monitor_exit_calls__cycle_on_service_if_not_autorejoin(self):  # NOQA
+        self.jmuc.muc_autorejoin = True
+
+        self.jmuc._monitor_exited()
+
+        self.base.service._cycle.assert_called_once_with(self.jmuc)
 
 
 class TestService(unittest.TestCase):
@@ -6853,3 +6870,132 @@ class TestService(unittest.TestCase):
         )
 
         self.listener.on_muc_invitation.assert_not_called()
+
+    def test__cycle_sends_unavailable_suspends_resumes_joins_pending_muc(self):
+        requested_history = muc_xso.History()
+
+        room, future = self.s.join(TEST_MUC_JID, "thirdwitch",
+                                   history=requested_history,
+                                   password="some password")
+
+        base = unittest.mock.Mock()
+        self.cc.enqueue = base.enqueue
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                room,
+                "_suspend",
+                new=base._suspend,
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                room,
+                "_resume",
+                new=base._resume,
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.s,
+                "_send_join_presence",
+                new=base._send_join_presence,
+            ))
+
+            self.s._cycle(room)
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.enqueue(unittest.mock.ANY),
+                unittest.mock.call._suspend(),
+                unittest.mock.call._resume(),
+                unittest.mock.call._send_join_presence(
+                    TEST_MUC_JID,
+                    requested_history,
+                    "thirdwitch",
+                    "some password",
+                ),
+            ]
+        )
+
+        _, (leave_presence, ), _ = base.enqueue.mock_calls[0]
+
+        self.assertIsInstance(leave_presence, aioxmpp.stanza.Presence)
+        self.assertEqual(leave_presence.type_,
+                         aioxmpp.structs.PresenceType.UNAVAILABLE)
+        self.assertEqual(leave_presence.to,
+                         TEST_MUC_JID.replace(resource="thirdwitch"))
+
+    def test__cycle_sends_unavailable_suspends_resumes_joins_joined_muc(self):
+        requested_history = muc_xso.History()
+
+        room, future = self.s.join(TEST_MUC_JID, "thirdwitch",
+                                   history=requested_history,
+                                   password="some password")
+
+        occupant_presence = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="thirdwitch"),
+        )
+        occupant_presence.xep0045_muc_user = muc_xso.UserExt(
+            status_codes={110},
+        )
+
+        self.s._handle_presence(
+            occupant_presence,
+            occupant_presence.from_,
+            False,
+        )
+
+        self.assertTrue(future.done())
+
+        base = unittest.mock.Mock()
+        self.cc.enqueue = base.enqueue
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                room,
+                "_suspend",
+                new=base._suspend,
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                room,
+                "_resume",
+                new=base._resume,
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.s,
+                "_send_join_presence",
+                new=base._send_join_presence,
+            ))
+
+            self.s._cycle(room)
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.enqueue(unittest.mock.ANY),
+                unittest.mock.call._suspend(),
+                unittest.mock.call._resume(),
+                unittest.mock.call._send_join_presence(
+                    TEST_MUC_JID,
+                    unittest.mock.ANY,
+                    "thirdwitch",
+                    "some password",
+                ),
+            ]
+        )
+
+        _, (leave_presence, ), _ = base.enqueue.mock_calls[0]
+
+        self.assertIsInstance(leave_presence, aioxmpp.stanza.Presence)
+        self.assertEqual(leave_presence.type_,
+                         aioxmpp.structs.PresenceType.UNAVAILABLE)
+        self.assertEqual(leave_presence.to,
+                         TEST_MUC_JID.replace(resource="thirdwitch"))
+
+        _, (_, cycle_history, _, _), _ = base._send_join_presence.mock_calls[0]
+
+        self.assertIsInstance(cycle_history, muc_xso.History)
+        self.assertEqual(cycle_history.maxchars, 0)
+        self.assertEqual(cycle_history.maxstanzas, 0)

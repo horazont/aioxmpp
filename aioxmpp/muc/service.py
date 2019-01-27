@@ -1014,7 +1014,10 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self.on_muc_fresh()
 
     def _monitor_exited(self):
-        self._disconnect()
+        if self.muc_autorejoin:
+            self._service._cycle(self)
+        else:
+            self._disconnect()
 
     def _match_tracker(self, message):
         try:
@@ -2130,6 +2133,36 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
             _, fut, *_ = self._pending_mucs.pop(muc.jid)
             if not fut.done():
                 fut.set_result(None)
+
+    def _cycle(self, room: Room):
+        try:
+            room, fut, nick, history = self._pending_mucs[room.jid]
+        except KeyError:
+            # the muc is already joined
+            nick = room.me.nick
+            # we do not request history for cycle operations; there is no way
+            # to determine the right amount. this could be changed in the
+            # future.
+            history = muc_xso.History()
+            history.maxchars = 0
+            history.maxstanzas = 0
+
+        unjoin = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
+            to=room.jid.replace(resource=nick),
+        )
+        unjoin.xep0045_muc = muc_xso.GenericExt()
+
+        self.client.enqueue(unjoin)
+        room._suspend()
+        room._resume()
+
+        self._send_join_presence(
+            room.jid,
+            history,
+            nick,
+            room.muc_password,
+        )
 
     def get_muc(self, mucjid):
         try:
