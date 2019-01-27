@@ -578,6 +578,43 @@ class TestMUCPinger(unittest.TestCase):
         self.listener.on_fresh.assert_not_called()
         self.listener.on_exited.assert_not_called()
 
+    def test_pinger_skips_ping_emission_if_client_is_suspended(self):
+        timeout = get_timeout(0.1)
+
+        self.assertFalse(self.cc.suspended)
+
+        self.p.ping_interval = timedelta(seconds=timeout)
+
+        with contextlib.ExitStack() as stack:
+            ping = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.ping.ping",
+                new=CoroutineMock(),
+            ))
+
+            self.p.start()
+
+            run_coroutine(asyncio.sleep(timeout / 2))
+
+            for i in range(2):
+                self._require_task_running()
+                ping.assert_called_once_with(
+                    self.cc,
+                    unittest.mock.sentinel.ping_address
+                )
+                ping.reset_mock()
+                # we need to change the suspended flag here, because the next
+                # sleep covers the next ping sending
+                if i == 1:
+                    self.cc.suspended = True
+                run_coroutine(asyncio.sleep(timeout))
+
+            for i in range(2):
+                print(i)
+                self._require_task_running()
+                ping.assert_not_called()
+                if i == 1:
+                    self.cc.suspended = False
+
 
 class TestMUCMonitor(unittest.TestCase):
     def setUp(self):

@@ -176,12 +176,18 @@ class MUCPinger:
                     timeout = ping_interval - (now - last_ping_at)
 
                 if timeout <= 0:
-                    in_flight.append(asyncio.ensure_future(
-                        asyncio.wait_for(
-                            aioxmpp.ping.ping(self._client, self.ping_address),
-                            self.ping_timeout.total_seconds()
-                        )
-                    ))
+                    # do not send pings while the client is in suspended state
+                    # (= Stream Management hibernation). This will only add to
+                    # the queue for no good reason, we won’t get any reply soon
+                    # anyways.
+                    if not self._client.suspended:
+                        in_flight.append(asyncio.ensure_future(
+                            asyncio.wait_for(
+                                aioxmpp.ping.ping(self._client,
+                                                  self.ping_address),
+                                self.ping_timeout.total_seconds()
+                            )
+                        ))
                     last_ping_at = now
                     timeout = ping_interval
 
