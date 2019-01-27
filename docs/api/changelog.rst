@@ -111,6 +111,8 @@ Version 0.11
 * Moved :class:`aioxmpp.protocol.AlivenessMonitor` to
   :class:`aioxmpp.utils.AlivenessMonitor`.
 
+* Extract :func:`aioxmpp.ping.ping` from :meth:`aioxmpp.PingService.ping`.
+
 .. _api-changelog-0.10:
 
 Version 0.10

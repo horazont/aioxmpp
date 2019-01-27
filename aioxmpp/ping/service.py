@@ -56,27 +56,69 @@ class PingService(aioxmpp.service.Service):
     @asyncio.coroutine
     def ping(self, peer):
         """
-        Ping a peer.
+        Wrapper around :func:`aioxmpp.ping.ping`.
 
-        :param peer: The peer to ping.
-        :type peer: :class:`aioxmpp.JID`
-        :raises aioxmpp.errors.XMPPError: as received
+        **When to use this wrapper vs. the global function:** Using this method
+        has the side effect that the application will start to respond to
+        :xep:`199` pings. While this is not a security issue per se (as
+        responding to :xep:`199` pings only changes the format of the reply,
+        not the fact that a reply is sent from the client), it may not be
+        desirable under all circumstances.
 
-        Send a :xep:`199` ping IQ to `peer` and wait for the reply.
+        So especially when developing a Service which does not *reqiure* that
+        the application replies to pings (for example, when implementing a
+        stream or group chat aliveness check), it is preferrable to use the
+        global function.
 
-        .. note::
+        When implementing an application where it is desirable to reply to
+        pings, using this wrapper is fine.
 
-            If the peer does not support :xep:`199`, they will respond with
-            a ``cancel`` ``service-unavailable`` error. However, some
-            implementations return a ``cancel`` ``feature-not-implemented``
-            error instead. Callers should be prepared for the
-            :class:`aioxmpp.XMPPCancelError` exceptions in those cases.
+        In general, aioxmpp services should avoid depending on this service.
+
+        (The decision essentially boils down to "summon this service or not?",
+        and it is not a decision aioxmpp should make for the application unless
+        necessary for compliance.)
+
+        .. versionchanged:: 0.11
+
+            Converted to a shim wrapper.
         """
+        return (yield from ping(self.client, peer))
 
-        iq = aioxmpp.IQ(
-            to=peer,
-            type_=aioxmpp.IQType.GET,
-            payload=ping_xso.Ping()
-        )
 
-        yield from self.client.send(iq)
+@asyncio.coroutine
+def ping(client, peer):
+    """
+    Ping a peer.
+
+    :param peer: The peer to ping.
+    :type peer: :class:`aioxmpp.JID`
+    :raises aioxmpp.errors.XMPPError: as received
+
+    Send a :xep:`199` ping IQ to `peer` and wait for the reply.
+
+    This is a low-level version of :meth:`aioxmpp.PingService.ping`.
+
+    **When to use this function vs. the service method:** See
+    :meth:`aioxmpp.PingService.ping`.
+
+    .. note::
+
+        If the peer does not support :xep:`199`, they will respond with
+        a ``cancel`` ``service-unavailable`` error. However, some
+        implementations return a ``cancel`` ``feature-not-implemented``
+        error instead. Callers should be prepared for the
+        :class:`aioxmpp.XMPPCancelError` exceptions in those cases.
+
+    .. versionchanged:: 0.11
+
+        Extracted this helper from :class:`aioxmpp.PingService`.
+    """
+
+    iq = aioxmpp.IQ(
+        to=peer,
+        type_=aioxmpp.IQType.GET,
+        payload=ping_xso.Ping()
+    )
+
+    yield from client.send(iq)
