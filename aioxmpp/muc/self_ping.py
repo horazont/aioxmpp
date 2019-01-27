@@ -330,10 +330,13 @@ class MUCMonitor:
 
     def enable(self):
         """
-        Enable the monitor.
+        Enable the monitor, if it is not enabled already.
 
-        Reset and start the aliveness timeouts. Clear the stale state.
+        If the monitor is not already enabled, the aliveness timeouts are reset
+        and configured and the stale state is cleared.
         """
+        if self._monitor_enabled:
+            return
         self._is_stale = False
         self._enable_monitor()
 

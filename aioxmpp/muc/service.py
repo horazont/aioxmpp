@@ -40,6 +40,7 @@ import aioxmpp.im.service
 
 from aioxmpp.utils import namespaces
 
+from . import self_ping
 from . import xso as muc_xso
 
 
@@ -844,6 +845,13 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self._service_member = ServiceMember(mucjid)
         self.muc_autorejoin = False
         self.muc_password = None
+        self._monitor = self_ping.MUCMonitor(
+            mucjid,
+            service.client,
+            self._monitor_stale,
+            self._monitor_fresh,
+            self._monitor_exited,
+        )
 
     @property
     def service(self):
@@ -974,6 +982,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self._history_replay_occupants.clear()
 
     def _suspend(self):
+        self._monitor.disable()
         self.on_muc_suspend()
         self._active = False
         self._state = RoomState.DISCONNECTED
@@ -982,6 +991,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
     def _disconnect(self):
         if not self._joined:
             return
+        self._monitor.disable()
         self.on_exit(
             muc_leave_mode=LeaveMode.DISCONNECTED
         )
@@ -996,6 +1006,15 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self._active = False
         self._state = RoomState.JOIN_PRESENCE
         self.on_muc_resume()
+
+    def _monitor_stale(self):
+        self.on_muc_stale()
+
+    def _monitor_fresh(self):
+        self.on_muc_fresh()
+
+    def _monitor_exited(self):
+        self._disconnect()
 
     def _match_tracker(self, message):
         try:
@@ -1057,6 +1076,9 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self._service.logger.debug("%s: inbound message %r",
                                    self._mucjid,
                                    message)
+
+        self._monitor.enable()
+        self._monitor.reset()
 
         if self._state == RoomState.HISTORY and not message.xep0203_delay:
             # WORKAROUND: prosody#1053; AFFECTS: <= 0.9.12, <= 0.10
@@ -1272,6 +1294,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                                        self._mucjid,
                                        reason)
             existing.update(info)
+            self._monitor.disable()
             self.on_exit(muc_leave_mode=mode,
                          muc_actor=actor,
                          muc_reason=reason,
@@ -1283,6 +1306,9 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self._service.logger.debug("%s: inbound muc user presence %r",
                                    self._mucjid,
                                    stanza)
+
+        self._monitor.enable()
+        self._monitor.reset()
 
         if stanza.from_.is_bare:
             self._service.logger.debug(

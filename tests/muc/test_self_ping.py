@@ -886,3 +886,28 @@ class TestMUCMonitor(unittest.TestCase):
         self.m.ping_interval = unittest.mock.sentinel.foo
 
         self.assertEqual(self.pinger.ping_interval, unittest.mock.sentinel.foo)
+
+    def test_enable_does_not_modify_state_if_already_enabled(self):
+        self.m.enable()
+        self.m._mark_stale()
+        self.assertTrue(self.m.is_stale)
+
+        with unittest.mock.patch.object(self.m,
+                                        "_enable_monitor") as _enable_monitor:
+            self.m.enable()
+
+        _enable_monitor.assert_not_called()
+        self.assertTrue(self.m.is_stale)
+
+    def test_enable_modifies_state_after_disable(self):
+        self.m.enable()
+        self.m._mark_stale()
+        self.m.disable()
+        self.assertTrue(self.m.is_stale)
+
+        with unittest.mock.patch.object(self.m,
+                                        "_enable_monitor") as _enable_monitor:
+            self.m.enable()
+
+        _enable_monitor.assert_called_once_with()
+        self.assertFalse(self.m.is_stale)

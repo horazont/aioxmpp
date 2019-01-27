@@ -36,6 +36,7 @@ import aioxmpp.im.dispatcher as im_dispatcher
 import aioxmpp.im.service as im_service
 import aioxmpp.im.p2p as im_p2p
 import aioxmpp.misc
+import aioxmpp.muc.self_ping as muc_self_ping
 import aioxmpp.muc.service as muc_service
 import aioxmpp.muc.xso as muc_xso
 import aioxmpp.service as service
@@ -604,7 +605,23 @@ class TestRoom(unittest.TestCase):
             aioxmpp.tracking.BasicTrackingService
         ] = self.base.tracking_service
 
-        self.jmuc = muc_service.Room(self.base.service, self.mucjid)
+        self.monitor = unittest.mock.Mock(spec=muc_self_ping.MUCMonitor)
+
+        with contextlib.ExitStack() as stack:
+            MUCMonitor = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.muc.self_ping.MUCMonitor",
+                return_value=self.monitor,
+            ))
+
+            self.jmuc = muc_service.Room(self.base.service, self.mucjid)
+
+        MUCMonitor.assert_called_once_with(
+            self.mucjid,
+            self.base.service.client,
+            self.jmuc._monitor_stale,
+            self.jmuc._monitor_fresh,
+            self.jmuc._monitor_exited,
+        )
 
         for ev in ["on_enter", "on_exit", "on_muc_suspend", "on_muc_resume",
                    "on_message", "on_topic_changed",
@@ -672,12 +689,21 @@ class TestRoom(unittest.TestCase):
             self.jmuc.on_muc_resume,
             aioxmpp.callbacks.AdHocSignal
         )
+        self.assertIsInstance(
+            self.jmuc.on_muc_stale,
+            aioxmpp.callbacks.AdHocSignal,
+        )
+        self.assertIsInstance(
+            self.jmuc.on_muc_fresh,
+            aioxmpp.callbacks.AdHocSignal,
+        )
 
     def test_init(self):
         self.assertIs(self.jmuc.service, self.base.service)
         self.assertEqual(self.jmuc.jid, self.mucjid)
         self.assertDictEqual(self.jmuc.muc_subject, {})
-        self.assertIsInstance(self.jmuc.muc_subject, aioxmpp.structs.LanguageMap)
+        self.assertIsInstance(self.jmuc.muc_subject,
+                              aioxmpp.structs.LanguageMap)
         self.assertFalse(self.jmuc.muc_joined)
         self.assertFalse(self.jmuc.muc_active)
         self.assertIsNone(self.jmuc.muc_subject_setter)
@@ -4596,6 +4622,112 @@ class TestRoom(unittest.TestCase):
 
         self.assertEqual(invite.to, TEST_ENTITY_JID)
         self.assertEqual(invite.reason, "some text")
+
+    def test_monitor_is_not_enabled_right_away(self):
+        self.monitor.enable.assert_not_called()
+
+    def test__inbound_muc_user_presence_enables_and_resets_monitor(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="firstwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant")
+            ]
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.monitor.enable.assert_called_once_with()
+        self.monitor.reset.assert_called_once_with()
+
+    def test__handle_message_enables_and_resets_monitor(self):
+        msg = aioxmpp.stanza.Message(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+            type_=aioxmpp.structs.MessageType.GROUPCHAT,
+        )
+        msg.body.update({
+            None: "foo"
+        })
+
+        self.jmuc._handle_message(msg,
+                                  unittest.mock.sentinel.peer,
+                                  False,
+                                  im_dispatcher.MessageSource.STREAM)
+
+        self.monitor.enable.assert_called_once_with()
+        self.monitor.reset.assert_called_once_with()
+
+    def test__suspend_disables_monitor(self):
+        self.jmuc._suspend()
+
+        self.monitor.disable.assert_called_once_with()
+
+    def test__disconnect_disables_monitor(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.jmuc._disconnect()
+
+        self.monitor.disable.assert_called_once_with()
+
+    def test__inbound_muc_user_presence_disables_monitor_on_unavailable_self_presence(self):  # NOQA
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            status_codes={110},
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="none"),
+            ]
+        )
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.monitor.disable.assert_called_once_with()
+
+    def test__monitor_stale_emits_on_stale(self):
+        self.jmuc._monitor_stale()
+
+        self.listener.on_muc_stale.assert_called_once_with()
+
+    def test__monitor_fresh_emits__on_fresh(self):
+        self.jmuc._monitor_fresh()
+
+        self.listener.on_muc_fresh.assert_called_once_with
+
+    def test__monitor_exited_calls__disconnect(self):
+        with unittest.mock.patch.object(
+                self.jmuc, "_disconnect") as _disconnect:
+            self.jmuc._monitor_exited()
+
+        _disconnect.assert_called_once_with()
 
 
 class TestService(unittest.TestCase):
