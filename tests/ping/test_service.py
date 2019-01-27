@@ -19,6 +19,7 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import asyncio
 import unittest
 
 import aioxmpp.disco
@@ -168,3 +169,27 @@ class Testping(unittest.TestCase):
             run_coroutine(ping_service.ping(self.cc, TEST_PEER))
 
         self.assertIs(ctx.exception, exc)
+
+    def test_ping_propagates_cancel_to_send(self):
+        fut = asyncio.Future()
+
+        # no CoroutineMock here, we fake the coroutine using a future
+        self.cc.send = unittest.mock.Mock()
+        self.cc.send.return_value = fut
+
+        task = asyncio.ensure_future(ping_service.ping(
+            self.cc,
+            TEST_PEER,
+        ))
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.cc.send.assert_called_once_with(unittest.mock.ANY)
+        self.assertFalse(task.done())
+
+        task.cancel()
+
+        with self.assertRaises(asyncio.CancelledError):
+            run_coroutine(task)
+
+        self.assertTrue(fut.cancelled())
