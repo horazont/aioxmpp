@@ -2154,6 +2154,8 @@ class TestClient(xmltestutils.XMLTestCase):
             yield from self.client.established_event.wait()
             yield from self.client.enqueue(iq)
 
+        self.assertFalse(self.client.suspended)
+
         run_coroutine_with_peer(
             stimulus(),
             self.xmlstream.run_test(
@@ -2174,6 +2176,7 @@ class TestClient(xmltestutils.XMLTestCase):
             unittest.mock.ANY,
         )
         self.listener.on_stream_resumed.assert_not_called()
+        self.assertTrue(self.client.suspended)
 
         run_coroutine(
             self.xmlstream.run_test(
@@ -2184,6 +2187,7 @@ class TestClient(xmltestutils.XMLTestCase):
         run_coroutine(asyncio.sleep(0.015))
 
         self.listener.on_stream_resumed.assert_called_once_with()
+        self.assertFalse(self.client.suspended)
 
         self.assertTrue(self.client.running)
         # the client has not failed

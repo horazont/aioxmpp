@@ -195,6 +195,7 @@ class ConnectedClientMock(unittest.mock.Mock):
         ])
 
         self.established = True
+        self.suspended = False
 
         self.stream_features = nonza.StreamFeatures()
         self.stream.on_message_received = callbacks.AdHocSignal()

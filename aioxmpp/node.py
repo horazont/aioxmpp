@@ -562,6 +562,8 @@ class Client:
         While this event is cleared, :meth:`enqueue` fails with
         :class:`ConnectionError` and :meth:`send` blocks.
 
+    .. autoattribute:: suspended
+
     .. autoattribute:: local_jid
 
     .. attribute:: stream
@@ -1153,6 +1155,16 @@ class Client:
         :attr:`on_stream_established`) and false otherwise.
         """
         return self.established_event.is_set()
+
+    @property
+    def suspended(self):
+        """
+        true if the stream is currently suspended (see
+        :meth:`on_stream_suspended`)
+
+        .. versionadded:: 0.11
+        """
+        return self._is_suspended
 
     @property
     def resumption_timeout(self):
