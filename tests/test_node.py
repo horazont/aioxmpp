@@ -2224,7 +2224,7 @@ class TestClient(xmltestutils.XMLTestCase):
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(1.0))
+        run_coroutine(asyncio.sleep(1.0), timeout=1.1)
 
         self.assertSequenceEqual(
             [call]*5,
