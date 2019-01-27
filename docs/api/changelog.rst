@@ -113,6 +113,8 @@ Version 0.11
 
 * Extract :func:`aioxmpp.ping.ping` from :meth:`aioxmpp.PingService.ping`.
 
+* :meth:`aioxmpp.Client.on_stream_resumed`
+
 .. _api-changelog-0.10:
 
 Version 0.10
