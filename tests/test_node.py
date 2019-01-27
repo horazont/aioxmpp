@@ -1,4 +1,3 @@
-
 ########################################################################
 # File name: test_node.py
 # This file is part of: aioxmpp
