@@ -610,7 +610,7 @@ class TestRoom(unittest.TestCase):
                    "on_message", "on_topic_changed",
                    "on_join", "on_presence_changed", "on_nick_changed",
                    "on_muc_role_changed", "on_muc_affiliation_changed",
-                   "on_leave", "on_muc_enter"]:
+                   "on_leave", "on_muc_enter", "on_muc_stale", "on_muc_fresh"]:
             cb = getattr(self.base, ev)
             cb.return_value = None
             getattr(self.jmuc, ev).connect(cb)
