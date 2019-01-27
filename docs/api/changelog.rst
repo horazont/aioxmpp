@@ -115,6 +115,31 @@ Version 0.11
 
 * :meth:`aioxmpp.Client.on_stream_resumed`
 
+* Implement support for :xep:`410` (MUC Self-Ping (Schrödinger’s Chat)).
+
+  This introduces two new signals to :class:`aioxmpp.muc.Room` objects:
+
+  - :meth:`~aioxmpp.muc.Room.on_muc_stale`: Emits when a possible connectivity
+    issue with the MUC is detected, but it is unclear whether the user is still
+    joined or not and/or whether messages are being lost.
+
+  - :meth:`~aioxmpp.muc.Room.on_muc_fresh`: Emits when a possible connectivity
+    issue with the MUC is detected as resolved and the user is still joined.
+    Presence may be out-of-sync and messages may have been lost, however.
+
+  If a connectivity issue which has caused the user to be removed from the MUC
+  is detected, the appropriate signals (with
+  :attr:`aioxmpp.muc.LeaveMode.DISCONNECTED`) are emitted, *or* the room is
+  automatically re-joined if it is set to
+  :attr:`~aioxmpp.muc.Room.muc_autorejoin` (no history is requested on this
+  rejoin).
+
+  In addition to that, the :meth:`aioxmpp.MUCClient.cycle` method has been
+  introduced. It allows an application to leave and join a MUC in quick
+  succession using without discarding the :class:`aioxmpp.muc.Room` object
+  (just like a stream disconnect would). This is useful to deal with stale
+  situations by forcing a resync.
+
 .. _api-changelog-0.10:
 
 Version 0.10
