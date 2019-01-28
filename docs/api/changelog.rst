@@ -140,6 +140,8 @@ Version 0.11
   (just like a stream disconnect would). This is useful to deal with stale
   situations by forcing a resync.
 
+* :class:`aioxmpp.utils.proxy_property`
+
 .. _api-changelog-0.10:
 
 Version 0.10

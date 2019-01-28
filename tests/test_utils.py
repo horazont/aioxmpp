@@ -749,3 +749,56 @@ class TestAlivenessMonitor(unittest.TestCase):
 
         run_coroutine(asyncio.sleep((dt*1.1).total_seconds()))
         self.listener.on_deadtime_hard_limit_tripped.assert_called_once_with()
+
+
+class Testproxy_property(unittest.TestCase):
+    def setUp(self):
+        self.obj = unittest.mock.Mock(["member"])
+        self.obj.member = unittest.mock.Mock(["attr"])
+        self.pp = utils.proxy_property("member", "attr")
+
+    def test_forwards_reads(self):
+        self.assertEqual(
+            self.pp.__get__(self.obj, unittest.mock.sentinel.type_),
+            self.obj.member.attr
+        )
+
+    def test_forwards_writes(self):
+        self.obj.member.attr = unittest.mock.sentinel.old_value
+
+        self.pp.__set__(self.obj, unittest.mock.sentinel.value)
+
+        self.assertEqual(
+            self.obj.member.attr,
+            unittest.mock.sentinel.value,
+        )
+
+    def test_rejects_deletes_by_default(self):
+        self.assertTrue(hasattr(self.obj.member, "attr"))
+
+        with self.assertRaisesRegex(AttributeError, "can't delete attribute"):
+            self.pp.__delete__(self.obj)
+
+        self.assertTrue(hasattr(self.obj.member, "attr"))
+
+    def test_rejects_writes_if_readonly(self):
+        self.obj.member.attr = unittest.mock.sentinel.old_value
+
+        pp = utils.proxy_property("member", "attr", readonly=True)
+
+        with self.assertRaisesRegex(AttributeError, "can't set attribute"):
+            pp.__set__(self.obj, unittest.mock.sentinel.value)
+
+        self.assertEqual(
+            self.obj.member.attr,
+            unittest.mock.sentinel.old_value
+        )
+
+    def test_forwards_delete_if_enabled(self):
+        self.assertTrue(hasattr(self.obj.member, "attr"))
+
+        pp = utils.proxy_property("member", "attr", allow_delete=True)
+
+        pp.__delete__(self.obj)
+
+        self.assertFalse(hasattr(self.obj.member, "attr"))
