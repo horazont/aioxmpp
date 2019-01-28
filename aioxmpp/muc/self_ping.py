@@ -310,29 +310,20 @@ class MUCMonitor:
         if self._monitor_enabled:
             self._monitor.deadtime_hard_limit = new_value
 
-    @property
-    def ping_address(self) -> aioxmpp.structs.JID:
-        return self._pinger.ping_address
+    ping_address = aioxmpp.utils.proxy_property(
+        "_pinger",
+        "ping_address",
+    )
 
-    @ping_address.setter
-    def ping_address(self, new_address: aioxmpp.structs.JID):
-        self._pinger.ping_address = new_address
+    ping_timeout = aioxmpp.utils.proxy_property(
+        "_pinger",
+        "ping_timeout",
+    )
 
-    @property
-    def ping_timeout(self) -> timedelta:
-        return self._pinger.ping_timeout
-
-    @ping_timeout.setter
-    def ping_timeout(self, new_timeout: timedelta):
-        self._pinger.ping_timeout = new_timeout
-
-    @property
-    def ping_interval(self) -> timedelta:
-        return self._pinger.ping_interval
-
-    @ping_interval.setter
-    def ping_interval(self, new_interval: timedelta):
-        self._pinger.ping_interval = new_interval
+    ping_interval = aioxmpp.utils.proxy_property(
+        "_pinger",
+        "ping_interval",
+    )
 
     def enable(self):
         """
