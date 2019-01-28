@@ -814,6 +814,60 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
             The `status_codes` argument was added.
 
+    Timeout control:
+
+    .. seealso::
+
+        :ref:`api-aioxmpp.muc-self-ping-logic`
+
+    .. attribute:: muc_soft_timeout
+
+        The soft timeout of the MUC aliveness timeout logic as
+        :class:`datetime.timedelta`.
+
+        .. versionadded:: 0.11
+
+    .. attribute:: muc_hard_timeout
+
+        The hard timeout of the MUC aliveness timeout logic as
+        :class:`datetime.timedelta`.
+
+        .. versionadded:: 0.11
+
+    .. attribute:: muc_ping_interval
+
+        The interval at which pings are sent after the soft timeout expires as
+        :class:`datetime.timedelta`.
+
+        .. warning::
+
+            Please see the notes on :attr:`muc_ping_timeout`
+            when changing the value of :attr:`muc_ping_timeout` or
+            :attr:`muc_ping_interval`.
+
+        .. versionadded:: 0.11
+
+    .. attribute:: muc_ping_timeout
+
+        The maximum time to wait for a ping reply for each individual ping as
+        :class:`datetime.timedelta`.
+
+        .. warning::
+
+            Pings are continued to be sent even when other pings are already
+            in-flight. This means that up to
+            ``math.ceil(muc_ping_timeout / muc_ping_interval)`` pings are
+            in-flight at the same time. Each ping which is in-flight
+            unfortunately requires a small amount of memory and an entry in a
+            map which associates the stanza ID with the handler/future for the
+            reply.
+
+        .. versionadded:: 0.11
+
+    .. seealso::
+
+        :ref:`api-aioxmpp.muc-self-ping-logic`
+
     """
     # this occupant state events
     on_muc_suspend = aioxmpp.callbacks.Signal()
