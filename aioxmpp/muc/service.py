@@ -37,6 +37,7 @@ import aioxmpp.im.conversation
 import aioxmpp.im.dispatcher
 import aioxmpp.im.p2p
 import aioxmpp.im.service
+import aioxmpp.utils
 
 from aioxmpp.utils import namespaces
 
@@ -976,6 +977,26 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             aioxmpp.im.conversation.ConversationFeature.INVITE,
             aioxmpp.im.conversation.ConversationFeature.INVITE_DIRECT,
         }
+
+    muc_soft_timeout = aioxmpp.utils.proxy_property(
+        "_monitor",
+        "soft_timeout",
+    )
+
+    muc_hard_timeout = aioxmpp.utils.proxy_property(
+        "_monitor",
+        "hard_timeout",
+    )
+
+    muc_ping_timeout = aioxmpp.utils.proxy_property(
+        "_monitor",
+        "ping_timeout",
+    )
+
+    muc_ping_interval = aioxmpp.utils.proxy_property(
+        "_monitor",
+        "ping_interval",
+    )
 
     def _enter_active_state(self):
         self._state = RoomState.ACTIVE
