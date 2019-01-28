@@ -615,6 +615,14 @@ class TestMUCPinger(unittest.TestCase):
                 if i == 1:
                     self.cc.suspended = False
 
+    def test_rejects_float_for_ping_interval(self):
+        with self.assertRaises(TypeError):
+            self.p.ping_interval = 1.
+
+    def test_rejects_float_for_ping_timeout(self):
+        with self.assertRaises(TypeError):
+            self.p.ping_timeout = 1.
+
 
 class TestMUCMonitor(unittest.TestCase):
     def setUp(self):
@@ -755,8 +763,8 @@ class TestMUCMonitor(unittest.TestCase):
         self.listener.on_fresh.assert_called_once_with()
 
     def test__enable_monitor_notifies_and_configures_monitor(self):
-        self.m.soft_timeout = unittest.mock.sentinel.soft_timeout
-        self.m.hard_timeout = unittest.mock.sentinel.hard_timeout
+        self.m.soft_timeout = timedelta(seconds=2)
+        self.m.hard_timeout = timedelta(seconds=5)
 
         # the timeouts must not be set before notify_received to prevent
         # spurious triggers
@@ -773,8 +781,8 @@ class TestMUCMonitor(unittest.TestCase):
         self.assertEqual(self.monitor.deadtime_hard_limit, self.m.hard_timeout)
 
     def test__disable_monitor_notifies_and_deconfigures_monitor(self):
-        self.m.soft_timeout = unittest.mock.sentinel.soft_timeout
-        self.m.hard_timeout = unittest.mock.sentinel.hard_timeout
+        self.m.soft_timeout = timedelta(seconds=2)
+        self.m.hard_timeout = timedelta(seconds=5)
         self.m._enable_monitor()
         self.monitor.notify_received.reset_mock()
 
@@ -881,33 +889,33 @@ class TestMUCMonitor(unittest.TestCase):
         self.pinger.stop.assert_called_once_with()
 
     def test_does_not_forward_timeout_writes_to_monitor_when_disabled(self):
-        self.m.soft_timeout = unittest.mock.sentinel.soft_timeout
-        self.m.hard_timeout = unittest.mock.sentinel.hard_timeout
+        self.m.soft_timeout = timedelta(seconds=2)
+        self.m.hard_timeout = timedelta(seconds=5)
 
         self.assertIsNone(self.monitor.deadtime_soft_limit)
         self.assertIsNone(self.monitor.deadtime_hard_limit)
 
     def test_writes_to_timeouts_can_be_read_immediately(self):
-        self.m.soft_timeout = unittest.mock.sentinel.soft_timeout
+        self.m.soft_timeout = timedelta(seconds=2)
 
         self.assertEqual(self.m.soft_timeout,
-                         unittest.mock.sentinel.soft_timeout)
+                         timedelta(seconds=2))
 
     def test_forwards_timeout_writes_to_monitor_when_enabled(self):
         self.m._enable_monitor()
 
         self.assertNotEqual(self.monitor.deadtime_soft_limit,
-                            unittest.mock.sentinel.soft_timeout)
+                            timedelta(seconds=2))
         self.assertNotEqual(self.monitor.deadtime_hard_limit,
-                            unittest.mock.sentinel.hard_timeout)
+                            timedelta(seconds=5))
 
-        self.m.soft_timeout = unittest.mock.sentinel.soft_timeout
-        self.m.hard_timeout = unittest.mock.sentinel.hard_timeout
+        self.m.soft_timeout = timedelta(seconds=2)
+        self.m.hard_timeout = timedelta(seconds=5)
 
         self.assertEqual(self.monitor.deadtime_soft_limit,
-                         unittest.mock.sentinel.soft_timeout)
+                         timedelta(seconds=2))
         self.assertEqual(self.monitor.deadtime_hard_limit,
-                         unittest.mock.sentinel.hard_timeout)
+                         timedelta(seconds=5))
 
     def test_forwards_ping_address_writes_to_pinger(self):
         self.m.ping_address = unittest.mock.sentinel.foo
@@ -948,3 +956,11 @@ class TestMUCMonitor(unittest.TestCase):
 
         _enable_monitor.assert_called_once_with()
         self.assertFalse(self.m.is_stale)
+
+    def test_rejects_float_for_soft_timeout(self):
+        with self.assertRaises(TypeError):
+            self.m.soft_timeout = 1.
+
+    def test_rejects_float_for_hard_timeout(self):
+        with self.assertRaises(TypeError):
+            self.m.hard_timeout = 1.

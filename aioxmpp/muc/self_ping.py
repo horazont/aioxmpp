@@ -71,8 +71,25 @@ class MUCPinger:
         This can be changed while the pinger is running. Changes take effect
         when the next ping is sent. Already in-flight pings are not affected.
 
-    .. attribute:: ping_interval
+    .. autoattribute:: ping_interval
 
+    .. autoattribute:: ping_timeout
+    """
+
+    def __init__(self, ping_address, client, on_fresh, on_exited, loop):
+        super().__init__()
+        self.ping_address = ping_address
+        self._ping_interval = timedelta(minutes=2)
+        self._ping_timeout = timedelta(minutes=8)
+        self._client = client
+        self._on_fresh = on_fresh
+        self._on_exited = on_exited
+        self._loop = loop
+        self._task = None
+
+    @property
+    def ping_interval(self) -> timedelta:
+        """
         The interval at which pings are sent.
 
         While the pinger is running, every `ping_interval` a new ping is
@@ -82,25 +99,28 @@ class MUCPinger:
         Thus, if the :attr:`ping_interval` was set to one day and is then
         changed to one minute, it takes up to a day until the one minute
         interval starts being used.
+        """
+        return self._ping_interval
 
-    .. attribute:: ping_timeout
+    @ping_interval.setter
+    def ping_interval(self, value: timedelta):
+        # cheap & duck-typey enforcement of timedelta compatibility
+        self._ping_interval = value + timedelta()
 
+    @property
+    def ping_timeout(self) -> timedelta:
+        """
         The maximum time to wait for a reply to a ping.
 
         Each ping sent by the pinger has its individual timeout, based on this
         property at the time the ping is sent.
-    """
+        """
+        return self._ping_timeout
 
-    def __init__(self, ping_address, client, on_fresh, on_exited, loop):
-        super().__init__()
-        self.ping_address = ping_address
-        self.ping_interval = timedelta(minutes=2)
-        self.ping_timeout = timedelta(minutes=8)
-        self._client = client
-        self._on_fresh = on_fresh
-        self._on_exited = on_exited
-        self._loop = loop
-        self._task = None
+    @ping_timeout.setter
+    def ping_timeout(self, value: timedelta):
+        # cheap & duck-typey enforcement of timedelta compatibility
+        self._ping_timeout = value + timedelta()
 
     def start(self):
         """
@@ -296,7 +316,8 @@ class MUCMonitor:
 
     @soft_timeout.setter
     def soft_timeout(self, new_value: timedelta):
-        self._soft_timeout = new_value
+        # cheap & duck-typey enforcement of timedelta compatibility
+        self._soft_timeout = new_value + timedelta()
         if self._monitor_enabled:
             self._monitor.deadtime_soft_limit = new_value
 
@@ -306,7 +327,8 @@ class MUCMonitor:
 
     @hard_timeout.setter
     def hard_timeout(self, new_value: timedelta):
-        self._hard_timeout = new_value
+        # cheap & duck-typey enforcement of timedelta compatibility
+        self._hard_timeout = new_value + timedelta()
         if self._monitor_enabled:
             self._monitor.deadtime_hard_limit = new_value
 
