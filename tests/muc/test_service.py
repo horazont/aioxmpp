@@ -4746,6 +4746,57 @@ class TestRoom(unittest.TestCase):
 
         self.base.service._cycle.assert_called_once_with(self.jmuc)
 
+    def test_self_presence_updates__monitor_ping_address(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.assertEqual(
+            self.monitor.ping_address,
+            presence.from_,
+        )
+
+    def test_self_presence_updates__monitor_ping_address_always(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="fnord")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.assertEqual(
+            self.monitor.ping_address,
+            presence.from_,
+        )
+
 
 class TestService(unittest.TestCase):
     def test_is_service(self):

@@ -1254,6 +1254,8 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
     def _handle_self_presence(self, stanza):
         info = Occupant.from_presence(stanza, True)
 
+        self._monitor.ping_address = stanza.from_
+
         if not self._active:
             if stanza.type_ == aioxmpp.structs.PresenceType.UNAVAILABLE:
                 self._service.logger.debug(
