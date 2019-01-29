@@ -540,18 +540,22 @@ class AlivenessMonitor:
 def proxy_property(owner_attr, member_attr, *,
                    readonly=False,
                    allow_delete=False):
+    ga = getattr
+    sa = setattr
+    da = delattr
+
     def getter(instance):
-        return getattr(getattr(instance, owner_attr), member_attr)
+        return ga(ga(instance, owner_attr), member_attr)
 
     if readonly:
         setter = None
     else:
         def setter(instance, value):
-            return setattr(getattr(instance, owner_attr), member_attr, value)
+            return sa(ga(instance, owner_attr), member_attr, value)
 
     if allow_delete:
         def deleter(instance):
-            delattr(getattr(instance, owner_attr), member_attr)
+            da(ga(instance, owner_attr), member_attr)
     else:
         deleter = None
 
