@@ -537,28 +537,26 @@ class AlivenessMonitor:
         self._retrigger_timers()
 
 
-class proxy_property:
-    def __init__(self, owner_attr, member_attr, *,
-                 readonly=False,
-                 allow_delete=False):
-        super().__init__()
-        self.__readonly = readonly
-        self.__allow_delete = allow_delete
-        self.__owner_attr = owner_attr
-        self.__member_attr = member_attr
+def proxy_property(owner_attr, member_attr, *,
+                   readonly=False,
+                   allow_delete=False):
+    def getter(instance):
+        return getattr(getattr(instance, owner_attr), member_attr)
 
-    def __get__(self, instance, owner):
-        return getattr(getattr(instance, self.__owner_attr),
-                       self.__member_attr)
+    if readonly:
+        setter = None
+    else:
+        def setter(instance, value):
+            return setattr(getattr(instance, owner_attr), member_attr, value)
 
-    def __set__(self, instance, value):
-        if self.__readonly:
-            raise AttributeError("can't set attribute")
+    if allow_delete:
+        def deleter(instance):
+            delattr(getattr(instance, owner_attr), member_attr)
+    else:
+        deleter = None
 
-        setattr(getattr(instance, self.__owner_attr), self.__member_attr, value)
-
-    def __delete__(self, instance):
-        if not self.__allow_delete:
-            raise AttributeError("can't delete attribute")
-
-        delattr(getattr(instance, self.__owner_attr), self.__member_attr)
+    return property(
+        getter,
+        setter,
+        deleter,
+    )
