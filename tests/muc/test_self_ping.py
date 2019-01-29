@@ -21,6 +21,7 @@
 ########################################################################
 import asyncio
 import contextlib
+import random
 import unittest
 import unittest.mock
 
@@ -39,6 +40,42 @@ from aioxmpp.testutils import (
 )
 
 
+class Test_apply_jitter(unittest.TestCase):
+    def test_uses_and_scales_random_upper_end(self):
+        v = random.random() * 100
+
+        with contextlib.ExitStack() as stack:
+            random_ = stack.enter_context(unittest.mock.patch(
+                "random.random"
+            ))
+
+            random_.return_value = 1.
+
+            result = self_ping._apply_jitter(
+                v,
+                0.2,
+            )
+
+        self.assertEqual(result, v * 1.2)
+
+    def test_uses_and_scales_random_lower_end(self):
+        v = random.random() * 100
+
+        with contextlib.ExitStack() as stack:
+            random_ = stack.enter_context(unittest.mock.patch(
+                "random.random"
+            ))
+
+            random_.return_value = 0.
+
+            result = self_ping._apply_jitter(
+                v,
+                0.2,
+            )
+
+        self.assertEqual(result, v * 0.8)
+
+
 class TestMUCPinger(unittest.TestCase):
     def setUp(self):
         self.cc = make_connected_client()
@@ -52,8 +89,20 @@ class TestMUCPinger(unittest.TestCase):
             self.loop,
         )
 
+        def no_jitter(v, amplitude):
+            return v
+
+        self.jitter_mock = unittest.mock.Mock(side_effect=no_jitter)
+
+        self.jitter_patch = unittest.mock.patch(
+            "aioxmpp.muc.self_ping._apply_jitter",
+            new=self.jitter_mock,
+        )
+        self.jitter_patch.start()
+
     def tearDown(self):
         self.p.stop()
+        self.jitter_patch.stop()
         del self.p
 
     def _require_task_running(self):
@@ -203,6 +252,39 @@ class TestMUCPinger(unittest.TestCase):
                 )
                 ping.reset_mock()
                 run_coroutine(asyncio.sleep(timeout))
+
+    def test_pinger_uses_jitter_to_calculate_next(self):
+        timeout = get_timeout(0.1)
+
+        self.p.ping_interval = timedelta(seconds=timeout)
+        self.jitter_mock.return_value = timeout*2
+        self.jitter_mock.side_effect = None
+
+        with contextlib.ExitStack() as stack:
+            ping = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.ping.ping",
+                new=CoroutineMock(),
+            ))
+
+            self.p.start()
+
+            run_coroutine(asyncio.sleep(timeout / 2))
+
+            self._require_task_running()
+            ping.assert_called_once_with(
+                self.cc,
+                unittest.mock.sentinel.ping_address
+            )
+            ping.reset_mock()
+
+            run_coroutine(asyncio.sleep(timeout * 2))
+
+            self._require_task_running()
+            ping.assert_called_once_with(
+                self.cc,
+                unittest.mock.sentinel.ping_address
+            )
+            ping.reset_mock()
 
     def test_pinger_cancels_after_ping_timeout(self):
         interval = get_timeout(0.1)

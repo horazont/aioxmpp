@@ -20,6 +20,7 @@
 #
 ########################################################################
 import asyncio
+import random
 import time
 
 from datetime import timedelta
@@ -29,6 +30,10 @@ import aioxmpp.ping
 import aioxmpp.stream
 import aioxmpp.structs
 import aioxmpp.utils
+
+
+def _apply_jitter(v, amplitude):
+    return v * ((random.random() * 2 - 1) * amplitude + 1)
 
 
 class MUCPinger:
@@ -184,16 +189,16 @@ class MUCPinger:
     @asyncio.coroutine
     def _pinger(self):
         in_flight = []
-        last_ping_at = None
+        next_ping_at = None
         try:
             while True:
                 now = time.monotonic()
 
                 ping_interval = self.ping_interval.total_seconds()
-                if last_ping_at is None:
-                    timeout = 0
-                else:
-                    timeout = ping_interval - (now - last_ping_at)
+                if next_ping_at is None:
+                    next_ping_at = now - 1
+
+                timeout = next_ping_at - now
 
                 if timeout <= 0:
                     # do not send pings while the client is in suspended state
@@ -208,7 +213,7 @@ class MUCPinger:
                                 self.ping_timeout.total_seconds()
                             )
                         ))
-                    last_ping_at = now
+                    next_ping_at = now + _apply_jitter(ping_interval, 0.1)
                     timeout = ping_interval
 
                 assert timeout > 0
