@@ -19,6 +19,7 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import asyncio
 import unittest
 
 import aioxmpp.disco
@@ -30,6 +31,7 @@ import aioxmpp.ping.xso as ping_xso
 from aioxmpp.testutils import (
     make_connected_client,
     run_coroutine,
+    CoroutineMock,
 )
 
 
@@ -60,33 +62,22 @@ class TestService(unittest.TestCase):
             "urn:xmpp:ping",
         )
 
-    def test_ping_sends_ping(self):
-        self.cc.send.return_value = ping_xso.Ping()
+    def test_ping_uses_global_ping(self):
+        with unittest.mock.patch(
+                "aioxmpp.ping.service.ping",
+                new=CoroutineMock()) as ping:
+            ping.return_value = unittest.mock.sentinel.result
 
-        run_coroutine(self.s.ping(TEST_PEER))
+            result = run_coroutine(self.s.ping(unittest.mock.sentinel.peer))
 
-        self.cc.send.assert_called_once_with(unittest.mock.ANY)
-
-        _, (iq, ), _ = self.cc.send.mock_calls[0]
-
-        self.assertIsInstance(
-            iq,
-            aioxmpp.IQ,
+        ping.assert_called_once_with(
+            self.cc,
+            unittest.mock.sentinel.peer,
         )
 
         self.assertEqual(
-            iq.to,
-            TEST_PEER,
-        )
-
-        self.assertEqual(
-            iq.type_,
-            aioxmpp.IQType.GET,
-        )
-
-        self.assertIsInstance(
-            iq.payload,
-            ping_xso.Ping,
+            result,
+            unittest.mock.sentinel.result,
         )
 
     def test_ping_reraises_random_errors_from_send(self):
@@ -123,3 +114,82 @@ class TestService(unittest.TestCase):
         ))
 
         self.assertIsInstance(result, ping_xso.Ping)
+
+
+class Testping(unittest.TestCase):
+    def setUp(self):
+        self.cc = make_connected_client()
+
+    def test_ping_sends_ping(self):
+        self.cc.send.return_value = ping_xso.Ping()
+
+        run_coroutine(ping_service.ping(self.cc, TEST_PEER))
+
+        self.cc.send.assert_called_once_with(unittest.mock.ANY)
+
+        _, (iq, ), _ = self.cc.send.mock_calls[0]
+
+        self.assertIsInstance(
+            iq,
+            aioxmpp.IQ,
+        )
+
+        self.assertEqual(
+            iq.to,
+            TEST_PEER,
+        )
+
+        self.assertEqual(
+            iq.type_,
+            aioxmpp.IQType.GET,
+        )
+
+        self.assertIsInstance(
+            iq.payload,
+            ping_xso.Ping,
+        )
+
+    def test_ping_reraises_random_errors_from_send(self):
+        class FooException(Exception):
+            pass
+
+        self.cc.send.side_effect = FooException()
+
+        with self.assertRaises(FooException):
+            run_coroutine(ping_service.ping(self.cc, TEST_PEER))
+
+    def test_ping_reraises_XMPPErrors(self):
+        exc = aioxmpp.errors.XMPPError(
+            aioxmpp.ErrorCondition.NOT_AUTHORIZED,
+        )
+        exc.TYPE = unittest.mock.sentinel.type_
+        self.cc.send.side_effect = exc
+
+        with self.assertRaises(aioxmpp.errors.XMPPError) as ctx:
+            run_coroutine(ping_service.ping(self.cc, TEST_PEER))
+
+        self.assertIs(ctx.exception, exc)
+
+    def test_ping_propagates_cancel_to_send(self):
+        fut = asyncio.Future()
+
+        # no CoroutineMock here, we fake the coroutine using a future
+        self.cc.send = unittest.mock.Mock()
+        self.cc.send.return_value = fut
+
+        task = asyncio.ensure_future(ping_service.ping(
+            self.cc,
+            TEST_PEER,
+        ))
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.cc.send.assert_called_once_with(unittest.mock.ANY)
+        self.assertFalse(task.done())
+
+        task.cancel()
+
+        with self.assertRaises(asyncio.CancelledError):
+            run_coroutine(task)
+
+        self.assertTrue(fut.cancelled())

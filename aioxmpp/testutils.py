@@ -175,6 +175,8 @@ class FilterMock(unittest.mock.Mock):
 class ConnectedClientMock(unittest.mock.Mock):
     on_stream_established = callbacks.Signal()
     on_stream_destroyed = callbacks.Signal()
+    on_stream_suspended = callbacks.Signal()
+    on_stream_resumed = callbacks.Signal()
     on_failure = callbacks.Signal()
     on_stopped = callbacks.Signal()
 
@@ -193,6 +195,7 @@ class ConnectedClientMock(unittest.mock.Mock):
         ])
 
         self.established = True
+        self.suspended = False
 
         self.stream_features = nonza.StreamFeatures()
         self.stream.on_message_received = callbacks.AdHocSignal()

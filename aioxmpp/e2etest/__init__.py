@@ -134,13 +134,14 @@ import unittest
 
 from nose.plugins import Plugin
 
+from ..testutils import get_timeout
 from .utils import blocking
 from .provision import Quirk  # NOQA
 
 
 provisioner = None
 config = None
-timeout = 1
+timeout = get_timeout(1.0)
 
 
 def require_feature(feature_var, argname=None, *, multiple=False):

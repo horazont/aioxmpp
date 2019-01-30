@@ -24,12 +24,18 @@ import functools
 import logging
 import unittest
 
+from datetime import timedelta
+
 import aioxmpp.muc
 import aioxmpp.im
 import aioxmpp.im.p2p
 import aioxmpp.im.service
 
 from aioxmpp.utils import namespaces
+
+from aioxmpp.testutils import (
+    make_listener,
+)
 
 from aioxmpp.e2etest import (
     require_feature,
@@ -754,3 +760,21 @@ class TestMuc(TestCase):
         self.assertEqual(kwargs["reason"], "some invitation text")
         self.assertEqual(muc_address, self.firstroom.jid)
         self.assertEqual(mode, aioxmpp.im.InviteMode.MEDIATED)
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_self_ping(self):
+        service = self.thirdwitch.summon(aioxmpp.MUCClient)
+
+        thirdroom, fut = service.join(self.mucjid, "thirdwitch")
+        listener = make_listener(thirdroom)
+        thirdroom.muc_soft_timeout = timedelta(seconds=0.1)
+        thirdroom.muc_hard_timeout = timedelta(seconds=0.2)
+        thirdroom.muc_ping_interval = timedelta(seconds=0.1)
+        thirdroom.muc_ping_timeout = timedelta(seconds=0.2)
+        yield from fut
+
+        yield from asyncio.sleep(0.5)
+
+        listener.on_muc_stale.assert_not_called()
+        listener.on_muc_fresh.assert_not_called()

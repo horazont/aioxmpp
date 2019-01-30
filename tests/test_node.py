@@ -1,4 +1,3 @@
-
 ########################################################################
 # File name: test_node.py
 # This file is part of: aioxmpp
@@ -2142,6 +2141,59 @@ class TestClient(xmltestutils.XMLTestCase):
         self.assertFalse(self.failure_rec.mock_calls)
         self.assertTrue(self.client.established)
 
+    def test_reconnect_on_failure_emits_suspended_resumed_pair(self):
+        self.client.backoff_start = timedelta(seconds=0.008)
+        self.client.negotiation_timeout = timedelta(seconds=0.01)
+        self.client.start()
+
+        iq = stanza.IQ(structs.IQType.GET)
+        iq.autoset_id()
+
+        @asyncio.coroutine
+        def stimulus():
+            yield from self.client.established_event.wait()
+            yield from self.client.enqueue(iq)
+
+        self.assertFalse(self.client.suspended)
+
+        run_coroutine_with_peer(
+            stimulus(),
+            self.xmlstream.run_test(
+                self.resource_binding+[
+                    XMLStreamMock.Send(
+                        iq,
+                        response=[
+                            XMLStreamMock.Fail(
+                                exc=ConnectionError()
+                            ),
+                        ]
+                    ),
+                ]
+            )
+        )
+
+        self.listener.on_stream_suspended.assert_called_once_with(
+            unittest.mock.ANY,
+        )
+        self.listener.on_stream_resumed.assert_not_called()
+        self.assertTrue(self.client.suspended)
+
+        run_coroutine(
+            self.xmlstream.run_test(
+                self.resource_binding
+            )
+        )
+
+        run_coroutine(asyncio.sleep(0.015))
+
+        self.listener.on_stream_resumed.assert_called_once_with()
+        self.assertFalse(self.client.suspended)
+
+        self.assertTrue(self.client.running)
+        # the client has not failed
+        self.assertFalse(self.failure_rec.mock_calls)
+        self.assertTrue(self.client.established)
+
     def test_reconnect_on_failure_unbounded(self):
         self.client = node.Client(
             self.test_jid,
@@ -2225,7 +2277,7 @@ class TestClient(xmltestutils.XMLTestCase):
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(1.0))
+        run_coroutine(asyncio.sleep(1.0), timeout=1.1)
 
         self.assertSequenceEqual(
             [call]*5,

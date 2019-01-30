@@ -2643,9 +2643,10 @@ class StanzaStream:
             handler_ok,
             handler_error,
         )
+        listener_tag = (stanza.to, stanza.id_)
 
         self._iq_response_map.add_listener(
-            (stanza.to, stanza.id_),
+            listener_tag,
             listener,
         )
 
@@ -2655,16 +2656,23 @@ class StanzaStream:
             listener.cancel()
             raise
 
-        if not timeout:
-            reply = yield from fut
-        else:
+        try:
+            if not timeout:
+                reply = yield from fut
+            else:
+                try:
+                    reply = yield from asyncio.wait_for(
+                        fut,
+                        timeout=timeout
+                    )
+                except asyncio.TimeoutError:
+                    raise TimeoutError
+        finally:
             try:
-                reply = yield from asyncio.wait_for(
-                    fut,
-                    timeout=timeout
-                )
-            except asyncio.TimeoutError:
-                raise TimeoutError
+                self._iq_response_map.remove_listener(listener_tag)
+            except KeyError:
+                pass
+
         return reply
 
     @asyncio.coroutine

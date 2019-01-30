@@ -562,6 +562,8 @@ class Client:
         While this event is cleared, :meth:`enqueue` fails with
         :class:`ConnectionError` and :meth:`send` blocks.
 
+    .. autoattribute:: suspended
+
     .. autoattribute:: local_jid
 
     .. attribute:: stream
@@ -650,11 +652,30 @@ class Client:
        :meth:`on_stream_suspended` is not emitted if the stream was stopped on
        user request.
 
-       Only :meth:`on_stream_destroyed` indicates that state was actually lost
-       and that others most likely see or saw an unavailable presence broadcast
-       for the resource.
+       After :meth:`on_stream_suspended` is emitted, one of the two following
+       signals is emitted:
+
+       - :meth:`on_stream_destroyed` indicates that state was actually lost and
+         that others most likely see or saw an unavailable presence broadcast
+         for the resource.
+       - :meth:`on_stream_resumed` indicates that no state was lost and the
+         stream is fully usable again.
 
        .. versionadded:: 0.8
+
+    .. signal:: on_stream_resumed()
+
+        The stream has been resumed after it has been suspended, without loss
+        of data.
+
+        This is the counterpart to :meth:`on_stream_suspended`.
+
+        In general, this signal exists solely for informational purposes. It
+        can be used to drive a user interface which indicates that messages may
+        be delivered with delay, because the underlying network is transiently
+        interrupted.
+
+        .. versionadded:: 0.11
 
     .. signal:: on_stream_destroyed(reason=None)
 
@@ -701,6 +722,7 @@ class Client:
     on_stopped = callbacks.Signal()
     on_stream_destroyed = callbacks.Signal()
     on_stream_suspended = callbacks.Signal()
+    on_stream_resumed = callbacks.Signal()
     on_stream_established = callbacks.Signal()
 
     before_stream_established = callbacks.SyncSignal()
@@ -957,6 +979,8 @@ class Client:
                 xmlstream,
                 features)
 
+            if self._is_suspended:
+                self.on_stream_resumed()
             self._is_suspended = False
             self._backoff_time = None
 
@@ -1131,6 +1155,16 @@ class Client:
         :attr:`on_stream_established`) and false otherwise.
         """
         return self.established_event.is_set()
+
+    @property
+    def suspended(self):
+        """
+        true if the stream is currently suspended (see
+        :meth:`on_stream_suspended`)
+
+        .. versionadded:: 0.11
+        """
+        return self._is_suspended
 
     @property
     def resumption_timeout(self):
