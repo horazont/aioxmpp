@@ -307,7 +307,7 @@ class _PropBase(metaclass=PropBaseMeta):
         instance._xso_contents[self] = value
 
     def __set__(self, instance, value):
-        if     (self.default != value and
+        if (self.default != value and
                 self.validate.from_code and
                 self.validator and
                 not self.validator.validate(value)):
@@ -318,7 +318,7 @@ class _PropBase(metaclass=PropBaseMeta):
         self.__set__(instance, value)
 
     def _set_from_recv(self, instance, value):
-        if     (self.default != value and
+        if (self.default != value and
                 self.validate.from_recv and
                 self.validator and
                 not self.validator.validate(value)):
@@ -1683,7 +1683,7 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
                 continue
 
             if base.TEXT_PROPERTY is not None:
-                if     (text_property is not None and
+                if (text_property is not None and
                         base.TEXT_PROPERTY.xq_descriptor is not text_property):
                     raise TypeError("multiple text properties in inheritance")
                 text_property = base.TEXT_PROPERTY.xq_descriptor
@@ -1709,8 +1709,9 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
                         raise TypeError("ambiguous Attr properties inherited")
 
             if base.COLLECTOR_PROPERTY is not None:
-                if     (collector_property is not None and
-                        base.COLLECTOR_PROPERTY.xq_descriptor is not collector_property):
+                if (collector_property is not None and
+                        base.COLLECTOR_PROPERTY.xq_descriptor is not
+                        collector_property):
                     raise TypeError("multiple collector properties in "
                                     "inheritance")
                 collector_property = base.COLLECTOR_PROPERTY.xq_descriptor
@@ -1756,7 +1757,7 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
             except ValueError:
                 raise TypeError("TAG attribute has incorrect format")
 
-        if     (tag is not None and
+        if (tag is not None and
                 "DECLARE_NS" not in namespace and
                 not any(hasattr(base, "DECLARE_NS") for base in bases)):
             if tag[0] is None:
