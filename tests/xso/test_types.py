@@ -1117,6 +1117,56 @@ class TestLanguageTag(unittest.TestCase):
                 t.coerce(value)
 
 
+class TestJSON(unittest.TestCase):
+    def test_is_cdata_type(self):
+        self.assertTrue(issubclass(
+            xso.JSON,
+            xso.AbstractCDataType,
+        ))
+
+    def test_parse_loads_as_json_via_instance(self):
+        j = xso.JSON()
+
+        with contextlib.ExitStack() as stack:
+            loads = stack.enter_context(unittest.mock.patch(
+                "json.loads",
+                return_value=unittest.mock.sentinel.parsed,
+            ))
+
+            result = j.parse(
+                unittest.mock.sentinel.cdata,
+            )
+
+        loads.assert_called_once_with(unittest.mock.sentinel.cdata)
+
+        self.assertEqual(result, unittest.mock.sentinel.parsed)
+
+    def test_format_dumps_as_json_via_instance(self):
+        j = xso.JSON()
+
+        with contextlib.ExitStack() as stack:
+            dumps = stack.enter_context(unittest.mock.patch(
+                "json.dumps",
+                return_value=unittest.mock.sentinel.serialised,
+            ))
+
+            result = j.format(
+                unittest.mock.sentinel.data,
+            )
+
+        dumps.assert_called_once_with(unittest.mock.sentinel.data)
+
+        self.assertEqual(result, unittest.mock.sentinel.serialised)
+
+    def test_coerce_passes_everything_via_instance(self):
+        value = object()
+
+        self.assertIs(
+            xso.JSON().coerce(value),
+            value,
+        )
+
+
 class TestTextChildMap(unittest.TestCase):
     def test_is_element_type(self):
         self.assertTrue(issubclass(

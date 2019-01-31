@@ -33,6 +33,7 @@ import base64
 import binascii
 import decimal
 import ipaddress
+import json
 import numbers
 import re
 import unicodedata
@@ -637,6 +638,41 @@ class LanguageTag(AbstractCDataType):
     def coerce(self, v):
         if not isinstance(v, structs.LanguageTag):
             raise TypeError("{!r} is not a LanguageTag", v)
+        return v
+
+
+class JSON(AbstractCDataType):
+    """
+    Character data type for JSON structured data.
+
+    .. versionadded:: 0.11
+
+    Upon deserialisation, character data is parsed as JSON using :mod:`json`.
+    On serialisation, the value is serialised as JSON. This implies that the
+    data must be JSON serialisable, but there is no check for that in
+    :meth:`coerce`, as this check would be (a) expensive to do for nested data
+    structures and (b) impossible to do for mutable data structures.
+
+    Example:
+
+    .. code-block:: python
+
+        class JSONContainer(aioxmpp.xso.XSO):
+            TAG = ("urn:xmpp:json:0", "json")
+
+            data = aioxmpp.xso.Text(
+                type_=aioxmpp.xso.JSON()
+            )
+
+    """
+
+    def parse(self, v):
+        return json.loads(v)
+
+    def format(self, v):
+        return json.dumps(v)
+
+    def coerce(self, v):
         return v
 
 

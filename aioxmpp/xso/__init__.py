@@ -273,6 +273,8 @@ vice versa. These types inherit from :class:`AbstractCDataType`.
 
 .. autoclass:: LanguageTag
 
+.. autoclass:: JSON
+
 .. autoclass:: EnumCDataType(enum_class, nested_type=xso.String(), *, allow_coerce=False, deprecate_coerce=False, allow_unknown=True, accept_unknown=True)
 
 .. autofunction:: EnumType(enum_class[, nested_type], *, allow_coerce=False, deprecate_coerce=False, allow_unknown=True, accept_unknown=True)
@@ -507,6 +509,7 @@ from .types import (  # NOQA
     JID,
     ConnectionLocation,
     LanguageTag,
+    JSON,
     TextChildMap,
     EnumType,
     EnumCDataType,
