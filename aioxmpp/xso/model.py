@@ -1873,7 +1873,7 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
                         # assignment failed due to recoverable error, treat as
                         # absent
                         attr_map[key] = prop
-                except:
+                except Exception:
                     prop.mark_incomplete(obj)
                     _mark_attributes_incomplete(attr_map.values(), obj)
                     logger.debug("while parsing XSO %s (%r)", cls,
@@ -1889,7 +1889,7 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
             for key, prop in attr_map.items():
                 try:
                     prop.handle_missing(obj, ctx)
-                except:
+                except Exception:
                     logger.debug("while parsing XSO %s", cls,
                                  exc_info=True)
                     # true means suppress
@@ -1941,7 +1941,7 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
                             handler.from_events(obj, ev_args, ctx),
                             ev_args
                         )
-                    except:
+                    except Exception:
                         logger.debug("while parsing XSO %s", type(obj),
                                      exc_info=True)
                         # true means suppress
@@ -1958,7 +1958,7 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
                         obj,
                         collected_text
                     )
-                except:
+                except Exception:
                     logger.debug("while parsing XSO", exc_info=True)
                     # true means suppress
                     if not obj.xso_error_handler(
@@ -2383,7 +2383,7 @@ class SAXDriver(xml.sax.handler.ContentHandler):
         except StopIteration as err:
             self._emit(err.value)
             self._dest = None
-        except:
+        except:  # NOQA
             self._dest = None
             raise
 
@@ -2646,7 +2646,7 @@ def capture_events(receiver, dest):
                 except StopIteration as _e:
                     _r = _e.value
                     break
-    except:
+    except:  # NOQA
         dest.clear()
         raise
     return _r
