@@ -36,6 +36,7 @@ import multidict
 import aioxmpp.structs as structs
 import aioxmpp.xso as xso
 import aioxmpp.xso.model as xso_model
+import aioxmpp.xso.types as xso_types
 import aioxmpp.xso.query as xso_query
 
 from aioxmpp.utils import etree, namespaces
@@ -3538,6 +3539,127 @@ class TestAttr(XMLTestCase):
         del obj.prop
         with self.assertRaises(AttributeError):
             obj.prop
+
+
+class TestChildValue(XMLTestCase):
+    class DataXSO(xso_model.XSO):
+        TAG = ("foo", "bar")
+
+        value = xso_model.Text()
+
+    def setUp(self):
+        self.ctx = xso_model.Context()
+
+    def tearDown(self):
+        del self.ctx
+
+    def test_init_imports_xso_types_from_type(self):
+        xso_mock1 = unittest.mock.Mock(["TAG"])
+        xso_mock2 = unittest.mock.Mock(["TAG"])
+
+        type_ = unittest.mock.Mock(spec=xso_types.AbstractElementType)
+        type_.get_xso_types.return_value = [xso_mock1, xso_mock2]
+
+        prop = xso_model.ChildValue(type_)
+
+        self.assertDictEqual(
+            prop.get_tag_map(),
+            {
+                xso_mock1.TAG: xso_mock1,
+                xso_mock2.TAG: xso_mock2,
+            }
+        )
+
+    def test_from_events_uses_type_and_unpacks(self):
+        type_ = unittest.mock.Mock([
+            "get_xso_types",
+            "unpack",
+        ])
+
+        type_.get_xso_types.return_value = [self.DataXSO]
+        type_.unpack.return_value = unittest.mock.sentinel.unpacked
+
+        subtree = etree.fromstring("<bar xmlns='foo'>value</bar>")
+
+        instance = make_instance_mock()
+
+        prop = xso_model.ChildValue(
+            type_,
+        )
+
+        drive_from_events(prop.from_events, instance, subtree, self.ctx)
+
+        self.assertDictEqual(
+            {
+                prop: unittest.mock.sentinel.unpacked
+            },
+            instance._xso_contents
+        )
+
+        type_.get_xso_types.assert_called_once_with()
+        type_.unpack.assert_called_once_with(unittest.mock.ANY)
+
+        _, (obj, ), _ = type_.unpack.mock_calls[0]
+
+        self.assertIsInstance(obj, self.DataXSO)
+        self.assertEqual(obj.value, "value")
+
+    def test_to_sax_packs_value_and_saxifies_it(self):
+        packed_xso = unittest.mock.Mock(["unparse_to_sax"])
+
+        type_mock = unittest.mock.Mock(["pack", "get_xso_types"])
+        type_mock.get_xso_types.return_value = []
+        type_mock.pack.return_value = packed_xso
+
+        prop = xso_model.ChildValue(
+            type_=type_mock
+        )
+
+        instance = make_instance_mock({
+            prop: unittest.mock.sentinel.value
+        })
+
+        prop.to_sax(instance, unittest.mock.sentinel.dest)
+
+        type_mock.pack.assert_called_once_with(unittest.mock.sentinel.value)
+        packed_xso.unparse_to_sax.assert_called_once_with(
+            unittest.mock.sentinel.dest
+        )
+
+    def test_to_sax_complete(self):
+        DataXSO = self.DataXSO
+
+        class DataType(xso_types.AbstractElementType):
+            def get_xso_types(self):
+                return [DataXSO]
+
+            def pack(self, v):
+                result = DataXSO()
+                result.value = v
+                return result
+
+            def unpack(self, o):
+                return o.value
+
+        class Wrapper(xso_model.XSO):
+            TAG = ("foo", "foo")
+
+            thing = xso_model.ChildValue(
+                DataType(),
+            )
+
+        instance = Wrapper()
+        instance.thing = "some value"
+
+        parent = etree.Element("root")
+        instance.unparse_to_node(parent)
+
+        self.assertSubtreeEqual(
+            etree.fromstring(
+                "<root><foo xmlns='foo'><bar>some value</bar></foo></root>"
+            ),
+            parent,
+        )
 
 
 class TestChildText(XMLTestCase):

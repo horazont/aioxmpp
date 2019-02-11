@@ -142,6 +142,8 @@ Version 0.11
 
 * :class:`aioxmpp.utils.proxy_property`
 
+* :class:`aioxmpp.xso.ChildValue`
+
 .. _api-changelog-0.10:
 
 Version 0.10

@@ -119,6 +119,8 @@ repeated that detailed on the other classes. Refer to the documentation of the
 
 .. autoclass:: ChildText(tag, *[, child_policy=UnknownChildPolicy.FAIL][, attr_policy=UnknownAttrPolicy.FAIL][, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, default][, erroneous_as_absent=False])
 
+.. autoclass:: ChildValue(type_)
+
 .. autoclass:: Text(*[, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, default][, erroneous_as_absent=False])
 
 Non-scalar descriptors
@@ -526,6 +528,7 @@ from .model import (  # NOQA
     UnknownTopLevelTag,
     Attr,
     LangAttr,
+    ChildValue,
     Child,
     ChildFlag,
     ChildList,

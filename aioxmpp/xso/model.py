@@ -465,6 +465,32 @@ class _ChildPropBase(_PropBase):
         self._classes.add(cls)
 
 
+class ChildValue(_ChildPropBase):
+    """
+    Descriptor represeting a child element as parsed using an element type.
+
+    :param type_: The element type to use to parse the child element.
+    :type type_: :class:`aioxmpp.xso.AbstractElementType`
+
+    The descriptor value will be the unpacked child element value. Upon
+    serialisation, the descriptor
+    """
+
+    def __init__(self, type_):
+        super().__init__(type_.get_xso_types())
+        self.type_ = type_
+
+    def from_events(self, instance, ev_args, ctx):
+        xso = (yield from super()._process(instance, ev_args, ctx))
+        value = self.type_.unpack(xso)
+        self._set_from_recv(instance, value)
+
+    def to_sax(self, instance, dest):
+        value = self.__get__(instance, type(instance))
+        packed = self.type_.pack(value)
+        packed.unparse_to_sax(dest)
+
+
 class Child(_ChildPropBase):
     """
     When assigned to a class’ attribute, it collects any child which matches
