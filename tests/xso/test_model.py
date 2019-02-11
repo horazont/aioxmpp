@@ -68,6 +68,18 @@ def make_instance_mock(mapping={}):
     return instance
 
 
+def unparse_to_node(xso, parent):
+    handler = lxml.sax.ElementTreeContentHandler(
+        makeelement=parent.makeelement)
+    handler.startDocument()
+    handler.startElementNS((None, "root"), None)
+    xso.unparse_to_sax(handler)
+    handler.endElementNS((None, "root"), None)
+    handler.endDocument()
+
+    parent.extend(handler.etree.getroot())
+
+
 class TestXMLStreamClass(unittest.TestCase):
     def setUp(self):
         self.ctx = xso_model.Context()
@@ -1954,7 +1966,7 @@ class TestCapturingXMLStreamClass(unittest.TestCase):
 class TestXSO(XMLTestCase):
     def _unparse_test(self, obj, tree):
         parent = etree.Element("foo")
-        obj.unparse_to_node(parent)
+        unparse_to_node(obj, parent)
         self.assertSubtreeEqual(
             tree,
             parent,
@@ -3652,7 +3664,7 @@ class TestChildValue(XMLTestCase):
         instance.thing = "some value"
 
         parent = etree.Element("root")
-        instance.unparse_to_node(parent)
+        unparse_to_node(instance, parent)
 
         self.assertSubtreeEqual(
             etree.fromstring(
