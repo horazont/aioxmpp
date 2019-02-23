@@ -144,6 +144,8 @@ Version 0.11
 
 * :class:`aioxmpp.xso.ChildValue`
 
+* :class:`aioxmpp.misc.JSONContainer`, :class:`aioxmpp.misc.JSONContainerType`
+
 .. _api-changelog-0.10:
 
 Version 0.10

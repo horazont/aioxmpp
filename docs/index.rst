@@ -129,6 +129,7 @@ From XMPP Extension Proposals (XEPs)
 * :xep:`300` (Use of Cryptographic Hash Functions in XMPP),
   see :mod:`aioxmpp.hashes`
 * :xep:`333` (Chat Markers), schema-only, see :mod:`aioxmpp.misc`
+* :xep:`335` (JSON Containers), see :mod:`aioxmpp.misc`
 * :xep:`363` (HTTP Upload), see :mod:`aioxmpp.httpupload`
 * :xep:`368` (SRV records for XMPP over TLS)
 * :xep:`379` (Pre-Authenticared Roster Subscription), schema-only, see

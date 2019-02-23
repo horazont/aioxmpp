@@ -64,6 +64,23 @@ Chat Markers (:xep:`333`)
 
 .. attribute:: aioxmpp.Message.xep0333_marker
 
+
+JSON Containers (:xep:`335`)
+============================
+
+:xep:`335` defines a standard way to transport JSON data in XMPP. The
+:class:`JSONContainer` is an XSO class which represents the ``<json/>`` element
+specified in :xep:`335`.
+
+:mod:`aioxmpp` also provides an :class:`~aioxmpp.xso.AbstractElementType` called
+:class:`JSONContainerType` which can be used to extract JSON data from an
+element using the :class:`JSONContainer` format.
+
+.. autoclass:: JSONContainer
+
+.. autoclass:: JSONContainerType
+
+
 Pre-Authenticated Roster Subcription (:xep:`379`)
 =================================================
 
@@ -79,4 +96,5 @@ from .delay import Delay  # NOQA
 from .forwarding import Forwarded  # NOQA
 from .oob import OOBExtension  # NOQA
 from .markers import ReceivedMarker, DisplayedMarker, AcknowledgedMarker  # NOQA
+from .json import JSONContainer, JSONContainerType  # NOQA
 from .pars import Preauth  # NOQA
