@@ -42,6 +42,8 @@ from aioxmpp.e2etest import (
 class Payload(aioxmpp.xso.XSO):
     TAG = (namespaces.aioxmpp_test, "foo")
 
+    data = aioxmpp.xso.Text(default=None)
+
 
 class TestOwnerUseCases(TestCase):
     @require_feature_subset(
@@ -115,3 +117,65 @@ class TestOwnerUseCases(TestCase):
             self.node,
         )
         self.assertEqual(len(items.payload.items), 0)
+
+    @blocking_timed
+    def test_publish_multiple_and_get_by_id(self):
+        # configure the node for multiple items
+        config = yield from self.pubsub.get_node_config(
+            self.peer,
+            self.node,
+        )
+        form = aioxmpp.pubsub.xso.NodeConfigForm.from_xso(config)
+        try:
+            max_items = int(form.max_items.value)
+        except ValueError:
+            max_items = 0
+
+        if max_items < 2:
+            form.max_items.value = "10"
+            yield from self.pubsub.set_node_config(
+                self.peer,
+                form.render_reply(),
+                self.node,
+            )
+
+        payload1 = Payload()
+        payload1.data = "foo"
+
+        payload2 = Payload()
+        payload2.data = "bar"
+
+        id1 = yield from self.pubsub.publish(
+            self.peer,
+            self.node,
+            payload1,
+        )
+        id2 = yield from self.pubsub.publish(
+            self.peer,
+            self.node,
+            payload2,
+        )
+        items = yield from self.pubsub.get_items_by_id(
+            self.peer,
+            self.node,
+            [id1, id2]
+        )
+        yield from self.pubsub.get_items(
+            self.peer,
+            self.node,
+        )
+
+        self.assertEqual(len(items.payload.items), 2)
+
+        data_map = {
+            item.id_: item.registered_payload.data
+            for item in items.payload.items
+        }
+
+        self.assertDictEqual(
+            {
+                id1: "foo",
+                id2: "bar",
+            },
+            data_map,
+        )
