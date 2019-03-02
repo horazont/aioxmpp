@@ -35,6 +35,8 @@ from aioxmpp.e2etest import (
     blocking_timed,
     require_feature_subset,
     require_pep,
+    skip_with_quirk,
+    Quirk,
 )
 
 
@@ -119,6 +121,7 @@ class TestOwnerUseCases(TestCase):
         self.assertEqual(len(items.payload.items), 0)
 
     @blocking_timed
+    @skip_with_quirk(Quirk.PUBSUB_GET_MULTIPLE_ITEMS_BY_ID_BROKEN)
     def test_publish_multiple_and_get_by_id(self):
         # configure the node for multiple items
         config = yield from self.pubsub.get_node_config(
