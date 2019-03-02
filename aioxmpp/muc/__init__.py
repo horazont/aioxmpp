@@ -82,12 +82,12 @@ one the user is at. This may either be due to the service running on a remote
 domain, or due to the service being connected via the network to the users
 server as component (see e.g. :xep:`114`).
 
-When the connection between the MUC service and the user’s server is broken when
-stanzas need to be delivered, stanzas can be lost. This can lead to the MUC
-getting "out of sync", in the sense that different participants have different
-views of what happens and who even is in the MUC; this uncertainty can go as far
-as a client assuming that they’re still joined, while they were long removed
-from the MUC.
+When the connection between the MUC service and the user’s server is broken
+when stanzas need to be delivered, stanzas can be lost. This can lead to the
+MUC getting "out of sync", in the sense that different participants have
+different views of what happens and who even is in the MUC; this uncertainty
+can go as far as a client assuming that they’re still joined, while they were
+long removed from the MUC.
 
 These types of breakages are hard to detect, unless the user tries to send a
 message through the MUC (in which case the lack of reflection or an error reply
@@ -100,8 +100,8 @@ Solution
 
 The underlying problem (networks get split) cannot be solved. While Stream
 Management on the s2s links could mitigate the issue to some extent, there will
-always be limits and circumstances at play which can still cause the out-of-sync
-situation.
+always be limits and circumstances at play which can still cause the
+out-of-sync situation.
 
 While loss of messages can be compensated for by fetching the messages from the
 archive (doing this automatically on an interruption is out of scope for
@@ -110,9 +110,9 @@ removed from the MUC except by explicitly pinging or sending messages.
 
 To codify the complex rules which are needed to silently (i.e. invisible to
 other participants) check whether a client is still joined, :xep:`410` was
-written. It specifies the use of :xep:`199` pings through the MUC to the clients
-occupant (i.e. pinging oneself). MUC services explicitly reject the ping request
-if the sending client is not an occupant.
+written. It specifies the use of :xep:`199` pings through the MUC to the
+clients occupant (i.e. pinging oneself). MUC services explicitly reject the
+ping request if the sending client is not an occupant.
 
 .. _api-aioxmpp.muc-self-ping-logic:
 
@@ -128,9 +128,9 @@ manage pinging the main XML stream). It is configured through
 
 The two timers run concurrently. When the soft timeout expires, the pinger (see
 below) task is started. When the hard timeout expires, the MUC is marked stale
-(this means, the :meth:`~aioxmpp.muc.Room.on_muc_stale` event fires). The timers
-for both timeouts are reset whenever a presence or message stanza is received
-from the MUC, preventing unnecessary pinging.
+(this means, the :meth:`~aioxmpp.muc.Room.on_muc_stale` event fires). The
+timers for both timeouts are reset whenever a presence or message stanza is
+received from the MUC, preventing unnecessary pinging.
 
 The pinger task emits pings in a defined interval
 (:attr:`~aioxmpp.muc.Room.muc_ping_interval`). The pings have a timeout of
@@ -138,12 +138,12 @@ The pinger task emits pings in a defined interval
 is interpreted according to :xep:`410`. If the result is positive (= user
 still joined), the soft and hard timeout timers mentioned above are reset
 (the pinger, thus, ideally prevents the hard timeout from being triggered if
-the connection to the MUC is fine after the soft timeout expired). If the result
-is inconclusive, pinging continues. If the result is negative (= user is not
-joined anymore), the MUC room is marked as exited (with the reason
-:attr:`~aioxmpp.muc.LeaveMode.DISCONNECTED`), except if it is set to autorejoin,
-in which case a re-join (just as if the XML stream had been disconnected) is
-attempted.
+the connection to the MUC is fine after the soft timeout expired). If the
+result is inconclusive, pinging continues. If the result is negative (= user
+is not joined anymore), the MUC room is marked as exited (with the reason
+:attr:`~aioxmpp.muc.LeaveMode.DISCONNECTED`), except if it is set to
+autorejoin, in which case a re-join (just as if the XML stream had been
+disconnected) is attempted.
 
 The default timeouts are set reasonably high to work reliably even on mobile
 links.

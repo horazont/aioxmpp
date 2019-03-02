@@ -112,13 +112,12 @@ In pre-0.6 code, you might find use of the following things:
 
 .. autoclass:: STARTTLSProvider
 
-"""
+"""  # NOQA: E501
 import abc
 import asyncio
 import base64
 import collections
 import enum
-import functools
 import logging
 import ssl
 
@@ -771,7 +770,7 @@ class SASLProvider:
         :type features: :class:`~.nonza.StreamFeatures`
         :param mechanism_classes: SASL mechanism classes to use
         :type mechanism_classes: iterable of :class:`SASLMechanism`
-                                 sub\ *classes*
+                                 sub\\ *classes*
         :raises aioxmpp.errors.SASLUnavailable: if the peer does not announce
                                                 SASL support
         :return: the :class:`SASLMechanism` subclass to use and a token
@@ -912,14 +911,14 @@ class PasswordSASLProvider(SASLProvider):
     integer number. The first argument is the JID which is trying to
     authenticate and the second argument is the number of the authentication
     attempt, starting at 0. On each attempt, the number is increased, up to
-    `max_auth_attempts`\ -1. If the coroutine returns :data:`None`, the
+    `max_auth_attempts`\\ -1. If the coroutine returns :data:`None`, the
     authentication process is aborted. If the number of attempts are exceeded,
     the authentication process is also aborted. In both cases, an
     :class:`aiosasl.AuthenticationFailure` error will be raised.
 
     The SASL mechanisms used depend on whether TLS has been negotiated
-    successfully before. In any case, :class:`aiosasl.SCRAM` is used. If TLS has
-    been negotiated, :class:`aiosasl.PLAIN` is also supported.
+    successfully before. In any case, :class:`aiosasl.SCRAM` is used. If TLS
+    has been negotiated, :class:`aiosasl.PLAIN` is also supported.
 
     .. seealso::
 
@@ -1171,8 +1170,8 @@ def negotiate_sasl(transport, xmlstream,
         controlled using the :attr:`~.XMLStream.deadtime_hard_limit` timeout
         of the stream.
 
-        The argument will be removed in version 1.0. To prepare for this, please
-        pass `jid` and `features` as keyword arguments.
+        The argument will be removed in version 1.0. To prepare for this,
+        please pass `jid` and `features` as keyword arguments.
     """
 
     if not transport.get_extra_info("sslcontext"):

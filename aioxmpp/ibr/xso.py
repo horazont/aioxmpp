@@ -172,7 +172,6 @@ class Query(xso.XSO):
         (namespaces.xep0077_in_band, "remove")
     )
 
-
     def __init__(self, username=None, password=None, aux_fields=None):
         """
         Get an xso.Query object with the info provided in he parameters.

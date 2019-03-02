@@ -29,8 +29,6 @@ import aioxmpp.errors as errors
 import aioxmpp.stanza as stanza
 import aioxmpp.structs as structs
 
-from aioxmpp.utils import namespaces
-
 from . import xso as roster_xso
 
 

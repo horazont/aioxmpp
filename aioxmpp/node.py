@@ -88,7 +88,6 @@ from . import (
     dispatcher,
     presence as mod_presence,
 )
-from .utils import namespaces
 
 
 logger = logging.getLogger(__name__)
@@ -1283,8 +1282,8 @@ class Client:
 
         If the stream is currently not ready, this method blocks until the
         stream is ready to send payload stanzas. Note that this may be before
-        initial presence has been sent. To synchronise with that type of events,
-        use the appropriate signals.
+        initial presence has been sent. To synchronise with that type of
+        events, use the appropriate signals.
 
         The `timeout` as well as any of the exception cases referring to a
         "response" do not apply for IQ response stanzas, message stanzas or
@@ -1300,9 +1299,9 @@ class Client:
         callable returning an awaitable. It receives the response stanza as
         first and only argument. The returned awaitable is awaited by
         :meth:`send` and the result is returned instead of the original
-        payload. `cb` is called synchronously from the stream handling loop when
-        the response is received, so it can benefit from the strong ordering
-        guarantees given by XMPP XML Streams.
+        payload. `cb` is called synchronously from the stream handling loop
+        when the response is received, so it can benefit from the strong
+        ordering guarantees given by XMPP XML Streams.
 
         The `cb` may also return :data:`None`, in which case :meth:`send` will
         simply return the IQ payload as if `cb` was not given. Since the return
@@ -1312,8 +1311,8 @@ class Client:
         .. warning::
 
             Remember that it is an implementation detail of the event loop when
-            a coroutine is scheduled after it awaited an awaitable; this implies
-            that if the caller of :meth:`send` is merely awaiting the
+            a coroutine is scheduled after it awaited an awaitable; this
+            implies that if the caller of :meth:`send` is merely awaiting the
             :meth:`send` coroutine, the strong ordering guarantees of XMPP XML
             Streams are lost.
 
@@ -1533,7 +1532,7 @@ class UseConnected:
     leaving the context still disconnects the client.
 
     If the `presence` refers to an available presence, the
-    :class:`.PresenceServer` is :meth:`~.Client.summon`\ -ed on the `client`.
+    :class:`.PresenceServer` is :meth:`~.Client.summon`\\ -ed on the `client`.
     The presence is set using :meth:`~.PresenceServer.set_presence` (clearing
     the :attr:`~.PresenceServer.status` and resetting
     :attr:`~.PresenceServer.priority` to 0) before the client is connected. If

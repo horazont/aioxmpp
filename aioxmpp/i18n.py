@@ -100,7 +100,7 @@ class LocalizingFormatter(string.Formatter):
       >>> fmt.format("{:n}", -10000)
       '-10,000'
 
-    """
+    """  # NOQA
 
     def __init__(self, locale=None, tzinfo=None):
         super().__init__()

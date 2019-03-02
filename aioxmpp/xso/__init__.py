@@ -23,7 +23,7 @@
 :mod:`~aioxmpp.xso` --- Working with XML stream contents
 ########################################################
 
-This subpackage deals with **X**\ ML **S**\ tream **O**\ bjects. XSOs can be
+This subpackage deals with **X**\\ ML **S**\\ tream **O**\\ bjects. XSOs can be
 stanzas, but in general any XML.
 
 The facilities in this subpackage are supposed to help developers of XEP
@@ -447,7 +447,7 @@ provided which faciliate the use.
 .. autoclass:: AbstractTextChild
 
 
-"""
+"""  # NOQA: E501
 
 
 def tag_to_str(tag):
@@ -557,7 +557,7 @@ from .model import (  # NOQA
 )
 
 
-from .model import _PropBase
+from .model import _PropBase  # NOQA: E402
 NO_DEFAULT = _PropBase.NO_DEFAULT
 del _PropBase
 

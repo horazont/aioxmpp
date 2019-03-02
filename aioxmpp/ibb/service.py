@@ -20,7 +20,6 @@
 #
 ########################################################################
 import asyncio
-import contextlib
 import random
 
 from datetime import timedelta
@@ -34,7 +33,7 @@ import aioxmpp.utils as utils
 from . import xso as ibb_xso
 
 
-MAX_BLOCK_SIZE = (1<<16) - 1
+MAX_BLOCK_SIZE = (1 << 16) - 1
 
 
 class IBBTransport(asyncio.Transport):

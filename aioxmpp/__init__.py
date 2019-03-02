@@ -66,7 +66,7 @@ Shorthands
    Alias of :func:`aioxmpp.security_layer.make`.
 
 """
-from ._version import version_info, __version__, version
+from ._version import version_info, __version__, version  # NOQA
 
 #: The imported :mod:`aioxmpp` version as a tuple.
 #:
@@ -137,7 +137,7 @@ from .bookmarks import BookmarkClient  # NOQA
 from .version import VersionServer  # NOQA
 from .mdr import DeliveryReceiptsService  # NOQA
 
-from . import httpupload
+from . import httpupload  # NOQA
 
 
 def set_strict_mode():

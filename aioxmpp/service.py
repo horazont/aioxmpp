@@ -191,15 +191,12 @@ Metaclass
 =========
 
 .. autoclass:: Meta()
-
-
-"""
+"""  # NOQA: E501
 
 import abc
 import asyncio
 import collections
 import contextlib
-import copy
 import logging
 import warnings
 import weakref
@@ -676,7 +673,7 @@ class Service(metaclass=Meta):
 
     To stay forward compatible, accept arbitrary keyword arguments and pass
     them down to :class:`Service`. As it is not possible to directly pass
-    arguments to :class:`Service`\ s on construction (due to the way
+    arguments to :class:`Service`\\ s on construction (due to the way
     :meth:`aioxmpp.Client.summon` works), there is no need for you
     to introduce custom arguments, and thus there should be no conflicts.
 

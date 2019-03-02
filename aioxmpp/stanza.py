@@ -83,7 +83,6 @@ Module Level Constants
 
 .. autodata:: RANDOM_ID_BYTES
 """
-import enum
 import random
 import warnings
 
@@ -186,7 +185,8 @@ class Error(xso.XSO):
     attributes of the :class:`Error`.
 
     :param condition: The error condition as enumeration member or XSO.
-    :type condition: :class:`aioxmpp.ErrorCondition` or :class:`aioxmpp.xso.XSO`
+    :type condition: :class:`aioxmpp.ErrorCondition` or
+        :class:`aioxmpp.xso.XSO`
     :param type_: The type of the error
     :type type_: :class:`aioxmpp.ErrorType`
     :param text: The optional error text
@@ -225,8 +225,8 @@ class Error(xso.XSO):
 
        .. versionchanged:: 0.10
 
-          Starting with 0.10, the enumeration :class:`aioxmpp.ErrorCondition` is
-          used. Before, tuples equal to the tags of the child elements were
+          Starting with 0.10, the enumeration :class:`aioxmpp.ErrorCondition`
+          is used. Before, tuples equal to the tags of the child elements were
           used (e.g. ``(namespaces.stanzas, "bad-request")``).
 
           As of 0.10, setting the tuple equivalents is still supported.
@@ -981,7 +981,7 @@ class IQ(StanzaBase):
     def validate(self):
         try:
             self._validate()
-        except Exception as exc:
+        except Exception:
             raise StanzaError(
                 "invalid IQ stanza",
                 self,

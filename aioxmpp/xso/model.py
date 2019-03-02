@@ -2084,7 +2084,7 @@ class CapturingXMLStreamClass(XMLStreamClass):
 
 class XSO(metaclass=XMLStreamClass):
     """
-    XSO is short for **X**\ ML **S**\ tream **O**\ bject and means an object
+    XSO is short for **X**\\ ML **S**\\ tream **O**\\ bject and means an object
     which represents a subtree of an XML stream. These objects can also be
     created and validated on-the-fly from SAX-like events using
     :class:`XSOParser`.

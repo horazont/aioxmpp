@@ -378,7 +378,8 @@ def not_(expr):
     .. seealso::
 
        :meth:`EvaluationContext.eval_bool`
-          which is used behind the scenes to calculate the boolean value of `expr`.
+          which is used behind the scenes to calculate the boolean value of
+          `expr`.
        :class:`NotOp`
           which actually implements the operator.
     """

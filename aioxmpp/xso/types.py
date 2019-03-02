@@ -25,7 +25,7 @@
 
 See :mod:`aioxmpp.xso` for documentation.
 
-"""
+"""  # NOQA: E501
 
 import abc
 import array

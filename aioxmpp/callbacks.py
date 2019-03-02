@@ -542,7 +542,7 @@ class AdHocSignal(AbstractAdHocSignal):
 
     def future(self):
         """
-        Return a :class:`asyncio.Future` which has been :meth:`connect`\ -ed
+        Return a :class:`asyncio.Future` which has been :meth:`connect`\\ -ed
         using :attr:`AUTO_FUTURE`.
 
         The token returned by :meth:`connect` is not returned; to remove the

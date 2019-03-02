@@ -72,9 +72,9 @@ JSON Containers (:xep:`335`)
 :class:`JSONContainer` is an XSO class which represents the ``<json/>`` element
 specified in :xep:`335`.
 
-:mod:`aioxmpp` also provides an :class:`~aioxmpp.xso.AbstractElementType` called
-:class:`JSONContainerType` which can be used to extract JSON data from an
-element using the :class:`JSONContainer` format.
+:mod:`aioxmpp` also provides an :class:`~aioxmpp.xso.AbstractElementType`
+called :class:`JSONContainerType` which can be used to extract JSON data from
+an element using the :class:`JSONContainer` format.
 
 .. autoclass:: JSONContainer
 

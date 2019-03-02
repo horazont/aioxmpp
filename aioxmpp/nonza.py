@@ -88,7 +88,7 @@ Stream management related XSOs
 import itertools
 import warnings
 
-from . import xso, errors, stanza
+from . import xso, errors
 
 from .utils import namespaces
 
@@ -241,7 +241,6 @@ class StreamFeatures(xso.XSO):
                 cls.features.xq_descriptor)
 
     def __getitem__(self, feature_cls):
-        tag = feature_cls.TAG
         try:
             return self.features[feature_cls.TAG][0]
         except IndexError:
@@ -664,14 +663,16 @@ class SMEnabled(SMXSO):
         self.max_ = max_
 
     def __repr__(self):
-        return "<{}.{} resume={} id={!r} location={!r} max={} at 0x{:x}>".format(
-            type(self).__module__,
-            type(self).__qualname__,
-            self.resume,
-            self.id_,
-            self.location,
-            self.max_,
-            id(self),
+        return (
+            "<{}.{} resume={} id={!r} location={!r} max={} at 0x{:x}>".format(
+                type(self).__module__,
+                type(self).__qualname__,
+                self.resume,
+                self.id_,
+                self.location,
+                self.max_,
+                id(self),
+            )
         )
 
 

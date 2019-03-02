@@ -192,10 +192,9 @@ import asyncio
 import contextlib
 import functools
 import logging
-import time
 import warnings
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from enum import Enum
 
 from . import (
@@ -209,8 +208,6 @@ from . import (
     structs,
     ping,
 )
-
-from .utils import namespaces
 
 
 class AppFilter(callbacks.Filter):
@@ -686,8 +683,8 @@ class StanzaStream:
        :meth:`aioxmpp.protocol.XMLStream.send_xso` method.
 
        Before :meth:`on_failure` is emitted, the :class:`~.protocol.XMLStream`
-       is :meth:`~.protocol.XMLStream.abort`\ -ed if SM is enabled and
-       :meth:`~.protocol.XMLStream.close`\ -ed if SM is not enabled.
+       is :meth:`~.protocol.XMLStream.abort`\\ -ed if SM is enabled and
+       :meth:`~.protocol.XMLStream.close`\\ -ed if SM is not enabled.
 
        .. versionchanged:: 0.6
 
@@ -1344,8 +1341,8 @@ class StanzaStream:
           possible stanza errors, catching :class:`.errors.StanzaError` is
           sufficient and future-proof.
 
-        * :class:`ConnectionError` if the stream is :meth:`stop`\ -ped (only if
-          SM is not enabled) or :meth:`close`\ -ed.
+        * :class:`ConnectionError` if the stream is :meth:`stop`\\ -ped (only
+          if SM is not enabled) or :meth:`close`\\ -ed.
 
         * Any :class:`Exception` which may be raised from
           :meth:`~.protocol.XMLStream.send_xso`, which are generally also
@@ -1478,9 +1475,9 @@ class StanzaStream:
 
         .. versionadded:: 0.6
 
-           If the stream is :meth:`stop`\ -ped (only if SM is not enabled) or
-           :meth:`close`\ ed, running IQ response coroutines are
-           :meth:`asyncio.Task.cancel`\ -led.
+           If the stream is :meth:`stop`\\ -ped (only if SM is not enabled) or
+           :meth:`close`\\ ed, running IQ response coroutines are
+           :meth:`asyncio.Task.cancel`\\ -led.
 
            To protect against that, fork from your coroutine using
            :func:`asyncio.ensure_future`.
@@ -2391,9 +2388,9 @@ class StanzaStream:
             counter will be marked as :attr:`~StanzaState.ACKED`; other stanzas
             will be marked as :attr:`~StanzaState.DISCONNECTED`.
 
-            This is in contrast to the behaviour when resumption fails *without*
-            a counter given. In that case, stanzas which have not been acked
-            are marked as :attr:`~StanzaState.SENT_WITHOUT_SM`.
+            This is in contrast to the behaviour when resumption fails
+            *without* a counter given. In that case, stanzas which have not
+            been acked are marked as :attr:`~StanzaState.SENT_WITHOUT_SM`.
         """
 
         if self.running:
@@ -2684,7 +2681,9 @@ class StanzaStream:
 
         .. deprecated:: 0.10
         """
-        raise NotImplementedError("only available on streams owned by a Client")
+        raise NotImplementedError(
+            "only available on streams owned by a Client"
+        )
 
 
 @contextlib.contextmanager

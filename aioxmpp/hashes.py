@@ -155,7 +155,7 @@ def hash_from_algo(algo):
 
     try:
         enabled, (fun_name, fun_args, fun_kwargs) = _HASH_ALGO_MAP[algo]
-    except KeyError as exc:
+    except KeyError:
         raise NotImplementedError(
             "hash algorithm {!r} unknown".format(algo)
         ) from None

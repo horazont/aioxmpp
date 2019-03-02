@@ -54,9 +54,7 @@ Enumerations
 import asyncio
 import contextlib
 import functools
-import inspect
 import logging
-import time
 
 from enum import Enum
 
@@ -457,9 +455,9 @@ class XMLStream(asyncio.Protocol):
                 condition=errors.StreamErrorCondition.BAD_FORMAT,
                 text=str(exc)
             )
-        except errors.StreamError as exc:
+        except errors.StreamError:
             raise
-        except Exception as exc:
+        except Exception:
             self._logger.exception(
                 "unexpected exception while parsing stanza"
                 " bubbled up through parser. stream so ded.")

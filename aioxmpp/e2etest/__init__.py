@@ -123,7 +123,7 @@ Helper functions
 .. autofunction:: configure_tls_config
 
 .. autofunction:: configure_quirks
-"""
+"""  # NOQA: E501
 import asyncio
 import configparser
 import functools

@@ -63,7 +63,7 @@ class Quirk(enum.Enum):
 
        The quirk does not need to be set if the environment does not provide a
        MUC implementation at all.
-    """
+    """  # NOQA: E501
 
     MUC_REWRITES_MESSAGE_ID = \
         "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#muc-id-rewrite"
@@ -255,11 +255,11 @@ def discover_server_identities(disco, peer, recurse_into_items=True):
     discovered.
 
     If `recurse_into_items` is true, a :xep:`30` items query is run against
-    `peer`. For each JID discovered that way, :func:`discover_server_identities`
-    is re-invoked (with `recurse_into_items` set to false). The resulting
-    mappings are merged with the mapping obtained from querying the identities
-    of `peer` (existing entries are *not* overriden -- so `peer` takes
-    precedence).
+    `peer`. For each JID discovered that way,
+    :func:`discover_server_identities` is re-invoked (with `recurse_into_items`
+    set to false). The resulting mappings are merged with the mapping obtained
+    from querying the identities of `peer` (existing entries are *not*
+    overriden -- so `peer` takes precedence).
     """
 
     server_info = yield from disco.query_info(peer)

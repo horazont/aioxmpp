@@ -20,7 +20,6 @@
 #
 ########################################################################
 import asyncio
-import collections
 import hashlib
 import logging
 import warnings
@@ -402,6 +401,7 @@ class HttpAvatarDescriptor(AbstractAvatarDescriptor):
         return (isinstance(other, HttpAvatarDescriptor) and
                 super().__eq__(other))
 
+
 class VCardAvatarDescriptor(AbstractAvatarDescriptor):
 
     def __init__(self, remote_jid, id_, *, vcard=None, image_bytes=None,
@@ -667,7 +667,7 @@ class AvatarService(service.Service):
                 # was triggered by an update with the same hash
                 if (self._vcard_rehashing_for is None or
                         self._vcard_rehashing_for !=
-                            stanza.xep0153_x.photo.lower()):
+                        stanza.xep0153_x.photo.lower()):
                     self._vcard_rehashing_for = stanza.xep0153_x.photo.lower()
                     self._start_rehash_task()
 
@@ -962,7 +962,6 @@ class AvatarService(service.Service):
         self._vcard_id = ""
         yield from self._vcard.set_vcard(my_vcard)
         self._presence_server.resend_presence()
-
 
     @asyncio.coroutine
     def disable_avatar(self):

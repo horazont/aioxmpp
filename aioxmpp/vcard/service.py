@@ -22,10 +22,7 @@
 import asyncio
 
 import aioxmpp
-import aioxmpp.xso as xso
 import aioxmpp.service as service
-
-from aioxmpp.utils import namespaces
 
 from . import xso as vcard_xso
 

@@ -240,12 +240,6 @@ class PresenceServer(aioxmpp.service.Service):
     """
     Manage the presence broadcast by the client.
 
-    .. .. note::
-
-    ..    This was formerly handled by the :class:`aioxmpp.PresenceManagedClient`,
-    ..    which is now merely a shim wrapper around :class:`aioxmpp.Client` and
-    ..    :class:`PresenceServer`.
-
     The :class:`PresenceServer` manages broadcasting and re-broadcasting the
     presence of the client as needed.
 

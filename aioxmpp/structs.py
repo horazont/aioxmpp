@@ -94,8 +94,8 @@ class CompatibilityMixin:
             return True
         if self.value == other:
             warnings.warn(
-                "as of aioxmpp 1.0, {} members will not compare equal to their "
-                "values".format(type(self).__name__),
+                "as of aioxmpp 1.0, {} members will not compare equal to "
+                "their values".format(type(self).__name__),
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -169,8 +169,8 @@ class ErrorType(CompatibilityMixin, enum.Enum):
        This behaviour will cease with aioxmpp 1.0, and the first assertion will
        fail, the second may fail.
 
-       Please see the Changelog for :ref:`api-changelog-0.7` for further details
-       on how to upgrade your code efficiently.
+       Please see the Changelog for :ref:`api-changelog-0.7` for further
+       details on how to upgrade your code efficiently.
 
     """
 
@@ -283,8 +283,8 @@ class MessageType(CompatibilityMixin, enum.Enum):
        This behaviour will cease with aioxmpp 1.0, and the first assertion will
        fail, the second may fail.
 
-       Please see the Changelog for :ref:`api-changelog-0.7` for further details
-       on how to upgrade your code efficiently.
+       Please see the Changelog for :ref:`api-changelog-0.7` for further
+       details on how to upgrade your code efficiently.
 
     """
 
@@ -424,8 +424,8 @@ class PresenceType(CompatibilityMixin, enum.Enum):
        This behaviour will cease with aioxmpp 1.0, and the first assertion will
        fail, the second may fail.
 
-       Please see the Changelog for :ref:`api-changelog-0.7` for further details
-       on how to upgrade your code efficiently.
+       Please see the Changelog for :ref:`api-changelog-0.7` for further
+       details on how to upgrade your code efficiently.
     """
 
     ERROR = "error"
@@ -557,8 +557,8 @@ class IQType(CompatibilityMixin, enum.Enum):
        This behaviour will cease with aioxmpp 1.0, and the first assertion will
        fail, the second may fail.
 
-       Please see the Changelog for :ref:`api-changelog-0.7` for further details
-       on how to upgrade your code efficiently.
+       Please see the Changelog for :ref:`api-changelog-0.7` for further
+       details on how to upgrade your code efficiently.
     """
 
     GET = "get"
@@ -1220,6 +1220,7 @@ class LanguageRange:
         if parts and len(parts[-1]) == 1:
             parts.pop()
         return type(self).fromstr("-".join(parts))
+
 
 LanguageRange.WILDCARD = LanguageRange(tag="*")
 

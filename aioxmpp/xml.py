@@ -58,11 +58,9 @@ Utility functions
 
 .. autofunction:: read_single_xso
 
-"""
+"""  # NOQA: E501
 
 import copy
-import ctypes
-import ctypes.util
 import contextlib
 import io
 
@@ -581,7 +579,7 @@ class XMPPXMLGenerator:
             copy.copy(self._ns_auto_prefixes_floating_in)
         try:
             yield
-        except:
+        except:  # NOQA: E722
             self._ns_prefixes_floating_in = ns_prefixes_floating_in
             self._ns_prefixes_floating_out = ns_prefixes_floating_out
             self._ns_decls_floating_in = ns_decls_floating_in

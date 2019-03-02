@@ -52,6 +52,10 @@ XSO Definitions
 .. autoclass:: Query
 """
 
-from .service import RegistrationService, get_registration_fields, register
-from .service import get_used_fields
-from .xso import Query
+from .service import (  # NOQA: F401
+    RegistrationService,
+    get_registration_fields,
+    register,
+)
+from .service import get_used_fields  # NOQA: F401
+from .xso import Query  # NOQA: F401

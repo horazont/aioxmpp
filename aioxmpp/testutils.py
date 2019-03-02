@@ -116,7 +116,7 @@ def run_coroutine_with_peer(
         fut = next(iter(done))
         try:
             fut.result()
-        except:
+        except:  # NOQA: E722
             # everything is fine, the other one failed
             raise
         else:

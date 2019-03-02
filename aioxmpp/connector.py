@@ -58,8 +58,6 @@ import aioxmpp.nonza as nonza
 import aioxmpp.protocol as protocol
 import aioxmpp.ssl_transport as ssl_transport
 
-from aioxmpp.utils import namespaces
-
 
 def to_ascii(s):
     return s.encode("idna").decode("ascii")
@@ -232,7 +230,7 @@ class STARTTLSConnector(BaseConnector):
                     nonza.StartTLSProceed,
                 ]
             )
-        except errors.StreamError as exc:
+        except errors.StreamError:
             raise errors.TLSUnavailable(
                 "STARTTLS not supported by server, but required by client"
             )

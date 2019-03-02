@@ -119,9 +119,9 @@ class FieldType(enum.Enum):
 
           The field is intended for data description (e.g., human-readable text
           such as "section" headers) rather than data gathering or provision.
-          The <value/> child SHOULD NOT contain newlines (the ``\\n`` and ``\\r``
-          characters); instead an application SHOULD generate multiple fixed
-          fields, each with one <value/> child.
+          The <value/> child SHOULD NOT contain newlines (the ``\\n`` and
+          ``\\r`` characters); instead an application SHOULD generate multiple
+          fixed fields, each with one <value/> child.
 
        As such, the :attr:`Field.values` sequence should contain exactly one
        element. :attr:`Field.desc`, :attr:`Field.label`, :attr:`Field.options`

@@ -139,85 +139,79 @@ class PubSubClient(aioxmpp.service.Service):
 
     Receiving notifications:
 
-    .. autosignal:: on_item_published(jid, node, item, *, message=None)
+    .. signal:: on_item_published(jid, node, item, *, message=None)
 
-    .. autosignal:: on_item_retracted(jid, node, id_, *, message=None)
+        Fires when a new item is published to a node to which we have a
+        subscription.
 
-    .. autosignal:: on_node_deleted(jid, node, *, redirect_uri=None, message=None)
+        The node at which the item has been published is identified by `jid`
+        and `node`. `item` is the :class:`xso.EventItem` payload.
 
-    .. autosignal:: on_affiliation_update(jid, node, affiliation, *, message=None)
+        `message` is the :class:`.Message` which carried the notification.
+        If a notification message contains more than one published item, the
+        event is fired for each of the items, and `message` is passed to all
+        of them.
 
-    .. autosignal:: on_subscription_update(jid, node, state, *, subid=None, message=None)
+    .. signal:: on_item_retracted(jid, node, id_, *, message=None)
+
+        Fires when an item is retracted from a node to which we have a
+        subscription.
+
+        The node at which the item has been retracted is identified by `jid`
+        and `node`. `id_` is the ID of the item which has been retract.
+
+        `message` is the :class:`.Message` which carried the notification.
+        If a notification message contains more than one retracted item, the
+        event is fired for each of the items, and `message` is passed to all
+        of them.
+
+    .. signal:: on_node_deleted(jid, node, *, redirect_uri=None, message=None)
+
+        Fires when a node is deleted. `jid` and `node` identify the node.
+
+        If the notification included a redirection URI, it is passed as
+        `redirect_uri`. Otherwise, :data:`None` is passed for `redirect_uri`.
+
+        `message` is the :class:`.Message` which carried the notification.
+
+    .. signal:: on_affiliation_update(jid, node, affiliation, *, message=None)
+
+        Fires when the affiliation with a node is updated.
+
+        `jid` and `node` identify the node for which the affiliation was updated.
+        `affiliation` is the new affiliaton.
+
+        `message` is the :class:`.Message` which carried the notification.
+
+    .. signal:: on_subscription_update(jid, node, state, *, subid=None, message=None)
+
+        Fires when the subscription state is updated.
+
+        `jid` and `node` identify the node for which the subscription was updated.
+        `subid` is optional and if it is not :data:`None` it is the affected
+        subscription id. `state` is the new subscription state.
+
+        This event can happen in several cases, for example when a subscription
+        request is approved by the node owner or when a subscription is cancelled.
+
+        `message` is the :class:`.Message` which carried the notification.
 
     .. versionchanged:: 0.8
 
        This class was formerly known as :class:`aioxmpp.pubsub.Service`. It
        is still available under that name, but the alias will be removed in
        1.0.
-    """
+    """  # NOQA: E501
 
     ORDER_AFTER = [
         aioxmpp.DiscoClient,
     ]
 
-    on_item_published = aioxmpp.callbacks.Signal(doc=
-    """
-    Fires when a new item is published to a node to which we have a
-    subscription.
-
-    The node at which the item has been published is identified by `jid` and
-    `node`. `item` is the :class:`xso.EventItem` payload.
-
-    `message` is the :class:`.Message` which carried the notification.
-    If a notification message contains more than one published item, the event
-    is fired for each of the items, and `message` is passed to all of them.
-    """)  # NOQA
-
-    on_item_retracted = aioxmpp.callbacks.Signal(doc=
-    """
-    Fires when an item is retracted from a node to which we have a subscription.
-
-    The node at which the item has been retracted is identified by `jid` and
-    `node`. `id_` is the ID of the item which has been retract.
-
-    `message` is the :class:`.Message` which carried the notification.
-    If a notification message contains more than one retracted item, the event
-    is fired for each of the items, and `message` is passed to all of them.
-    """)  # NOQA
-
-    on_node_deleted = aioxmpp.callbacks.Signal(doc=
-    """
-    Fires when a node is deleted. `jid` and `node` identify the node.
-
-    If the notification included a redirection URI, it is passed as
-    `redirect_uri`. Otherwise, :data:`None` is passed for `redirect_uri`.
-
-    `message` is the :class:`.Message` which carried the notification.
-    """)  # NOQA
-
-    on_affiliation_update = aioxmpp.callbacks.Signal(doc=
-    """
-    Fires when the affiliation with a node is updated.
-
-    `jid` and `node` identify the node for which the affiliation was updated.
-    `affiliation` is the new affiliaton.
-
-    `message` is the :class:`.Message` which carried the notification.
-    """)  # NOQA
-
-    on_subscription_update = aioxmpp.callbacks.Signal(doc=
-    """
-    Fires when the subscription state is updated.
-
-    `jid` and `node` identify the node for which the subscription was updated.
-    `subid` is optional and if it is not :data:`None` it is the affected
-    subscription id. `state` is the new subscription state.
-
-    This event can happen in several cases, for example when a subscription
-    request is approved by the node owner or when a subscription is cancelled.
-
-    `message` is the :class:`.Message` which carried the notification.s
-    """)  # NOQA
+    on_item_published = aioxmpp.callbacks.Signal()
+    on_item_retracted = aioxmpp.callbacks.Signal()
+    on_node_deleted = aioxmpp.callbacks.Signal()
+    on_affiliation_update = aioxmpp.callbacks.Signal()
+    on_subscription_update = aioxmpp.callbacks.Signal()
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)

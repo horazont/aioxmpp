@@ -29,6 +29,7 @@ from aioxmpp.utils import namespaces
 
 namespaces.xep0054 = "vcard-temp"
 
+
 @aioxmpp.IQ.as_payload_class
 class VCard(xso.XSO):
     """

@@ -31,8 +31,7 @@ from . import xso as forms_xso
 descriptor_ns = "{jabber:x:data}field"
 
 
-FIELD_DOCSTRING_TEMPLATE = \
-"""
+FIELD_DOCSTRING_TEMPLATE = """
 ``{field_type.value}`` field ``{var}``
 
 {label}

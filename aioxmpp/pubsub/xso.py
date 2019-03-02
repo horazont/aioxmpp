@@ -1296,7 +1296,7 @@ Feature.__docstring___ = \
        :annotation: = "http://jabber.org/protocol/pubsub#subscription-notifications"
 
        Notification of subscription state changes is supported.
-    """
+    """  # NOQA: E501
 
 
 class NodeConfigForm(aioxmpp.forms.Form):
@@ -1392,7 +1392,8 @@ class NodeConfigForm(aioxmpp.forms.Form):
 
     children_association_whitelist = aioxmpp.forms.JIDMulti(
         var='pubsub#children_association_whitelist',
-        label='The list of JIDs that may associate leaf nodes with a collection'
+        label='The list of JIDs that may associate leaf nodes with a '
+        'collection'
     )
 
     children = aioxmpp.forms.TextMulti(
@@ -1403,8 +1404,8 @@ class NodeConfigForm(aioxmpp.forms.Form):
 
     children_max = aioxmpp.forms.TextSingle(
         var='pubsub#children_max',
-        label='The maximum number of child nodes that can be associated with a '
-        'collection'
+        label='The maximum number of child nodes that can be associated with '
+        'a collection'
     )
 
     collection = aioxmpp.forms.TextMulti(

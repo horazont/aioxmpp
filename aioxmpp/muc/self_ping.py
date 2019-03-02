@@ -58,10 +58,11 @@ class MUCPinger:
 
     Pings are sent once each :attr:`ping_interval` (see there for details on
     the effects of changing the interval while the pinger is running). If
-    :attr:`ping_interval` is less than :attr:`ping_timeout`, it is possible that
-    multiple pings are in-flight at the same time (this is handled correctly).
-    Take into account that resources for tracking up to :attr:`ping_timeout`
-    divided by :attr:`ping_interval` IQ responses will be required.
+    :attr:`ping_interval` is less than :attr:`ping_timeout`, it is possible
+    that multiple pings are in-flight at the same time (this is handled
+    correctly). Take into account that resources for tracking up to
+    :attr:`ping_timeout` divided by :attr:`ping_interval` IQ responses will be
+    required.
 
     To start the pinger, :meth:`start` must be called.
 
@@ -161,7 +162,8 @@ class MUCPinger:
         The result or exception of the `task` is interpreted as follows:
 
         * :data:`None` result: *positive*
-        * :class:`aioxmpp.errors.XMPPError`, ``service-unavailable``: *positive*
+        * :class:`aioxmpp.errors.XMPPError`, ``service-unavailable``:
+          *positive*
         * :class:`aioxmpp.errors.XMPPError`, ``feature-not-implemented``:
           *positive*
         * :class:`aioxmpp.errors.XMPPError`, ``item-not-found``: *inconclusive*

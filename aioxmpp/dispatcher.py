@@ -198,7 +198,7 @@ class SimpleStanzaDispatcher(metaclass=abc.ABCMeta):
            When the server sends a stanza without from attribute, it is
            replaced with the bare :attr:`local_jid`, as per :rfc:`6120`.
 
-        """
+        """  # NOQA: E501
         if from_ is None or not from_.is_bare:
             wildcard_resource = False
 
@@ -292,9 +292,9 @@ class SimplePresenceDispatcher(aioxmpp.service.Service,
     """
     Dispatch presences to callbacks.
 
-    This :class:`~aioxmpp.service.Service` dispatches :class:`~aioxmpp.Presence`
-    stanzas to callbacks. Callbacks registrations are managed with the
-    :meth:`.SimpleStanzaDispatcher.register_callback` and
+    This :class:`~aioxmpp.service.Service` dispatches
+    :class:`~aioxmpp.Presence` stanzas to callbacks. Callbacks registrations
+    are managed with the :meth:`.SimpleStanzaDispatcher.register_callback` and
     :meth:`.SimpleStanzaDispatcher.unregister_callback` methods of the base
     class. The `type_` argument to these methods must be a
     :class:`aioxmpp.MessageType` or :data:`None` to make any sense.

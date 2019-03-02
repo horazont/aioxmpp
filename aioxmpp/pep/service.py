@@ -35,8 +35,8 @@ class PEPClient(service.Service):
     .. versionchanged:: 0.10
 
         Before version 0.10, this service did not depend on
-        :class:`aioxmpp.EntityCapsService`. This was surprising to users because
-        the PEP relies on the functionality provided by the protocols
+        :class:`aioxmpp.EntityCapsService`. This was surprising to users
+        because the PEP relies on the functionality provided by the protocols
         implemented by :class:`~aioxmpp.EntityCapsService` to provide key
         features. With the release 0.10, :class:`~aioxmpp.EntityCapsService` is
         a dependency of this service. For backward compatibility, your

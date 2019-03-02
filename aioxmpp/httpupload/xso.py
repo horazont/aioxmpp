@@ -19,8 +19,6 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
-import multidict
-
 import aioxmpp.stanza
 import aioxmpp.xso
 

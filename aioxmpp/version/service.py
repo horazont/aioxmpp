@@ -27,8 +27,6 @@ import aioxmpp.disco
 import aioxmpp.errors
 import aioxmpp.service
 
-from aioxmpp.utils import namespaces
-
 from . import xso as version_xso
 
 
@@ -201,8 +199,8 @@ def query_version(stream: aioxmpp.stream.StanzaStream,
 
     The response is returned as :class:`~aioxmpp.version.xso.Query` object. The
     attributes hold the data returned by the peer. Each attribute may be
-    :data:`None` if the peer chose to omit that information. In an extreme case,
-    all attributes are :data:`None`.
+    :data:`None` if the peer chose to omit that information. In an extreme
+    case, all attributes are :data:`None`.
     """
 
     return (yield from stream.send(

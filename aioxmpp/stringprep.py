@@ -23,7 +23,8 @@
 Stringprep support
 ##################
 
-This module implements the Nodeprep (`RFC 6122`_) and Resourceprep (`RFC 6122`_) stringprep profiles.
+This module implements the Nodeprep (`RFC 6122`_) and Resourceprep
+(`RFC 6122`_) stringprep profiles.
 
 .. autofunction:: nodeprep
 
