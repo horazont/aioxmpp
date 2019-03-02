@@ -2429,6 +2429,52 @@ class Testmake(unittest.TestCase):
             result,
             SecurityLayer(),
         )
+    def test_simple_with_ssl_context_factory(self):
+        with contextlib.ExitStack() as stack:
+            SecurityLayer = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.SecurityLayer"
+                )
+            )
+
+            PasswordSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PasswordSASLProvider"
+                )
+            )
+
+            PKIXCertificateVerifier = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PKIXCertificateVerifier"
+                )
+            )
+
+            default_ssl_context = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.default_ssl_context"
+                )
+            )
+
+            result = security_layer.make(
+                unittest.mock.sentinel.password_provider,
+                ssl_context_factory=unittest.mock.sentinel.factory
+            )
+
+        PasswordSASLProvider.assert_called_with(
+            unittest.mock.sentinel.password_provider,
+        )
+
+        SecurityLayer.assert_called_with(
+            unittest.mock.sentinel.factory,
+            PKIXCertificateVerifier,
+            True,
+            (PasswordSASLProvider(),)
+        )
+
+        self.assertEqual(
+            result,
+            SecurityLayer(),
+        )
 
     def test_with_static_password(self):
         with contextlib.ExitStack() as stack:

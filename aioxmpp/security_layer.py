@@ -1317,6 +1317,7 @@ def make(
         pin_type=PinType.PUBLIC_KEY,
         post_handshake_deferred_failure=None,
         anonymous=False,
+        ssl_context_factory=None,
         no_verify=False):
     """
     Construct a :class:`SecurityLayer`. Depending on the arguments passed,
@@ -1341,6 +1342,10 @@ def make(
     :param anonymous: trace token for SASL ANONYMOUS (:rfc:`4505`), enables
         ANONYMOUS authentication
     :type anonymous: :class:`str` or :data:`False`
+    :param ssl_context_factory: Factory function used to create the SSL
+        context for TLS connections. Defaults to
+        :func:`aioxmpp.security_layer.default_ssl_context`.
+    :type ssl_context_factory: callable returning :class:`OpenSSL.SSL.Context`
     :param no_verify: *Disable* all certificate verification. Usage is
         **strongly discouraged** outside controlled test environments. See
         below for alternatives.
@@ -1374,6 +1379,12 @@ def make(
     details on the semantics. If `post_handshake_deferred_callback` is
     :data:`None` while `pin_store` is not, a coroutine which returns
     :data:`False` is substituted.
+
+    `ssl_context_factory` can be a callable taking no arguments and returning
+    a :class:`OpenSSL.SSL.Context` object. If given, the factory will be used
+    to obtain an SSL context when the stream negotiates transport layer security
+    via TLS. By default, :func:`aioxmpp.security_layer.default_ssl_context` is
+    used, which should be fine for most applications.
 
     If `no_verify` is true, none of the above regarding certificate verifiers
     matters. The internal null verifier is used, which disables certificate
@@ -1469,7 +1480,7 @@ def make(
         )
 
     return SecurityLayer(
-        default_ssl_context,
+        ssl_context_factory or default_ssl_context,
         certificate_verifier_factory,
         True,
         tuple(sasl_providers),

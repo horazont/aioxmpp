@@ -146,6 +146,10 @@ Version 0.11
 
 * :class:`aioxmpp.misc.JSONContainer`, :class:`aioxmpp.misc.JSONContainerType`
 
+* :func:`aioxmpp.make_security_layer` now supports the `ssl_context_factory`
+  argument which is already known from the (deprecated)
+  :func:`aioxmpp.security_layer.tls_with_password_based_authentication`.
+
 .. _api-changelog-0.10:
 
 Version 0.10
