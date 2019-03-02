@@ -493,7 +493,7 @@ def normalize_tag(tag):
     return tag
 
 
-from .types import (  # NOQA
+from .types import (  # NOQA: F401
     Unknown,
     AbstractCDataType,
     AbstractElementType,
@@ -521,9 +521,7 @@ from .types import (  # NOQA
     NumericRange,
 )
 
-from .model import (  # NOQA
-    tag_to_str,
-    normalize_tag,
+from .model import (  # NOQA: F401
     UnknownChildPolicy,
     UnknownAttrPolicy,
     UnknownTextPolicy,
@@ -562,7 +560,7 @@ NO_DEFAULT = _PropBase.NO_DEFAULT
 del _PropBase
 
 
-from .query import (  # NOQA
+from .query import (  # NOQA: F401
     where,
     not_,
 )

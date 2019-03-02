@@ -66,7 +66,7 @@ Shorthands
    Alias of :func:`aioxmpp.security_layer.make`.
 
 """
-from ._version import version_info, __version__, version  # NOQA
+from ._version import version_info, __version__, version  # NOQA: F401
 
 #: The imported :mod:`aioxmpp` version as a tuple.
 #:
@@ -106,8 +106,8 @@ from .errors import ( # NOQA
     XMPPWaitError,
     ErrorCondition,
 )
-from .stanza import Presence, IQ, Message  # NOQA
-from .structs import (  # NOQA
+from .stanza import Presence, IQ, Message  # NOQA: F401
+from .structs import (  # NOQA: F401
     JID,
     PresenceShow,
     PresenceState,
@@ -116,28 +116,28 @@ from .structs import (  # NOQA
     IQType,
     ErrorType,
 )
-from .security_layer import make as make_security_layer  # NOQA
-from .node import Client, PresenceManagedClient  # NOQA
+from .security_layer import make as make_security_layer  # NOQA: F401
+from .node import Client, PresenceManagedClient  # NOQA: F401
 
 # services
-from .presence import PresenceClient, PresenceServer  # NOQA
-from .roster import RosterClient  # NOQA
-from .disco import DiscoServer, DiscoClient  # NOQA
-from .entitycaps import EntityCapsService  # NOQA
-from .muc import MUCClient  # NOQA
-from .pubsub import PubSubClient  # NOQA
-from .shim import SHIMService  # NOQA
-from .adhoc import AdHocClient, AdHocServer  # NOQA
-from .avatar import AvatarService  # NOQA
-from .blocking import BlockingClient  # NOQA
-from .carbons import CarbonsClient  # NOQA
-from .ping import PingService  # NOQA
-from .pep import PEPClient  # NOQA
-from .bookmarks import BookmarkClient  # NOQA
-from .version import VersionServer  # NOQA
-from .mdr import DeliveryReceiptsService  # NOQA
+from .presence import PresenceClient, PresenceServer  # NOQA: F401
+from .roster import RosterClient  # NOQA: F401
+from .disco import DiscoServer, DiscoClient  # NOQA: F401
+from .entitycaps import EntityCapsService  # NOQA: F401
+from .muc import MUCClient  # NOQA: F401
+from .pubsub import PubSubClient  # NOQA: F401
+from .shim import SHIMService  # NOQA: F401
+from .adhoc import AdHocClient, AdHocServer  # NOQA: F401
+from .avatar import AvatarService  # NOQA: F401
+from .blocking import BlockingClient  # NOQA: F401
+from .carbons import CarbonsClient  # NOQA: F401
+from .ping import PingService  # NOQA: F401
+from .pep import PEPClient  # NOQA: F401
+from .bookmarks import BookmarkClient  # NOQA: F401
+from .version import VersionServer  # NOQA: F401
+from .mdr import DeliveryReceiptsService  # NOQA: F401
 
-from . import httpupload  # NOQA
+from . import httpupload  # NOQA: F401
 
 
 def set_strict_mode():

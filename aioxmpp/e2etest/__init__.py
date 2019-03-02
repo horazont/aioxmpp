@@ -136,7 +136,7 @@ from nose.plugins import Plugin
 
 from ..testutils import get_timeout
 from .utils import blocking
-from .provision import Quirk  # NOQA
+from .provision import Quirk  # NOQA: F401
 
 
 provisioner = None

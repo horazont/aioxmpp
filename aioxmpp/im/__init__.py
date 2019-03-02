@@ -114,11 +114,11 @@ Conversation Service
 
 """
 
-from .conversation import (  # NOQA
+from .conversation import (  # NOQA: F401
     ConversationState,
     ConversationFeature,
     InviteMode,
 )
-from .service import (  # NOQA
+from .service import (  # NOQA: F401
     ConversationService,
 )

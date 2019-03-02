@@ -92,9 +92,13 @@ Pre-Authenticated Roster Subcription (:xep:`379`)
 
 """
 
-from .delay import Delay  # NOQA
-from .forwarding import Forwarded  # NOQA
-from .oob import OOBExtension  # NOQA
-from .markers import ReceivedMarker, DisplayedMarker, AcknowledgedMarker  # NOQA
-from .json import JSONContainer, JSONContainerType  # NOQA
-from .pars import Preauth  # NOQA
+from .delay import Delay  # NOQA: F401
+from .forwarding import Forwarded  # NOQA: F401
+from .oob import OOBExtension  # NOQA: F401
+from .markers import (  # NOQA: F401
+    ReceivedMarker,
+    DisplayedMarker,
+    AcknowledgedMarker,
+)
+from .json import JSONContainer, JSONContainerType  # NOQA: F401
+from .pars import Preauth  # NOQA: F401

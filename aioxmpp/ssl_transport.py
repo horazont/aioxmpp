@@ -19,4 +19,4 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
-from aioopenssl import *  # NOQA
+from aioopenssl import *  # NOQA: F403,F401

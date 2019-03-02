@@ -193,6 +193,6 @@ Forms
 
 """
 
-from .service import PubSubClient  # NOQA
-from .xso import NodeConfigForm  # NOQA
+from .service import PubSubClient  # NOQA: F401
+from .xso import NodeConfigForm  # NOQA: F401
 Service = PubSubClient

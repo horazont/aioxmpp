@@ -35,4 +35,4 @@ The public interface of this package consists of a single
 .. currentmodule:: aioxmpp.blocking
 
 """
-from .service import BlockingClient  # NOQA
+from .service import BlockingClient  # NOQA: F401

@@ -39,4 +39,4 @@ The VCards are exposed as:
 .. autoclass:: VCard()
 
 """
-from .service import VCardService  # NOQA
+from .service import VCardService  # NOQA: F401

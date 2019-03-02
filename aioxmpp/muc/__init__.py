@@ -244,7 +244,7 @@ Owner namespace
 .. autoclass:: DirectInvite
 
 """
-from .service import (  # NOQA
+from .service import (  # NOQA: F401
     MUCClient,
     Occupant,
     Room,
@@ -252,8 +252,8 @@ from .service import (  # NOQA
     RoomState,
     ServiceMember,
 )
-from . import xso  # NOQA
-from .xso import (  # NOQA
+from . import xso  # NOQA: F401
+from .xso import (  # NOQA: F401
     ConfigurationForm,
     InfoForm,
     VoiceRequestForm,

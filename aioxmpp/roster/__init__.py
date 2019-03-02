@@ -64,5 +64,5 @@ versioning:
 .. autoclass:: RosterVersioningFeature()
 """
 
-from .service import RosterClient, Item  # NOQA
+from .service import RosterClient, Item  # NOQA: F401
 Service = RosterClient  # NOQA
