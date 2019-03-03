@@ -1428,15 +1428,25 @@ def make(
 
     .. note::
 
-       :data:`False` and ``""`` are treated differently for the `anonymous`
-       argument, despite both being false-y values!
+        :data:`False` and ``""`` are treated differently for the `anonymous`
+        argument, despite both being false-y values!
+
+    .. note::
+
+        If `anonymous` is not :data:`False` and `password_provider` is not
+        :data:`None`, both authentication types are attempted. Anonymous
+        authentication is, in that case, preferred over password-based
+        authentication.
+
+        If you need to reverse the order, you have to construct your own
+        :class:`SecurityLayer` object.
 
     .. warning::
 
-       Take the security and privacy considerations from :rfc:`4505` (which
-       specifies the ANONYMOUS SASL mechanism) and :xep:`175` (which discusses
-       the ANONYMOUS SASL mechanism in the XMPP context) into account before
-       using `anonymous`.
+        Take the security and privacy considerations from :rfc:`4505` (which
+        specifies the ANONYMOUS SASL mechanism) and :xep:`175` (which discusses
+        the ANONYMOUS SASL mechanism in the XMPP context) into account before
+        using `anonymous`.
 
     The versatility and simplicity of use of this function make (pun intended)
     it the preferred way to construct :class:`SecurityLayer` instances.
