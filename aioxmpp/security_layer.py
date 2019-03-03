@@ -1317,7 +1317,7 @@ def make(
         pin_type=PinType.PUBLIC_KEY,
         post_handshake_deferred_failure=None,
         anonymous=False,
-        ssl_context_factory=None,
+        ssl_context_factory=default_ssl_context,
         no_verify=False):
     """
     Construct a :class:`SecurityLayer`. Depending on the arguments passed,
@@ -1503,7 +1503,7 @@ def make(
         )
 
     return SecurityLayer(
-        ssl_context_factory or default_ssl_context,
+        ssl_context_factory,
         certificate_verifier_factory,
         True,
         tuple(sasl_providers),
