@@ -63,6 +63,12 @@ class Quirk(enum.Enum):
 
        The quirk does not need to be set if the environment does not provide a
        MUC implementation at all.
+
+    .. attribute:: PUBSUB_GET_ITEMS_BY_ID_BROKEN
+       :annotation: https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#broken-pubsub-get-multiple-by-id
+
+       Indicates that the "Get Items by Id" operation in the PubSub service used
+       is broken when more than one item is requested.
     """  # NOQA: E501
 
     MUC_REWRITES_MESSAGE_ID = \
@@ -73,6 +79,8 @@ class Quirk(enum.Enum):
         "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#muc-no-333"
     BROKEN_MUC = \
         "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#broken-muc"
+    PUBSUB_GET_MULTIPLE_ITEMS_BY_ID_BROKEN = \
+        "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#broken-pubsub-get-multiple-by-id"  # NOQA: E501
 
 
 def fix_quirk_str(s):
