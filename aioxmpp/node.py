@@ -420,22 +420,20 @@ class Client:
     """
     Base class to implement an XMPP client.
 
-    :param local_jid: Jabber ID to connect as
-    :type local_jid: :class:`~aioxmpp.JID`
-    :param security_layer: Configuration for authentication and TLS
-    :type security_layer: :class:`~aioxmpp.SecurityLayer`
-    :param negotiation_timeout: Timeout for the individual stream negotiation
-                                steps (bounds initial connection time)
-    :type negotiation_timeout: :class:`datetime.timedelta`
-    :param override_peer: Connection options which take precedence over the
-                          standardised connection options
-    :type override_peer: sequence of connection option triples
-    :param max_inital_attempts: Maximum number of initial connection attempts
-    :type max_initial_attempts: :class:`int`
-    :param loop: Override the :mod:`asyncio` event loop to use
-    :type loop: :class:`asyncio.BaseEventLoop` or :data:`None`
-    :param logger: Logger to use instead of the default logger
-    :type logger: :class:`logging.Logger` or :data:`None`
+    Args:
+        local_jid (:class:`~aioxmpp.JID`): Jabber ID to connect as.
+        security_layer (:class:`~aioxmpp.SecurityLayer`): Configuration
+            for authentication and TLS.
+        negotiation_timeout (:class:`datetime.timedelta`): Timeout for the
+            individual stream negotiation steps (bounds initial connect time)
+        override_peer: Connection options which take precedence over the
+            standardised connection options
+        max_inital_attempts (:class:`int`): Maximum number of initial
+            connection attempts before giving up.
+        loop (:class:`asyncio.BaseEventLoop` or :data:`None`): Override the
+            :mod:`asyncio` event loop to use.
+        logger (:class:`logging.Logger` or :data:`None`): Override the logger
+            to use.
 
     These classes deal with managing the :class:`~aioxmpp.stream.StanzaStream`
     and the underlying :class:`~aioxmpp.protocol.XMLStream` instances. The
