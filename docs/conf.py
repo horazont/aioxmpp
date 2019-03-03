@@ -59,6 +59,8 @@ extensions = [
     'sphinx.ext.autosummary',
     'aioxmppspecific']
 
+napoleon_numpy_docstring = False
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['sphinx-data/templates']
 
