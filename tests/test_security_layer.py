@@ -2404,12 +2404,6 @@ class Testmake(unittest.TestCase):
                 )
             )
 
-            default_ssl_context = stack.enter_context(
-                unittest.mock.patch(
-                    "aioxmpp.security_layer.default_ssl_context"
-                )
-            )
-
             result = security_layer.make(
                 unittest.mock.sentinel.password_provider,
             )
@@ -2419,7 +2413,48 @@ class Testmake(unittest.TestCase):
         )
 
         SecurityLayer.assert_called_with(
-            default_ssl_context,
+            security_layer.default_ssl_context,
+            PKIXCertificateVerifier,
+            True,
+            (PasswordSASLProvider(),)
+        )
+
+        self.assertEqual(
+            result,
+            SecurityLayer(),
+        )
+
+    def test_simple_with_ssl_context_factory(self):
+        with contextlib.ExitStack() as stack:
+            SecurityLayer = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.SecurityLayer"
+                )
+            )
+
+            PasswordSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PasswordSASLProvider"
+                )
+            )
+
+            PKIXCertificateVerifier = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PKIXCertificateVerifier"
+                )
+            )
+
+            result = security_layer.make(
+                unittest.mock.sentinel.password_provider,
+                ssl_context_factory=unittest.mock.sentinel.factory
+            )
+
+        PasswordSASLProvider.assert_called_with(
+            unittest.mock.sentinel.password_provider,
+        )
+
+        SecurityLayer.assert_called_with(
+            unittest.mock.sentinel.factory,
             PKIXCertificateVerifier,
             True,
             (PasswordSASLProvider(),)
@@ -2450,12 +2485,6 @@ class Testmake(unittest.TestCase):
                 )
             )
 
-            default_ssl_context = stack.enter_context(
-                unittest.mock.patch(
-                    "aioxmpp.security_layer.default_ssl_context"
-                )
-            )
-
             result = security_layer.make(
                 "foo",
             )
@@ -2467,7 +2496,7 @@ class Testmake(unittest.TestCase):
         _, (password_provider, ), _ = PasswordSASLProvider.mock_calls[0]
 
         SecurityLayer.assert_called_with(
-            default_ssl_context,
+            security_layer.default_ssl_context,
             PKIXCertificateVerifier,
             True,
             (PasswordSASLProvider(),)
@@ -2515,19 +2544,13 @@ class Testmake(unittest.TestCase):
                 )
             )
 
-            default_ssl_context = stack.enter_context(
-                unittest.mock.patch(
-                    "aioxmpp.security_layer.default_ssl_context"
-                )
-            )
-
             security_layer.make(
                 unittest.mock.sentinel.password_provider,
                 pin_store=pin_data,
             )
 
         SecurityLayer.assert_called_with(
-            default_ssl_context,
+            security_layer.default_ssl_context,
             unittest.mock.ANY,
             True,
             (PasswordSASLProvider(),)
@@ -2589,12 +2612,6 @@ class Testmake(unittest.TestCase):
                 )
             )
 
-            default_ssl_context = stack.enter_context(
-                unittest.mock.patch(
-                    "aioxmpp.security_layer.default_ssl_context"
-                )
-            )
-
             result = security_layer.make(
                 unittest.mock.sentinel.password_provider,
                 pin_store=pin_data,
@@ -2616,7 +2633,7 @@ class Testmake(unittest.TestCase):
         )
 
         SecurityLayer.assert_called_with(
-            default_ssl_context,
+            security_layer.default_ssl_context,
             unittest.mock.ANY,
             True,
             (PasswordSASLProvider(),)
@@ -2676,12 +2693,6 @@ class Testmake(unittest.TestCase):
                 )
             )
 
-            default_ssl_context = stack.enter_context(
-                unittest.mock.patch(
-                    "aioxmpp.security_layer.default_ssl_context"
-                )
-            )
-
             result = security_layer.make(
                 unittest.mock.sentinel.password_provider,
                 pin_store=pin_data,
@@ -2704,7 +2715,7 @@ class Testmake(unittest.TestCase):
         )
 
         SecurityLayer.assert_called_with(
-            default_ssl_context,
+            security_layer.default_ssl_context,
             unittest.mock.ANY,
             True,
             (PasswordSASLProvider(),)
@@ -2756,12 +2767,6 @@ class Testmake(unittest.TestCase):
                 )
             )
 
-            default_ssl_context = stack.enter_context(
-                unittest.mock.patch(
-                    "aioxmpp.security_layer.default_ssl_context"
-                )
-            )
-
             pin_store = unittest.mock.Mock(
                 spec=security_layer.AbstractPinStore
             )
@@ -2777,7 +2782,7 @@ class Testmake(unittest.TestCase):
         )
 
         SecurityLayer.assert_called_with(
-            default_ssl_context,
+            security_layer.default_ssl_context,
             unittest.mock.ANY,
             True,
             (PasswordSASLProvider(),)
@@ -2829,12 +2834,6 @@ class Testmake(unittest.TestCase):
                 )
             )
 
-            default_ssl_context = stack.enter_context(
-                unittest.mock.patch(
-                    "aioxmpp.security_layer.default_ssl_context"
-                )
-            )
-
             result = security_layer.make(
                 unittest.mock.sentinel.password_provider,
                 no_verify=True,
@@ -2845,7 +2844,7 @@ class Testmake(unittest.TestCase):
         )
 
         SecurityLayer.assert_called_with(
-            default_ssl_context,
+            security_layer.default_ssl_context,
             _NullVerifier,
             True,
             (PasswordSASLProvider(),)
@@ -2882,12 +2881,6 @@ class Testmake(unittest.TestCase):
                 )
             )
 
-            default_ssl_context = stack.enter_context(
-                unittest.mock.patch(
-                    "aioxmpp.security_layer.default_ssl_context"
-                )
-            )
-
             result = security_layer.make(
                 unittest.mock.sentinel.password_provider,
                 anonymous=unittest.mock.sentinel.token,
@@ -2902,7 +2895,7 @@ class Testmake(unittest.TestCase):
         )
 
         SecurityLayer.assert_called_with(
-            default_ssl_context,
+            security_layer.default_ssl_context,
             PKIXCertificateVerifier,
             True,
             (
@@ -2942,12 +2935,6 @@ class Testmake(unittest.TestCase):
                 )
             )
 
-            default_ssl_context = stack.enter_context(
-                unittest.mock.patch(
-                    "aioxmpp.security_layer.default_ssl_context"
-                )
-            )
-
             result = security_layer.make(
                 None,
                 anonymous=unittest.mock.sentinel.token,
@@ -2960,7 +2947,7 @@ class Testmake(unittest.TestCase):
         )
 
         SecurityLayer.assert_called_with(
-            default_ssl_context,
+            security_layer.default_ssl_context,
             PKIXCertificateVerifier,
             True,
             (
@@ -2999,12 +2986,6 @@ class Testmake(unittest.TestCase):
                 )
             )
 
-            default_ssl_context = stack.enter_context(
-                unittest.mock.patch(
-                    "aioxmpp.security_layer.default_ssl_context"
-                )
-            )
-
             result = security_layer.make(
                 None
             )
@@ -3014,7 +2995,7 @@ class Testmake(unittest.TestCase):
         AnonymousSASLProvider.assert_not_called()
 
         SecurityLayer.assert_called_with(
-            default_ssl_context,
+            security_layer.default_ssl_context,
             PKIXCertificateVerifier,
             True,
             ()
@@ -3051,12 +3032,6 @@ class Testmake(unittest.TestCase):
                 )
             )
 
-            default_ssl_context = stack.enter_context(
-                unittest.mock.patch(
-                    "aioxmpp.security_layer.default_ssl_context"
-                )
-            )
-
             result = security_layer.make(
                 None,
                 anonymous="",
@@ -3069,7 +3044,7 @@ class Testmake(unittest.TestCase):
         )
 
         SecurityLayer.assert_called_with(
-            default_ssl_context,
+            security_layer.default_ssl_context,
             PKIXCertificateVerifier,
             True,
             (

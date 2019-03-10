@@ -146,6 +146,17 @@ Version 0.11
 
 * :class:`aioxmpp.misc.JSONContainer`, :class:`aioxmpp.misc.JSONContainerType`
 
+* :func:`aioxmpp.make_security_layer` now supports the `ssl_context_factory`
+  argument which is already known from the (deprecated)
+  :func:`aioxmpp.security_layer.tls_with_password_based_authentication`.
+
+* *Possible breaking change*: :func:`aioxmpp.make_security_layer` now
+  binds the default for the ssl context factory early to
+  :func:`aioxmpp.security_layer.default_ssl_context`. This means that you
+  can not monkey-patch :func:`aioxmpp.security_layer.default_ssl_context` and
+  have your changes apply to all security layers anymore. Since this behaviour
+  was never documented or intended, there is no transition period for this.
+
 .. _api-changelog-0.10:
 
 Version 0.10
