@@ -1,13 +1,17 @@
 language: python
 cache:
   pip: true
+dist: xenial
+addons:
+  apt:
+    update: yes
 
 python:
 - "3.4"
 - "3.5"
 - "3.6"
 env:
-- TEST_MODE=e2e-prosody PROSODY_BRANCH=0.10
+- TEST_MODE=e2e-prosody PROSODY_BRANCH=0.10 WITH_BUILD_DEP=yes LUA_VERSION=5.1
 matrix:
   include:
   - python: "3.6"
@@ -23,9 +27,11 @@ matrix:
     services:
     - docker
   - python: "3.6"
-    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.9
+    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.9 LUA_VERSION=5.1 WITH_BUILD_DEP=yes
   - python: "3.6"
-    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=trunk
+    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.10 LUA_VERSION=5.1 WITH_BUILD_DEP=yes
+  - python: "3.6"
+    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=trunk WITH_BUILD_DEP=yes
   - python: "3.6"
     env: TEST_MODE=e2e-metronome METRONOME_VERSION=master
     addons:
@@ -43,7 +49,7 @@ matrix:
     env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.10 WITH_BUILD_DEP=yes
   allow_failures:
   - python: "3.6"
-    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=trunk
+    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=trunk WITH_BUILD_DEP=yes
   - python: "3.6"
     env: TEST_MODE=e2e-metronome METRONOME_VERSION=master
     addons:
