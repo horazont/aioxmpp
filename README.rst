@@ -143,6 +143,8 @@ you are welcome to notify me privately. To do so, send a mail to `Jonas Schäfer
 If you prefer to disclose security issues immediately, you can do so at any of
 the places listed above.
 
+More details can be found in the `SECURITY.md <SECURITY.md>`_ file.
+
 Change log
 ==========
 
