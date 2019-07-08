@@ -630,6 +630,12 @@ Version 0.10.3
 
   (A CVE will be allocated for this.)
 
+Version 0.10.4
+--------------
+
+* Fix incorrect parsing of :xep:`198` location specifier. We always required a
+  port number, while the standards allows omit the port number.
+
 .. _api-changelog-0.9:
 
 Version 0.9
