@@ -950,6 +950,19 @@ class TestConnectionLocation(unittest.TestCase):
             t.parse("[fe80::]:5222")
         )
 
+    def test_parse_ipv6_without_port_number(self):
+        t = xso.ConnectionLocation()
+        self.assertEqual(
+            (ipaddress.IPv6Address("fe80::"), 5222),
+            t.parse("[fe80::]")
+        )
+
+    def test_invalid_ipv6(self):
+        t = xso.ConnectionLocation()
+        with self.assertRaises(ValueError):
+            t.parse("fe80:::5222")
+
+
     def test_reject_non_integer_port_number(self):
         t = xso.ConnectionLocation()
         with self.assertRaises(ValueError):
@@ -960,11 +973,6 @@ class TestConnectionLocation(unittest.TestCase):
         with self.assertRaises(ValueError):
             t.parse("[fe80::]:1000000")
 
-    def test_reject_missing_colon(self):
-        t = xso.ConnectionLocation()
-        with self.assertRaises(ValueError):
-            t.parse("foo.bar")
-
     def test_parse_ipv4(self):
         t = xso.ConnectionLocation()
         self.assertEqual(
@@ -972,11 +980,25 @@ class TestConnectionLocation(unittest.TestCase):
             t.parse("10.0.0.1:5223")
         )
 
+    def test_parse_ipv4_without_port_number(self):
+        t = xso.ConnectionLocation()
+        self.assertEqual(
+            (ipaddress.IPv4Address("10.0.0.1"), 5222),
+            t.parse("10.0.0.1")
+        )
+
     def test_parse_hostname(self):
         t = xso.ConnectionLocation()
         self.assertEqual(
             ("foo.bar.example", 5234),
             t.parse("foo.bar.example:5234")
+        )
+
+    def test_parse_hostname_without_port_number(self):
+        t = xso.ConnectionLocation()
+        self.assertEqual(
+            ("foo.bar.example", 5222),
+            t.parse("foo.bar.example")
         )
 
     def test_format_ipv6(self):

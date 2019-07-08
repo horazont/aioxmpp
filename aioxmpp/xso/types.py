@@ -602,13 +602,33 @@ class ConnectionLocation(AbstractCDataType):
 
     def parse(self, v):
         v = v.strip()
-        addr, _, port = v.rpartition(":")
-        if not _:
-            raise ValueError("missing colon in connection location")
-        port = int(port)
+
+        if v.endswith("]"):
+            # IPv6 address without port number
+            if not v.startswith("["):
+                raise ValueError(
+                    "IPv6 address must be encapsulated in square brackets"
+                )
+            return self.coerce((
+                ipaddress.IPv6Address(v[1:-1]),
+                5222
+            ))
+
+        addr, sep, port = v.rpartition(":")
+        if sep:
+            port = int(port)
+        else:
+            # with rpartition, the stuff is on the RHS when the separator was
+            # not found
+            addr = port
+            port = 5222
 
         if addr.startswith("[") and addr.endswith("]"):
             addr = ipaddress.IPv6Address(addr[1:-1])
+        elif ":" in addr:
+            raise ValueError(
+                "IPv6 address must be encapsulated in square brackets"
+            )
 
         try:
             addr = ipaddress.IPv4Address(addr)
