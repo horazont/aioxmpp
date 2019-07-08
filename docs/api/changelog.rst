@@ -157,6 +157,9 @@ Version 0.11
   have your changes apply to all security layers anymore. Since this behaviour
   was never documented or intended, there is no transition period for this.
 
+* Fix incorrect parsing of :xep:`198` location specifier. We always required a
+  port number, while the standards allows omit the port number.
+
 .. _api-changelog-0.10:
 
 Version 0.10
