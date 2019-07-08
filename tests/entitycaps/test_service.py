@@ -383,7 +383,7 @@ class TestCache(unittest.TestCase):
                 "run_in_executor"
             ))
 
-            async = stack.enter_context(unittest.mock.patch(
+            async_ = stack.enter_context(unittest.mock.patch(
                 "asyncio.ensure_future"
             ))
 
@@ -402,7 +402,7 @@ class TestCache(unittest.TestCase):
             p.__truediv__(),
             q.captured_events,
         )
-        async.assert_called_with(run_in_executor())
+        async_.assert_called_with(run_in_executor())
 
         result = self.c.lookup_in_database(key)
         self.assertEqual(result, copy())
@@ -420,7 +420,7 @@ class TestCache(unittest.TestCase):
                 "run_in_executor"
             ))
 
-            async = stack.enter_context(unittest.mock.patch(
+            async_ = stack.enter_context(unittest.mock.patch(
                 "asyncio.ensure_future"
             ))
 
@@ -431,7 +431,7 @@ class TestCache(unittest.TestCase):
 
         copy.assert_called_with(q)
         self.assertFalse(run_in_executor.mock_calls)
-        self.assertFalse(async.mock_calls)
+        self.assertFalse(async_.mock_calls)
 
         result = self.c.lookup_in_database(unittest.mock.sentinel.key)
         self.assertEqual(result, copy())
@@ -463,7 +463,7 @@ class TestCache(unittest.TestCase):
                 "run_in_executor"
             ))
 
-            async = stack.enter_context(unittest.mock.patch(
+            async_ = stack.enter_context(unittest.mock.patch(
                 "asyncio.ensure_future"
             ))
 
@@ -480,7 +480,7 @@ class TestCache(unittest.TestCase):
                 p / key.path,
                 q.captured_events,
             )
-            async.assert_called_with(run_in_executor())
+            async_.assert_called_with(run_in_executor())
 
             entitycaps_service.writeback(
                 *run_in_executor.mock_calls[0][1][2:]

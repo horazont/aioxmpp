@@ -2536,26 +2536,26 @@ def enforce_unknown_child_policy(policy, ev_args, error_handler=None):
 
 
 def guard(dest, ev_args):
-    next(dest)
     depth = 1
-    while True:
-        ev = yield
-        if ev[0] == "start":
-            depth += 1
-        elif ev[0] == "end":
-            depth -= 1
-        try:
-            dest.send(ev)
-        except StopIteration as exc:
-            return exc.value
-        except Exception as exc:
-            error = exc
-            break
-    while depth > 0:
-        ev_type, *_ = yield
-        if ev_type == "end":
-            depth -= 1
-    raise error
+    try:
+        next(dest)
+        while True:
+            ev = yield
+            if ev[0] == "start":
+                depth += 1
+            elif ev[0] == "end":
+                depth -= 1
+            try:
+                dest.send(ev)
+            except StopIteration as exc:
+                return exc.value
+    finally:
+        while depth > 0:
+            ev_type, *_ = yield
+            if ev_type == "end":
+                depth -= 1
+            elif ev_type == "start":
+                depth += 1
 
 
 def lang_attr(instance, ctx):
