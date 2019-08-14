@@ -34,12 +34,16 @@ with open(os.path.join(here, "README.rst"), encoding="utf-8") as f:
 
 version_mod = runpy.run_path("aioxmpp/_version.py")
 
+lxml_constraint = "lxml~=4.0"
+if sys.version_info < (3, 5):
+    lxml_constraint += ",<4.4"
+
 install_requires = [
     'aiosasl>=0.3',  # need 0.2+ for LGPLv3
     'aioopenssl>=0.1',
     'babel~=2.3',
     'dnspython~=1.0',
-    'lxml~=4.0',
+    lxml_constraint,
     'multidict<5,>=2.0',
     'sortedcollections>=0.5',
     'pyOpenSSL',
