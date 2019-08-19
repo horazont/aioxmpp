@@ -31,6 +31,7 @@ import lxml.sax
 import xml.sax as xml_sax
 import xml.sax.handler as saxhandler
 
+import aioxmpp
 import aioxmpp.xml as xml
 import aioxmpp.structs as structs
 import aioxmpp.errors as errors
@@ -764,6 +765,64 @@ class TestXMPPXMLGenerator(XMLTestCase):
             b'<foo xmlns="uri:foo">'
             b'<foo:bar xmlns:foo="uri:foo"/>'
             b'</foo>',
+            self.buf.getvalue()
+        )
+
+    def test_isolated_nested_prefixless_namespaces(self):
+        """
+        This is a test case introduced while fixing #295.
+
+        The previous code would fail to declare the (prefixless) namespace
+        on the nested <{jabber:client}message/> element. The same happens for
+        prefixed namespaces for that matter.
+        """
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
+        gen.startDocument()
+        gen.startElementNS(("jabber:client", "message"), None, {})
+        gen.startElementNS(("urn:test", "wrapper"), None, {})
+        gen.startElementNS(("jabber:client", "message"), None, {})
+        gen.endElementNS(("jabber:client", "message"), None)
+        gen.endElementNS(("urn:test", "wrapper"), None)
+        gen.endElementNS(("jabber:client", "message"), None)
+        gen.endDocument()
+
+        self.assertEqual(
+            b'<?xml version="1.0"?>'
+            b'<message xmlns="jabber:client">'
+            b'<wrapper xmlns="urn:test">'
+            b'<message xmlns="jabber:client"/>'
+            b'</wrapper>'
+            b'</message>',
+            self.buf.getvalue()
+        )
+
+    def test_isolated_nested_prefixed_namespaces(self):
+        # please see
+        # TestXMPPXMLGenerator.test_isolated_nested_prefixless_namespaces
+        # for details
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
+        gen.startDocument()
+        gen.startPrefixMapping("testns", "jabber:client")
+        gen.startElementNS(("jabber:client", "message"), None, {})
+        gen.startPrefixMapping("testns", "urn:test")
+        gen.startElementNS(("urn:test", "wrapper"), None, {})
+        gen.startPrefixMapping("testns", "jabber:client")
+        gen.startElementNS(("jabber:client", "message"), None, {})
+        gen.endElementNS(("jabber:client", "message"), None)
+        gen.endPrefixMapping("testns")
+        gen.endElementNS(("urn:test", "wrapper"), None)
+        gen.endPrefixMapping("testns")
+        gen.endElementNS(("jabber:client", "message"), None)
+        gen.endPrefixMapping("testns")
+        gen.endDocument()
+
+        self.assertEqual(
+            b'<?xml version="1.0"?>'
+            b'<testns:message xmlns:testns="jabber:client">'
+            b'<testns:wrapper xmlns:testns="urn:test">'
+            b'<testns:message xmlns:testns="jabber:client"/>'
+            b'</testns:wrapper>'
+            b'</testns:message>',
             self.buf.getvalue()
         )
 
@@ -2474,3 +2533,28 @@ class TestFullstack(XMLTestCase):
         tree2 = etree.fromstring(serialised)
 
         self.assertSubtreeEqual(tree1, tree2)
+
+    def test_nested_serialise_test(self):
+        # please see
+        # TestXMPPXMLGenerator.test_isolated_nested_prefixless_namespaces
+        # for details
+        st_nested = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
+        st_nested.body[None] = "foo"
+        st_root = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
+        st_root.xep0184_received = aioxmpp.carbons.xso.Received()
+        st_root.xep0184_received.stanza = st_nested
+
+        with io.BytesIO() as f:
+            xml.write_single_xso(st_root, f)
+            serialised = f.getvalue()
+
+        self.assertEqual(
+            serialised,
+            b'<message xmlns="jabber:client">'
+            b'<received xmlns="urn:xmpp:carbons:2"><forwarded xmlns="urn:xmpp:forward:0">'
+            b'<message xmlns="jabber:client">'
+            b'<body>foo</body>'
+            b'</message>'
+            b'</forwarded></received>'
+            b'</message>',
+        )
