@@ -99,6 +99,7 @@ From XMPP Extension Proposals (XEPs)
 ------------------------------------
 
 * :xep:`4` (Data Forms), see :mod:`aioxmpp.forms`
+* :xep:`27` (Current Jabber OpenPGP Usage), schema-only, see :mod:`aioxmpp.misc`
 * :xep:`30` (Service Discovery), see :mod:`aioxmpp.disco`
 * :xep:`45` (Multi-User Chat), see :mod:`aioxmpp.muc`
 * :xep:`48` (Bookmarks), see :mod:`aioxmpp.bookmarks`

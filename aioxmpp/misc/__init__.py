@@ -90,6 +90,26 @@ Pre-Authenticated Roster Subcription (:xep:`379`)
 
    The pre-auth element associate with a subscription request.
 
+
+Current Jabber OpenPGP Usage (:xep:`27`)
+========================================
+
+.. autoclass:: OpenPGPEncrypted
+
+.. autoclass:: OpenPGPSigned
+
+.. attribute:: aioxmpp.Message.xep0027_encrypted
+
+    Instance of :class:`OpenPGPEncrypted`, if present.
+
+    .. note::
+
+        :xep:`27` does not specify the signing of messages.
+
+.. attribute:: aioxmpp.Presence.xep0027_signed
+
+    Instance of :class:`OpenPGPSigned`, if present.
+
 """
 
 from .delay import Delay  # NOQA: F401
@@ -102,3 +122,7 @@ from .markers import (  # NOQA: F401
 )
 from .json import JSONContainer, JSONContainerType  # NOQA: F401
 from .pars import Preauth  # NOQA: F401
+from .openpgp_legacy import (
+    OpenPGPEncrypted,
+    OpenPGPSigned,
+)

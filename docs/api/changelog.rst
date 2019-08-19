@@ -173,6 +173,8 @@ Version 0.11
   `GitHub Issue #295 <https://github.com/horazont/aioxmpp/issues/295>`_ by
   `@oxoWrk <https://github.com/oxoWrk>`_.
 
+* Support for :xep:`27` schema in :mod:`aioxmpp.misc`
+
 .. _api-changelog-0.10:
 
 Version 0.10
