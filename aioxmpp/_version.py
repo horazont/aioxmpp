@@ -20,7 +20,7 @@
 #
 ########################################################################
 
-version_info = (0, 10, 4, None)
+version_info = (0, 10, 5, None)
 
 __version__ = ".".join(map(str, version_info[:3])) + ("-"+version_info[3] if
                                                       version_info[3] else "")
