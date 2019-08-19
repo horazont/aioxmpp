@@ -160,6 +160,19 @@ Version 0.11
 * Fix incorrect parsing of :xep:`198` location specifier. We always required a
   port number, while the standards allows omit the port number.
 
+* Fix incorrect serialisation of nested namespace declarations for the same URI.
+  One such occurence is often encountered when using the
+  ``<{urn:xmpp:forward:0}forwarded/>`` element (see
+  :class:`aioxmpp.misc.Forwarded`). It can host a ``<{jabber:client}message/>``.
+  Since we declare all namespaces of XSOs as prefixless, the nested message needs
+  to re-declare its prefix. Due to incorrect handling of namespace prefix
+  rebinding in :class:`aioxmpp.xml.XMPPXMLGenerator`, that re-declaration is not
+  emitted, leading to incorrect output.
+
+  This was reported in
+  `GitHub Issue #295 <https://github.com/horazont/aioxmpp/issues/295>`_ by
+  `@oxoWrk <https://github.com/oxoWrk>`_.
+
 .. _api-changelog-0.10:
 
 Version 0.10
