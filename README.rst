@@ -7,6 +7,9 @@
 .. image:: https://coveralls.io/repos/github/horazont/aioxmpp/badge.svg?branch=devel
   :target: https://coveralls.io/github/horazont/aioxmpp?branch=devel
 
+.. image:: https://img.shields.io/pypi/v/aioxmpp.svg
+  :target: https://pypi.python.org/pypi/aioxmpp/
+
 ... is a pure-python XMPP library using the `asyncio`_ standard library module from Python 3.4 (and `available as a third-party module to Python 3.3`__).
 
 .. _asyncio: https://docs.python.org/3/library/asyncio.html
