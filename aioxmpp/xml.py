@@ -310,16 +310,32 @@ class XMPPXMLGenerator:
 
         new_decls = self._ns_decls_floating_in
         new_prefixes = self._ns_prefixes_floating_in
+        old_ns_map = self._curr_ns_map
         self._ns_map_stack.append(
             (
-                self._curr_ns_map.copy(),
+                old_ns_map,
                 set(new_prefixes) - self._ns_auto_prefixes_floating_in,
                 old_counter
             )
         )
 
+        new_ns_map = dict(new_decls)
         cleared_new_prefixes = dict(new_prefixes)
-        for uri, prefix in self._curr_ns_map.items():
+        for uri, prefix in old_ns_map.items():
+            try:
+                new_uri = new_prefixes[prefix]
+            except KeyError:
+                pass
+            else:
+                if new_uri != uri:
+                    # -> the entry must be dropped because the prefix is
+                    # re-assigned
+                    continue
+
+            # use setdefault: new entries (as assigned in new_ns_map =
+            # dict(...)) need to win over old entries
+            new_ns_map.setdefault(uri, prefix)
+
             try:
                 new_uri = cleared_new_prefixes[prefix]
             except KeyError:
@@ -328,7 +344,7 @@ class XMPPXMLGenerator:
                 if new_uri == uri:
                     del cleared_new_prefixes[prefix]
 
-        self._curr_ns_map.update(new_decls)
+        self._curr_ns_map = new_ns_map
         self._ns_decls_floating_in = {}
         self._ns_prefixes_floating_in = {}
         self._ns_auto_prefixes_floating_in.clear()
