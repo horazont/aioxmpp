@@ -8,7 +8,7 @@ Changelog
 Version 0.11
 ============
 
-* :aioxmpp:`aioxmpp.forms` will not complain anymore if multiple ``<option/>``
+* :mod:`aioxmpp.forms` will not complain anymore if multiple ``<option/>``
   elements in a list-single/list-multi are lacking a label. It is recommended
   that you default the label to the option value in such a case.
 
@@ -47,7 +47,7 @@ Version 0.11
   previous connection will enter
   :attr:`~aioxmpp.stream.StanzaState.SENT_WITHOUT_SM` state as previously.
 
-* *Possibly breaking change` :mod:`aioxmpp.stringprep` now uses the
+* *Possibly breaking change* :mod:`aioxmpp.stringprep` now uses the
   Unicode database in version 3.2.0 as specified in :rfc:`3454`.
 
 * :mod:`aioxmpp.ibb` (:xep:`47`) Support for In-Band Bytestreams.
@@ -694,7 +694,7 @@ Minor features and bug fixes
   into XSOs if no value had been set (but a default was given).
 
 * Ensure that forms with :attr:`aioxmpp.forms.Form.FORM_TYPE` attribute render
-  a proper :xep:`68`muc ``FORM_TYPE`` field.
+  a proper :xep:`68` ``FORM_TYPE`` field.
 
 * Allow unset field type in data forms. This may seem weird, but unfortunately
   it is widespread practice. In some data form types, omitting the field type

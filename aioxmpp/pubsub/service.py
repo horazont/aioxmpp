@@ -638,7 +638,7 @@ class PubSubClient(aioxmpp.service.Service):
         :type node: :class:`str`
         :raises aioxmpp.errors.XMPPError: as returned by the service
         :return: The subscriptions response from the service.
-        :rtype: :class:`.xso.Subscriptions.
+        :rtype: :class:`.xso.Subscriptions`
 
         If `node` is :data:`None`, subscriptions on all nodes of the entity
         `jid` are listed.

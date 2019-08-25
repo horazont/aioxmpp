@@ -285,7 +285,7 @@ class Field(xso.XSO):
     :type values: :class:`list` of :class:`str`
     :param desc: Description which can be shown in a tool-tip or similar,
                  without newlines.
-    :type desc: :class:`str` or :data:`None`s
+    :type desc: :class:`str` or :data:`None`
     :param label: Human-readable label to be shown next to the field input
     :type label: :class:`str` or :data:`None`
     :param required: Flag to indicate that the field is required

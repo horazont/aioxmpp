@@ -419,7 +419,7 @@ class Meta(abc.ABCMeta):
 
        This behaviour will be removed in aioxmpp 1.0.
 
-       .. versionremoved:: 0.11
+       .. deprecated:: 0.11
 
     Dependency relationships must not have cycles; a cycle results in a
     :class:`ValueError` when the class causing the cycle is declared.
@@ -861,7 +861,7 @@ class HandlerSpec(collections.namedtuple(
 
     There is a property to extract the function directly:
 
-    .. autoproperty:: func
+    .. autoattribute:: func
     """
 
     def __new__(cls, key, is_unique=True, require_deps=()):

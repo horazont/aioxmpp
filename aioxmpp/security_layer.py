@@ -46,7 +46,7 @@ Certificate verifiers
 =====================
 
 To verify the peer certificate provided by the server, different
-:class:`CertificateVerifier`s are available:
+:class:`CertificateVerifier`\ s are available:
 
 .. autoclass:: PKIXCertificateVerifier
 

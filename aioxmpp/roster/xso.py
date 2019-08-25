@@ -53,7 +53,7 @@ class Item(xso.XSO):
 
     .. attribute:: jid
 
-       The bare :class:`~aioxmpp.JID of the contact.
+       The bare :class:`~aioxmpp.JID` of the contact.
 
     .. attribute:: name
 

@@ -656,7 +656,7 @@ class Collector(_PropBase):
        Before the subtrees were collected in a list. This was changed to an
        ElementTree to allow using XPath over all collected elements. Most code
        should not be affected by this, since the interface is very similar.
-       Assignment is now forbidden. Use ``[:] = `` instead.
+       Assignment is now forbidden. Use ``[:] =`` instead.
 
     .. automethod:: from_events
 
