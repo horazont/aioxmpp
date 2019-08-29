@@ -383,13 +383,12 @@ class _TypedPropBase(_PropBase):
 
 class Text(_TypedPropBase):
     """
-    When assigned to a class’ attribute, it collects all character data of the
-    XML element.
+    Character data contents of an XSO.
 
-    Note that this destroys the relative ordering of child elements and
-    character data pieces. This is known and a WONTFIX, as it is not required
-    in XMPP to keep that relative order: Elements either have character data
-    *or* other elements as children.
+    Note that this does not preserve the relative ordering of child elements
+    and character data pieces. This is known and a WONTFIX, as it is not
+    required in XMPP to keep that relative order: Elements either have
+    character data *or* other elements as children.
 
     The `type_`, `validator`, `validate`, `default` and `erroneous_as_absent`
     arguments behave like in :class:`Attr`.
@@ -467,6 +466,8 @@ class _ChildPropBase(_PropBase):
 
 class ChildValue(_ChildPropBase):
     """
+    Child element parsed using an :term:`Element Type`.
+
     Descriptor represeting a child element as parsed using an element type.
 
     :param type_: The element type to use to parse the child element.
@@ -493,9 +494,12 @@ class ChildValue(_ChildPropBase):
 
 class Child(_ChildPropBase):
     """
-    When assigned to a class’ attribute, it collects any child which matches
-    any :attr:`XSO.TAG` of the given `classes`.
+    A single child element of any of the given XSO types.
 
+    :param classes: XSO types to support in this attribute
+    :type classes: iterable of :class:`aioxmpp.xso.XSO` subclasses
+    :param required: If true, parsing fails if the element is missing.
+    :type required: :class:`bool`
     :param strict: Enable strict type checking on assigned values.
     :type strict: :class:`bool`
 
@@ -504,13 +508,22 @@ class Child(_ChildPropBase):
 
     Instead of the `default` argument like supplied by :class:`Attr`,
     :class:`Child` only supports `required`: if `required` is a false value
-    (the default), a missing child is tolerated and :data:`None` is valid value
-    for the described attribute. Otherwise, a missing matching child is an
-    error and the attribute cannot be set to :data:`None`.
+    (the default), a missing child is tolerated and :data:`None` is a valid
+    value for the described attribute. Otherwise, a missing matching child is
+    an error and the attribute cannot be set to :data:`None`.
 
     If `strict` is true, only instances of the exact classes registered with
     the descriptor can be assigned to it. Subclasses of the registered classes
     also need to be registered explicitly to be allowed as types for values.
+
+    This comes with a performance impact on every write to the descriptor, so
+    it is disabled by default. It is recommended to enable this for descriptors
+    where applications may register additional classes, to protect them from
+    forgetting such a registration (which would cause issues with reception).
+
+    If during parsing, more than one child element with a tag matching one of
+    the :attr:`.XSO.TAG` values of the registered `classes` is encountered,
+    it is unspecified which child is taken.
 
     .. automethod:: get_tag_map
 
@@ -589,6 +602,8 @@ class Child(_ChildPropBase):
 
 class ChildList(_ChildPropBase):
     """
+    List of child elements of any of the given XSO classes.
+
     The :class:`ChildList` works like :class:`Child`, with two key differences:
 
     * multiple children which are matched by this descriptor get collected into
@@ -645,6 +660,9 @@ class ChildList(_ChildPropBase):
 
 class Collector(_PropBase):
     """
+    Catch-all descriptor collecting unhandled elements in an :mod:`lxml`
+    element tree.
+
     When assigned to a class’ attribute, it collects all children which are not
     known to any other descriptor into an XML tree. The root node has the tag
     of the XSO class it pertains to.
@@ -736,40 +754,85 @@ class Collector(_PropBase):
 
 class Attr(Text):
     """
-    Descriptor which represents an XML attribute.
+    A single XML attribute.
 
-    When assigned to a class’ attribute, it binds that attribute to the XML
-    attribute with the given `tag`. `tag` must be a valid input to
-    :func:`normalize_tag`.
+    :param tag: The tag identifying the attribute.
+    :type tag: :class:`str` or :class:`tuple` of :term:`Namespace URI` and
+        :term:`Local Name`.
 
-    The following arguments occur at several of the descriptor classes, and are
-    all available at :class:`Attr`.
+    If the `tag` is a :class:`str`, it is converted using ``(None, tag)``,
+    thus representing an unnamespaced attribute. Note that most attributes
+    are unnamespaced; namespaced attributes always have a namespace prefix
+    on them. Attributes without a namespace prefix, in XML, are unnamespaced
+    (*not* part of the current prefixless namespace).
+
+    .. note::
+
+        The following arguments occur at several of the descriptor classes,
+        and are all available at :class:`Attr`. Their semantics are identical
+        on other classes, transferred to the respective use there.
+
+        (For example, the :class:`ChildText` descriptor is obviously not
+        working with attributes, so the phrase "if the attribute is absent"
+        should be mentally translated to "if the child element is absent".)
 
     :param type_: A character data type to interpret the XML character data.
     :type type_: :class:`~.xso.AbstractCDataType`
-    :param validator: An object which has a :meth:`validate` method. That
-        method receives a value which was either assigned to the property
-        (depending on the `validate` argument) or parsed from XML (after it
-        passed through `type_`).
-    :param validate: A value from the :class:`ValidateMode` enum, which defines
-        which values have to pass through the validator. At some points it
-        makes sense to only validate outgoing values, but be liberal with
-        incoming values. This defaults to :attr:`ValidateMode.FROM_RECV`.
+    :param validator: Optional validator object
+    :type validator: :class:`~.xso.AbstractValidator`
+    :param validate: Control when the `validator` is enforced.
+    :type validate: :class:`ValidateMode`
     :param default: The value which the attribute has if no value has been
-        assigned. This must be given to allow the attribute to be missing. It
-        defaults to a special value. If the attribute has not been assigned to
-        and `default` has not been set, accessing the attribute for reading
-        raises :class:`AttributeError`. An attribute with `default` value
-        is not emitted in the output.
-    :param missing: A callable which takes a :class:`Context` instance. It is
-        called whenever the attribute is missing (independent from the fact
-        whether it is required or not). The callable shall return a
-        not-:data:`None` value for the attribute to use. If the value is
-        :data:`None`, the usual handling of missing attributes takes place.
+        assigned.
+    :param missing: Callback function to handle a missing attribute in the
+        input.
+    :type missing: :data:`None` or unary function
     :param erroneous_as_absent: Treat an erroneous value (= the `type_` raises
         :class:`ValueError` or :class:`TypeError` while parsing) as if the
-        attribute was not present. Note that this is almost never the right
-        thing to do in XMPP.
+        attribute was not present.
+    :type erroneous_as_absent: :class:`bool`
+
+    The `type_` must be a :term:`Character Data Type`, i.e. an instance of a
+    subclass of :class:`AbstractCDataType`. By default, it is
+    :class:`aioxmpp.xso.String`. The `type_` is used to parse the XML character
+    data into python types as appropriate. Errors during this parsing count
+    as parsing errors of the whole XSO (subtree), unless `erroneous_as_absent`
+    is set to true. In that case, the attribute is simply treated as absent
+    if parsing the value fails.
+
+    If the XML attribute has no default assigned, the descriptor will appear
+    to have the `default` value. If no `default` is given (the default) and
+    an attempt is made to access the described attribute,
+    :class:`AttributeError` is raised as you would expect from any normal
+    attribute.
+
+    If a `default` is given, the `default` is also returned after a `del`
+    operation; otherwise, `del` behaves as for any normal attribute.
+
+    Another peculiar property of the `default` is that it does not need to
+    conform to the `validator` or `type_`. If the descriptor is set to the
+    default value, it is *not* emitted on the output.
+
+    In addition to the `default`, it is possible to inject attribute values
+    at parse time using the `missing` callback. `missing` must be None or a
+    function taking a single argument. If it is not None, it will be called
+    with the parsing :class:`Context` as its only argument when a missing
+    attribute is encountered. The return value, unless :data:`None`, is used
+    as value for the descriptor. If the return value is :data:`None`, the
+    attribute is treated like any normal missing attribute.
+
+    It is possible to add validation to values received over the wire or
+    assigned to the descriptor. The `validator` object controls *what*
+    validation occurs and `validate` controls *when* validation occurs.
+
+    `validate` must be a member of the :class:`ValidateMode` enumeration (see
+    there for the semantics of the values). `validator` must be an object
+    implementing the interface defined by :class:`AbstractValidator`.
+
+    Note that validation is independent of the conversions applied by `type_`.
+    Validation always happens on the parsed type and happens before
+    serialisation. Thus, if `type_` is not :class:`aioxmpp.xso.String`, the
+    validator will not receive a :class:`str` object to operate on.
 
     .. seealso::
 
@@ -864,6 +927,8 @@ class Attr(Text):
 
 class LangAttr(Attr):
     """
+    Special handler for the ``xml:lang`` attribute.
+
     An attribute representing the ``xml:lang`` attribute, including inheritance
     semantics.
 
@@ -888,7 +953,7 @@ class LangAttr(Attr):
 
 class ChildText(_TypedPropBase):
     """
-    Represents the character data of a child element.
+    Character data of a single child element matching the given tag.
 
     When assigned to a class’ attribute, it binds that attribute to the XML
     character data of a child element with the given `tag`. `tag` must be a
@@ -1013,7 +1078,7 @@ class ChildText(_TypedPropBase):
 
 class ChildMap(_ChildPropBase):
     """
-    Represents a subset of the children of an XML element, as map.
+    Dictionary holding child elements of one or more XSO classes.
 
     The :class:`ChildMap` class works like :class:`ChildList`, but instead of
     storing the child objects in a list, they are stored in a map which
@@ -1108,7 +1173,8 @@ class ChildMap(_ChildPropBase):
 
 class ChildLangMap(ChildMap):
     """
-    Represents a subset of the children of an XML element, as map.
+    Shorthand for a dictionary of child elements keyed by the language
+    attribute.
 
     The :class:`ChildLangMap` class is a specialized version of the
     :class:`ChildMap`, which uses a `key` function to group the children by
@@ -1128,7 +1194,27 @@ class ChildLangMap(ChildMap):
 
 class ChildTag(_PropBase):
     """
-    Represents a subset of the children of an XML element, as single value.
+    Tag of a single child element with one of the given tags.
+
+    :param tags: The tags to match on.
+    :type tags: iterable of valid arguments to :func:`normalize_tags` or
+        a :class:`enum.Enum` subclass
+    :param text_policy: Determine how text content on the child elements is
+        handled.
+    :type text_policy: :class:`UnknownTextPolicy`
+    :param child_policy: Determine how elements nested in the child elements
+        are handled.
+    :type child_policy: :class:`UnknownChildPolicy`
+    :param attr_policy: Determine how attributes on the child elements are
+        handled.
+    :type attr_policy: :class:`UnknownAttrPolicy`
+    :param allow_none: If true, :data:`None` is used as the default if no
+        child matching the tags is found and represents the absence of the
+        child for serialisation.
+    :type allow_none: :class:`bool`
+    :param declare_prefix: Which namespace prefix, if any, to declare on the
+        child element for its namespace.
+    :type declare_prefix: :data:`False`, :data:`None` or :class:`str`
 
     When assigned to a class’ attribute, this descriptor represents the
     presence or absence of a single child with a tag from a given set of valid
@@ -1256,7 +1342,20 @@ class ChildTag(_PropBase):
 
 class ChildFlag(_PropBase):
     """
-    Represents the presence of a specific child element, as a boolean flag.
+    Presence of a child element with the given tag, as boolean.
+
+    :param tag: The tag of the child element to use as flag.
+    :type tag: :class:`str` or :class:`tuple`
+    :param text_policy: Determine how text content on the child elements is
+        handled.
+    :type text_policy: :class:`UnknownTextPolicy`
+    :param child_policy: Determine how elements nested in the child elements
+        are handled.
+    :type child_policy: :class:`UnknownChildPolicy`
+    :param attr_policy: Determine how attributes on the child elements are
+        handled.
+    :type attr_policy: :class:`UnknownAttrPolicy`
+    :type declare_prefix: :data:`False`, :data:`None` or :class:`str`
 
     When used as a :class:`XSO` descriptor, it represents the presence or
     absence of a single child with the given `tag`. The presence or absence is
@@ -1324,8 +1423,7 @@ class ChildFlag(_PropBase):
 
 class ChildValueList(_ChildPropBase):
     """
-    Represents a subset of the child elements as values. The value
-    representation is governed by the `type_` argument.
+    List of child elements parsed using the given :term:`Element Type`.
 
     :param type_: Type describing the subtree to convert to python values.
     :type type_: :class:`~.xso.AbstractElementType`
@@ -1385,7 +1483,7 @@ class ChildValueList(_ChildPropBase):
 
 class ChildValueMap(_ChildPropBase):
     """
-    A mapping of keys to values, generated by child tags.
+    Dictiorary of child elements parsed using the given :term:`Element Type`.
 
     :param type_: Type describing the subtree to convert to pairs of key and
         value.
@@ -1450,7 +1548,7 @@ class ChildValueMap(_ChildPropBase):
 
 class ChildValueMultiMap(_ChildPropBase):
     """
-    A mapping of keys to lists of values, representing child tags.
+    Multi-dict of child elements parsed using the given :term:`Element Type`.
 
     :param type_: Type describing the subtree to convert to pairs of key and
         value.
@@ -1500,6 +1598,9 @@ class ChildValueMultiMap(_ChildPropBase):
 
 class ChildTextMap(ChildValueMap):
     """
+    Dictionary of character data in child elements keyed by the language
+    attribute.
+
     A specialised version of :class:`ChildValueMap` which uses
     :class:`TextChildMap` together with :class:`.structs.LanguageMap` to
     convert the :class:`AbstractTextChild` subclass `xso_type` to and from
@@ -2150,7 +2251,8 @@ class XSO(metaclass=XMLStreamClass):
     To further influence the parsing behaviour of a class, two attributes are
     provided which give policies for unexpected elements in the XML tree:
 
-    .. attribute:: UNKNOWN_CHILD_POLICY = UnknownChildPolicy.DROP
+    .. attribute:: UNKNOWN_CHILD_POLICY
+       :annotation: = UnknownChildPolicy.DROP
 
        A value from the :class:`UnknownChildPolicy` enum which defines the
        behaviour if a child is encountered for which no matching attribute is
@@ -2160,7 +2262,8 @@ class XSO(metaclass=XMLStreamClass):
        is present, as it takes all children for which no other descriptor
        exists, thus all children are known.
 
-    .. attribute:: UNKNOWN_ATTR_POLICY = UnknownAttrPolicy.DROP
+    .. attribute:: UNKNOWN_ATTR_POLICY
+       :annotation: = UnknownAttrPolicy.DROP
 
        A value from the :class:`UnknownAttrPolicy` enum which defines the
        behaviour if an attribute is encountered for which no matching
