@@ -73,7 +73,7 @@ def unparse_to_node(xso, parent):
         makeelement=parent.makeelement)
     handler.startDocument()
     handler.startElementNS((None, "root"), None)
-    xso.unparse_to_sax(handler)
+    xso.xso_serialise_to_sax(handler)
     handler.endElementNS((None, "root"), None)
     handler.endDocument()
 
@@ -2008,7 +2008,7 @@ class TestXSO(XMLTestCase):
         sink = unittest.mock.MagicMock()
 
         obj = Cls()
-        obj.unparse_to_sax(sink)
+        obj.xso_serialise_to_sax(sink)
 
         self.assertSequenceEqual(
             [
@@ -2956,7 +2956,7 @@ class TestChild(XMLTestCase):
         obj = self.ClsA()
         obj.test_child = unittest.mock.MagicMock()
         self.ClsA.test_child.to_sax(obj, dest)
-        obj.test_child.unparse_to_sax.assert_called_once_with(dest)
+        obj.test_child.xso_serialise_to_sax.assert_called_once_with(dest)
 
     def test_to_sax_unset(self):
         dest = unittest.mock.MagicMock()
@@ -3613,7 +3613,7 @@ class TestChildValue(XMLTestCase):
         self.assertEqual(obj.value, "value")
 
     def test_to_sax_packs_value_and_saxifies_it(self):
-        packed_xso = unittest.mock.Mock(["unparse_to_sax"])
+        packed_xso = unittest.mock.Mock(["xso_serialise_to_sax"])
 
         type_mock = unittest.mock.Mock(["pack", "get_xso_types"])
         type_mock.get_xso_types.return_value = []
@@ -3630,7 +3630,7 @@ class TestChildValue(XMLTestCase):
         prop.to_sax(instance, unittest.mock.sentinel.dest)
 
         type_mock.pack.assert_called_once_with(unittest.mock.sentinel.value)
-        packed_xso.unparse_to_sax.assert_called_once_with(
+        packed_xso.xso_serialise_to_sax.assert_called_once_with(
             unittest.mock.sentinel.dest
         )
 
@@ -5653,7 +5653,7 @@ class TestChildValueList(unittest.TestCase):
             base.mock_calls,
             [
                 unittest.mock.call.pack(10),
-                unittest.mock.call.pack().unparse_to_sax(base.dest)
+                unittest.mock.call.pack().xso_serialise_to_sax(base.dest)
             ]
         )
 
@@ -5952,7 +5952,7 @@ class TestChildValueMap(unittest.TestCase):
             base.mock_calls,
             [
                 unittest.mock.call.pack((10, 20)),
-                unittest.mock.call.pack().unparse_to_sax(base.dest)
+                unittest.mock.call.pack().xso_serialise_to_sax(base.dest)
             ]
         )
 
@@ -6232,11 +6232,11 @@ class TestChildValueMultiMap(unittest.TestCase):
             base.mock_calls,
             [
                 unittest.mock.call.pack(("x", "foo")),
-                unittest.mock.call.pack().unparse_to_sax(base.dest),
+                unittest.mock.call.pack().xso_serialise_to_sax(base.dest),
                 unittest.mock.call.pack(("x", "bar")),
-                unittest.mock.call.pack().unparse_to_sax(base.dest),
+                unittest.mock.call.pack().xso_serialise_to_sax(base.dest),
                 unittest.mock.call.pack(("z", "baz")),
-                unittest.mock.call.pack().unparse_to_sax(base.dest),
+                unittest.mock.call.pack().xso_serialise_to_sax(base.dest),
             ]
         )
 

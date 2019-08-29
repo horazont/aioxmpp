@@ -1908,7 +1908,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
         f.baz.children.append(Bar("child a"))
         f.baz.children.append(Bar("child b"))
 
-        f.unparse_to_sax(self.proc)
+        f.xso_serialise_to_sax(self.proc)
 
         self.assertEqual(1, len(results))
 

@@ -488,7 +488,7 @@ class ChildValue(_ChildPropBase):
     def to_sax(self, instance, dest):
         value = self.__get__(instance, type(instance))
         packed = self.type_.pack(value)
-        packed.unparse_to_sax(dest)
+        packed.xso_serialise_to_sax(dest)
 
 
 class Child(_ChildPropBase):
@@ -584,7 +584,7 @@ class Child(_ChildPropBase):
         obj = self.__get__(instance, type(instance))
         if obj is None:
             return
-        obj.unparse_to_sax(dest)
+        obj.xso_serialise_to_sax(dest)
 
 
 class ChildList(_ChildPropBase):
@@ -640,7 +640,7 @@ class ChildList(_ChildPropBase):
         """
 
         for obj in self.__get__(instance, type(instance)):
-            obj.unparse_to_sax(dest)
+            obj.xso_serialise_to_sax(dest)
 
 
 class Collector(_PropBase):
@@ -1103,7 +1103,7 @@ class ChildMap(_ChildPropBase):
 
         for items in self.__get__(instance, type(instance)).values():
             for obj in items:
-                obj.unparse_to_sax(dest)
+                obj.xso_serialise_to_sax(dest)
 
 
 class ChildLangMap(ChildMap):
@@ -1380,7 +1380,7 @@ class ChildValueList(_ChildPropBase):
 
     def to_sax(self, instance, dest):
         for value in self.__get__(instance, type(instance)):
-            self.type_.pack(value).unparse_to_sax(dest)
+            self.type_.pack(value).xso_serialise_to_sax(dest)
 
 
 class ChildValueMap(_ChildPropBase):
@@ -1440,7 +1440,7 @@ class ChildValueMap(_ChildPropBase):
 
     def to_sax(self, instance, dest):
         for item in self.__get__(instance, type(instance)).items():
-            self.type_.pack(item).unparse_to_sax(dest)
+            self.type_.pack(item).xso_serialise_to_sax(dest)
 
     def from_events(self, instance, ev_args, ctx):
         obj = yield from self._process(instance, ev_args, ctx)
@@ -1490,7 +1490,7 @@ class ChildValueMultiMap(_ChildPropBase):
 
     def to_sax(self, instance, dest):
         for key, value in self.__get__(instance, type(instance)).items():
-            self.type_.pack((key, value)).unparse_to_sax(dest)
+            self.type_.pack((key, value)).xso_serialise_to_sax(dest)
 
     def from_events(self, instance, ev_args, ctx):
         obj = yield from self._process(instance, ev_args, ctx)
@@ -2192,7 +2192,7 @@ class XSO(metaclass=XMLStreamClass):
 
     The following methods are available on instances of :class:`XSO`:
 
-    .. automethod:: unparse_to_sax
+    .. automethod:: xso_serialise_to_sax
 
     The following **class methods** are provided by the metaclass:
 
@@ -2299,7 +2299,17 @@ class XSO(metaclass=XMLStreamClass):
         child, that child will not be added to the object.
         """
 
-    def unparse_to_sax(self, dest):
+    def xso_serialise_to_sax(self, dest):
+        """
+        Serialise the XSO to a SAX handler.
+
+        :param dest: SAX handler to send the events to
+
+        .. versionchanged:: 0.11
+
+            The method was renamed from unparse_to_sax to
+            xso_serialise_to_sax.
+        """
         # XXX: if anyone has an idea on how to optimize this, this is a hotspot
         # when serialising XML
         # things which do not suffice or even change anything:
@@ -2331,7 +2341,7 @@ class XSO(metaclass=XMLStreamClass):
             makeelement=parent.makeelement)
         handler.startDocument()
         handler.startElementNS((None, "root"), None)
-        self.unparse_to_sax(handler)
+        self.xso_serialise_to_sax(handler)
         handler.endElementNS((None, "root"), None)
         handler.endDocument()
 

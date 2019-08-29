@@ -772,7 +772,7 @@ class XMLStreamWriter:
 
         """
         with self._writer.buffer():
-            xso.unparse_to_sax(self._writer)
+            xso.xso_serialise_to_sax(self._writer)
 
     def abort(self):
         """
@@ -1121,7 +1121,7 @@ def serialize_single_xso(x):
     gen = XMPPXMLGenerator(buf,
                            short_empty_elements=True,
                            sorted_attributes=True)
-    x.unparse_to_sax(gen)
+    x.xso_serialise_to_sax(gen)
     return buf.getvalue().decode("utf8")
 
 
@@ -1132,7 +1132,7 @@ def write_single_xso(x, dest):
     gen = XMPPXMLGenerator(dest,
                            short_empty_elements=True,
                            sorted_attributes=True)
-    x.unparse_to_sax(gen)
+    x.xso_serialise_to_sax(gen)
 
 
 def read_xso(src, xsomap):
