@@ -143,6 +143,25 @@ descriptors.
 Descriptors for XML-sourced attributes
 --------------------------------------
 
+.. autosummary::
+
+    Attr
+    LangAttr
+    Text
+    Child
+    ChildTag
+    ChildFlag
+    ChildText
+    ChildTextMap
+    ChildValue
+    ChildList
+    ChildMap
+    ChildLangMap
+    ChildValueList
+    ChildValueMap
+    ChildValueMultiMap
+    Collector
+
 The following descriptors can be used to load XSO attributes from XML. There
 are two fundamentally different descriptor types: *scalar* and *non-scalar*
 (e.g. list) descriptors. Assignment to the descriptor attribute is
@@ -295,6 +314,23 @@ in :mod:`~aioxmpp.xso.model`.
 Character Data types
 --------------------
 
+.. autosummary::
+
+    String
+    Float
+    Integer
+    Bool
+    DateTime
+    Date
+    Time
+    Base64Binary
+    HexBinary
+    JID
+    ConnectionLocation
+    LanguageTag
+    JSON
+    EnumCDataType
+
 These types describe character data, i.e. text in XML. Thus, they can be used
 with :class:`Attr`, :class:`Text` and similar descriptors. They are used to
 deserialise XML character data to python values, such as integers or dates and
@@ -334,6 +370,11 @@ vice versa. These types inherit from :class:`AbstractCDataType`.
 
 Element types
 -------------
+
+.. autosummary::
+
+    EnumElementType
+    TextChildMap
 
 These types describe structured XML data, i.e. subtrees. Thus, they can be used
 with the :class:`ChildValueList` and :class:`ChildValueMap` family of
