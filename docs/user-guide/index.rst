@@ -10,3 +10,4 @@ library.
    quickstart
    pitfalls
    faq
+   an-introduction-to-xso
