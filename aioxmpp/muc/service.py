@@ -907,6 +907,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             self._monitor_stale,
             self._monitor_fresh,
             self._monitor_exited,
+            self._service.logger.getChild("MUCMonitor"),
         )
 
     @property

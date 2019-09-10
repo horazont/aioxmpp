@@ -621,6 +621,7 @@ class TestRoom(unittest.TestCase):
             self.jmuc._monitor_stale,
             self.jmuc._monitor_fresh,
             self.jmuc._monitor_exited,
+            self.base.service.logger.getChild(),
         )
 
         for ev in ["on_enter", "on_exit", "on_muc_suspend", "on_muc_resume",

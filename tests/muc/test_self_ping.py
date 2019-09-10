@@ -21,6 +21,7 @@
 ########################################################################
 import asyncio
 import contextlib
+import logging
 import random
 import unittest
 import unittest.mock
@@ -81,11 +82,14 @@ class TestMUCPinger(unittest.TestCase):
         self.cc = make_connected_client()
         self.listener = unittest.mock.Mock()
         self.loop = asyncio.get_event_loop()
+        self.logger = logging.getLogger(".".join([type(self).__module__,
+                                                  type(self).__qualname__]))
         self.p = self_ping.MUCPinger(
             unittest.mock.sentinel.ping_address,
             self.cc,
             self.listener.on_fresh,
             self.listener.on_exited,
+            self.logger,
             self.loop,
         )
 
@@ -716,6 +720,8 @@ class TestMUCMonitor(unittest.TestCase):
         self.listener = unittest.mock.Mock()
         self.cc = make_connected_client()
         loop = asyncio.get_event_loop()
+        self.logger = logging.getLogger(".".join([type(self).__module__,
+                                                  type(self).__qualname__]))
 
         with contextlib.ExitStack() as stack:
             AlivenessMonitor = stack.enter_context(unittest.mock.patch(
@@ -734,6 +740,7 @@ class TestMUCMonitor(unittest.TestCase):
                 self.listener.on_stale,
                 self.listener.on_fresh,
                 self.listener.on_exited,
+                logger=self.logger,
                 loop=loop,
             )
 
@@ -743,6 +750,7 @@ class TestMUCMonitor(unittest.TestCase):
             self.cc,
             self.m._pinger_fresh_detected,
             self.m._pinger_exited_detected,
+            self.logger,
             loop,
         )
 

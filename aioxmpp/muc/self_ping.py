@@ -82,7 +82,7 @@ class MUCPinger:
     .. autoattribute:: ping_timeout
     """
 
-    def __init__(self, ping_address, client, on_fresh, on_exited, loop):
+    def __init__(self, ping_address, client, on_fresh, on_exited, logger, loop):
         super().__init__()
         self.ping_address = ping_address
         self._ping_interval = timedelta(minutes=2)
@@ -91,6 +91,7 @@ class MUCPinger:
         self._on_fresh = on_fresh
         self._on_exited = on_exited
         self._loop = loop
+        self._logger = logger
         self._task = None
 
     @property
@@ -136,6 +137,8 @@ class MUCPinger:
         :meth:`start` always behaves as if :meth:`stop` was called right before
         it.
         """
+        self._logger.debug("%s: request to start pinger",
+                           self.ping_address)
         self.stop()
         self._task = asyncio.ensure_future(self._pinger(), loop=self._loop)
 
@@ -147,9 +150,13 @@ class MUCPinger:
         This method will do nothing if the pinger is already stopped. It is
         idempotent.
         """
+        self._logger.debug("%s: request to stop pinger",
+                           self.ping_address)
         if self._task is None:
+            self._logger.debug("%s: already stopped", self.ping_address)
             return
 
+        self._logger.debug("%s: sending cancel signal", self.ping_address)
         self._task.cancel()
         self._task = None
 
@@ -172,6 +179,8 @@ class MUCPinger:
         * Any other exception: *inconclusive*
         """
         if task.exception() is None:
+            self._logger.debug("%s: ping reply has no error -> emitting fresh "
+                               "event", self.ping_address)
             self._on_fresh()
             return
 
@@ -180,20 +189,40 @@ class MUCPinger:
             if exc.condition in [
                     aioxmpp.errors.ErrorCondition.SERVICE_UNAVAILABLE,
                     aioxmpp.errors.ErrorCondition.FEATURE_NOT_IMPLEMENTED]:
+                self._logger.debug(
+                    "%s: ping reply has error indicating freshness: %s",
+                    self.ping_address,
+                    exc.condition,
+                )
                 self._on_fresh()
                 return
 
             if exc.condition == aioxmpp.errors.ErrorCondition.ITEM_NOT_FOUND:
+                self._logger.debug(
+                    "%s: ping reply has inconclusive error: %s",
+                    self.ping_address,
+                    exc.condition,
+                )
                 return
 
+            self._logger.debug(
+                "%s: ping reply has error indicating that the client got "
+                "removed: %s",
+                self.ping_address,
+                exc.condition,
+            )
             self._on_exited()
 
     @asyncio.coroutine
     def _pinger(self):
         in_flight = []
         next_ping_at = None
+        self._logger.debug("%s: pinger booted up", self.ping_address)
         try:
             while True:
+                self._logger.debug("%s: pinger loop. interval=%r",
+                                   self.ping_address,
+                                   self.ping_interval)
                 now = time.monotonic()
 
                 ping_interval = self.ping_interval.total_seconds()
@@ -207,7 +236,18 @@ class MUCPinger:
                     # (= Stream Management hibernation). This will only add to
                     # the queue for no good reason, we won’t get any reply soon
                     # anyways.
-                    if not self._client.suspended:
+                    if self._client.suspended:
+                        self._logger.debug(
+                            "%s: omitting self-ping, as the stream is "
+                            "currently hibernated",
+                            self.ping_address,
+                        )
+                    else:
+                        self._logger.debug(
+                            "%s: sending self-ping with timeout %r",
+                            self.ping_address,
+                            self.ping_timeout,
+                        )
                         in_flight.append(asyncio.ensure_future(
                             asyncio.wait_for(
                                 aioxmpp.ping.ping(self._client,
@@ -221,9 +261,20 @@ class MUCPinger:
                 assert timeout > 0
 
                 if not in_flight:
+                    self._logger.debug(
+                        "%s: pinger has nothing to do, sleeping for %s",
+                        self.ping_address,
+                        timeout,
+                    )
                     yield from asyncio.sleep(timeout)
                     continue
 
+                self._logger.debug(
+                    "%s: pinger waiting for %d pings for at most %ss",
+                    self.ping_address,
+                    len(in_flight),
+                    timeout,
+                )
                 done, pending = yield from asyncio.wait(
                     in_flight,
                     timeout=timeout,
@@ -235,6 +286,8 @@ class MUCPinger:
 
                 in_flight = list(pending)
         finally:
+            self._logger.debug("%s: pinger exited", self.ping_address,
+                               exc_info=True)
             for fut in in_flight:
                 if not fut.done():
                     fut.cancel()
@@ -282,6 +335,7 @@ class MUCMonitor:
                  on_stale,
                  on_fresh,
                  on_exited,
+                 logger,
                  loop=None):
         loop = loop or asyncio.get_event_loop()
         super().__init__()
@@ -303,11 +357,13 @@ class MUCMonitor:
         self._monitor.on_deadtime_soft_limit_tripped.connect(
             self._soft_limit_tripped
         )
+        self._logger = logger
         self._pinger = MUCPinger(
             ping_address,
             client,
             self._pinger_fresh_detected,
             self._pinger_exited_detected,
+            logger,
             loop,
         )
 
@@ -361,6 +417,8 @@ class MUCMonitor:
         If the monitor is not already enabled, the aliveness timeouts are reset
         and configured and the stale state is cleared.
         """
+        self._logger.debug("%s: request to enable monitoring",
+                           self.ping_address)
         if self._monitor_enabled:
             return
         self._is_stale = False
@@ -394,6 +452,7 @@ class MUCMonitor:
         - Set stale flag
         """
         if not self._is_stale:
+            self._logger.debug("%s: transition to stale", self.ping_address)
             self.on_stale()
         self._is_stale = True
 
@@ -403,6 +462,7 @@ class MUCMonitor:
         - Clear stale flag
         """
         if self._is_stale:
+            self._logger.debug("%s: transition to fresh", self.ping_address)
             self.on_fresh()
         self._is_stale = False
 
@@ -412,6 +472,16 @@ class MUCMonitor:
         self._monitor.deadtime_soft_limit = self._soft_timeout
         self._monitor.deadtime_hard_limit = self._hard_timeout
         self._monitor_enabled = True
+        self._logger.debug("%s: enabled monitoring: "
+                           "soft_timeout=%r "
+                           "hard_timeout=%r "
+                           "ping_interval=%r "
+                           "ping_timeout=%r",
+                           self.ping_address,
+                           self._soft_timeout,
+                           self._hard_timeout,
+                           self.ping_interval,
+                           self.ping_timeout)
 
     def _disable_monitor(self):
         # we need to call notify received *first* to prevent spurious events
@@ -419,18 +489,25 @@ class MUCMonitor:
         self._monitor.deadtime_soft_limit = None
         self._monitor.deadtime_hard_limit = None
         self._monitor_enabled = False
+        self._logger.debug("%s: disabled monitoring", self.ping_address)
 
     def _pinger_fresh_detected(self):
+        self._logger.debug("%s: fresh detected", self.ping_address)
         self._pinger.stop()
         self._monitor.notify_received()
         self._mark_fresh()
 
     def _pinger_exited_detected(self):
+        self._logger.debug("%s: exited detected", self.ping_address)
         self._pinger.stop()
         self.on_exited()
 
     def _soft_limit_tripped(self):
+        self._logger.debug("%s: soft-limit tripped, starting pinger",
+                           self.ping_address)
         self._pinger.start()
 
     def _hard_limit_tripped(self):
+        self._logger.debug("%s: hard-limit tripped, marking stale",
+                           self.ping_address)
         self._mark_stale()
