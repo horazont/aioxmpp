@@ -874,10 +874,11 @@ class EnumCDataType(AbstractCDataType):
                 isinstance(value, Unknown)):
             return value
 
+        if isinstance(value, self.enum_class):
+            return value
+
         if self.allow_coerce:
             if self.deprecate_coerce:
-                if isinstance(value, self.enum_class):
-                    return value
                 stacklevel = (4 if self.deprecate_coerce is True
                               else self.deprecate_coerce)
                 warnings.warn(
@@ -894,9 +895,6 @@ class EnumCDataType(AbstractCDataType):
                 if self.pass_unknown:
                     return value
                 raise
-
-        if isinstance(value, self.enum_class):
-            return value
 
         if self.pass_unknown:
             value = self.nested_type.coerce(value)

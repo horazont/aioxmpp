@@ -178,6 +178,10 @@ Version 0.11
 * *Possible breaking change*: Renamed :meth:`aioxmpp.xso.XSO.unparse_to_sax` to
   :meth:`~aioxmpp.xso.XSO.xso_serialise_to_sax`.
 
+* Fix assignment of enumeration members to descriptors using
+  :class:`aioxmpp.xso.EnumCDataType` with `allow_coerce` set to true but
+  `deprecate_coerce` set to false.
+
 .. _api-changelog-0.10:
 
 Version 0.10
