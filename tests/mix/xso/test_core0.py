@@ -130,9 +130,24 @@ class TestJoin0(unittest.TestCase):
             core0_xso.Subscribe0Type,
         )
 
+    def test_participant_id(self):
+        self.assertIsInstance(
+            core0_xso.Join0.participant_id,
+            xso.Attr,
+        )
+        self.assertEqual(
+            core0_xso.Join0.participant_id.tag,
+            (None, "id"),
+        )
+        self.assertEqual(
+            core0_xso.Join0.participant_id.default,
+            None,
+        )
+
     def test_init_default(self):
         j0 = core0_xso.Join0()
         self.assertSequenceEqual(j0.subscribe, [])
+        self.assertIsNone(j0.participant_id)
 
     def test_init(self):
         j0 = core0_xso.Join0(
@@ -149,6 +164,7 @@ class TestJoin0(unittest.TestCase):
                 mix_xso.Node.PARTICIPANTS,
             ]
         )
+        self.assertIsNone(j0.participant_id)
 
 
 class TestLeave0(unittest.TestCase):
@@ -163,3 +179,38 @@ class TestLeave0(unittest.TestCase):
             core0_xso.Leave0.TAG,
             (namespaces.xep0369_mix_core_0, "leave")
         )
+
+
+class TestCreate0(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            core0_xso.Create0,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            core0_xso.Create0.TAG,
+            (namespaces.xep0369_mix_core_0, "create")
+        )
+
+    def test_channel(self):
+        self.assertIsInstance(
+            core0_xso.Create0.channel,
+            xso.Attr,
+        )
+        self.assertEqual(
+            core0_xso.Create0.channel.tag,
+            (None, "channel")
+        )
+
+    def test_init_nodefault(self):
+        with self.assertRaisesRegexp(TypeError, "channel"):
+            c0 = core0_xso.Create0()
+
+    def test_init_full(self):
+        c0 = core0_xso.Create0("some channel")
+        self.assertEqual(c0.channel, "some channel")
+
+    def test_is_iq_payload(self):
+        aioxmpp.IQ(type_=aioxmpp.IQType.RESULT, payload=core0_xso.Create0("x"))

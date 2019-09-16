@@ -58,6 +58,10 @@ class TestClientJoin0(unittest.TestCase):
             pam0_xso.ClientJoin0.channel.type_,
             xso.JID,
         )
+        self.assertEqual(
+            pam0_xso.ClientJoin0.channel.default,
+            None,
+        )
 
     def test_join(self):
         self.assertIsInstance(
@@ -70,8 +74,9 @@ class TestClientJoin0(unittest.TestCase):
         )
 
     def test_init_nodefault(self):
-        with self.assertRaisesRegexp(TypeError, "channel|subscribe_to_nodes"):
-            pam0_xso.ClientJoin0()
+        cj0 = pam0_xso.ClientJoin0()
+        self.assertIsNone(cj0.join)
+        self.assertIsNone(cj0.channel)
 
     def test_init(self):
         with unittest.mock.patch("aioxmpp.mix.xso.core0.Join0") as Join0:
@@ -86,3 +91,62 @@ class TestClientJoin0(unittest.TestCase):
 
         self.assertEqual(cj0.channel, TEST_JID)
         self.assertEqual(cj0.join, Join0())
+
+    def test_is_iq_payload(self):
+        aioxmpp.IQ(type_=aioxmpp.IQType.RESULT, payload=pam0_xso.ClientJoin0())
+
+
+class TestClientLeave0(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pam0_xso.ClientLeave0,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pam0_xso.ClientLeave0.TAG,
+            (namespaces.xep0405_mix_pam_0, "client-leave"),
+        )
+
+    def test_channel(self):
+        self.assertIsInstance(
+            pam0_xso.ClientLeave0.channel,
+            xso.Attr,
+        )
+        self.assertEqual(
+            pam0_xso.ClientLeave0.channel.tag,
+            (None, "channel")
+        )
+        self.assertIsInstance(
+            pam0_xso.ClientLeave0.channel.type_,
+            xso.JID,
+        )
+        self.assertEqual(
+            pam0_xso.ClientLeave0.channel.default,
+            None,
+        )
+
+    def test_leave(self):
+        self.assertIsInstance(
+            pam0_xso.ClientLeave0.leave,
+            xso.Child,
+        )
+        self.assertIn(
+            core0_xso.Leave0,
+            pam0_xso.ClientLeave0.leave._classes,
+        )
+
+    def test_init_default(self):
+        cl0 = pam0_xso.ClientLeave0()
+        self.assertIsNone(cl0.channel)
+        self.assertIsNone(cl0.leave)
+
+    def test_init_channel(self):
+        cl0 = pam0_xso.ClientLeave0(TEST_JID)
+        self.assertEqual(cl0.channel, TEST_JID)
+        self.assertIsInstance(cl0.leave, core0_xso.Leave0)
+
+    def test_is_iq_payload(self):
+        aioxmpp.IQ(type_=aioxmpp.IQType.RESULT,
+                   payload=pam0_xso.ClientLeave0())

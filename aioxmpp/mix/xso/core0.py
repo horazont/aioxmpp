@@ -21,6 +21,7 @@
 ########################################################################
 import typing
 
+import aioxmpp.stanza
 import aioxmpp.xso
 
 from aioxmpp.utils import namespaces
@@ -64,6 +65,11 @@ class Join0(aioxmpp.xso.XSO):
 
     subscribe = aioxmpp.xso.ChildValueList(Subscribe0Type())
 
+    participant_id = aioxmpp.xso.Attr(
+        "id",
+        default=None,
+    )
+
     def __init__(self, subscribe_to_nodes: typing.Iterable[nodes.Node] = []):
         super().__init__()
         self.subscribe[:] = subscribe_to_nodes
@@ -71,3 +77,16 @@ class Join0(aioxmpp.xso.XSO):
 
 class Leave0(aioxmpp.xso.XSO):
     TAG = namespaces.xep0369_mix_core_0, "leave"
+
+
+@aioxmpp.stanza.IQ.as_payload_class
+class Create0(aioxmpp.xso.XSO):
+    TAG = namespaces.xep0369_mix_core_0, "create"
+
+    channel = aioxmpp.xso.Attr(
+        "channel"
+    )
+
+    def __init__(self, channel):
+        super().__init__()
+        self.channel = channel

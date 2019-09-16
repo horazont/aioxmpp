@@ -19,4 +19,6 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
-
+from .service import MIXClient
+from . import xso
+from .xso.nodes import Node

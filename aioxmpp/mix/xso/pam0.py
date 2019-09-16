@@ -19,6 +19,7 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import aioxmpp.stanza
 import aioxmpp.xso
 
 from aioxmpp.utils import namespaces
@@ -28,14 +29,39 @@ from . import core0
 namespaces.xep0405_mix_pam_0 = "urn:xmpp:mix:pam:0"
 
 
+@aioxmpp.stanza.IQ.as_payload_class
 class ClientJoin0(aioxmpp.xso.XSO):
     TAG = namespaces.xep0405_mix_pam_0, "client-join"
 
     join = aioxmpp.xso.Child([core0.Join0])
 
-    channel = aioxmpp.xso.Attr("channel", type_=aioxmpp.xso.JID())
+    channel = aioxmpp.xso.Attr(
+        "channel",
+        type_=aioxmpp.xso.JID(),
+        default=None,
+    )
 
-    def __init__(self, channel, subscribe_to_nodes):
+    def __init__(self, channel=None, subscribe_to_nodes=None):
         super().__init__()
         self.channel = channel
-        self.join = core0.Join0(subscribe_to_nodes)
+        if subscribe_to_nodes is not None:
+            self.join = core0.Join0(subscribe_to_nodes)
+
+
+@aioxmpp.stanza.IQ.as_payload_class
+class ClientLeave0(aioxmpp.xso.XSO):
+    TAG = namespaces.xep0405_mix_pam_0, "client-leave"
+
+    leave = aioxmpp.xso.Child([core0.Leave0])
+
+    channel = aioxmpp.xso.Attr(
+        "channel",
+        type_=aioxmpp.xso.JID(),
+        default=None,
+    )
+
+    def __init__(self, channel=None):
+        super().__init__()
+        self.channel = channel
+        if channel is not None:
+            self.leave = core0.Leave0()
