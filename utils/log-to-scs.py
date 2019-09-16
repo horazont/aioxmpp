@@ -48,6 +48,14 @@ JID_LINE = re.compile(
 )
 
 
+SM_TAGS = [
+    "{urn:xmpp:sm:3}a",
+    "{urn:xmpp:sm:3}r",
+    "{urn:xmpp:sm:3}enable",
+    "{urn:xmpp:sm:3}enabled"
+]
+
+
 def _parse_stream_bytes(b):
     FOOTER = b"</stream:stream>"
     b = ast.literal_eval(b)
@@ -122,6 +130,19 @@ def xmllines(tree):
     serialised = etree.tostring(tree, encoding="utf-8", pretty_print=True)
     lines = serialised.decode("utf-8").split("\n")
     return [line for line in lines if line.strip()]
+
+
+def filter_sm(actions):
+    for action in actions:
+        xml = action.get("sent", action.get("recv"))
+        if xml is None:
+            yield action
+            continue
+
+        if xml["xml"].tag in SM_TAGS:
+            continue
+
+        yield action
 
 
 def filter_sessions(actions):
@@ -275,6 +296,13 @@ if __name__ == "__main__":
         const=filter_serverdisco,
     )
     parser.add_argument(
+        "--no-strip-stream-management",
+        action="append_const",
+        dest="remove_filters",
+        default=[],
+        const=filter_sm,
+    )
+    parser.add_argument(
         "--no-strip-sessions",
         action="append_const",
         dest="remove_filters",
@@ -304,7 +332,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    filters = [filter_sessions]
+    filters = [filter_sm, filter_sessions]
     for to_add in args.add_filters:
         filters.append(to_add)
     for to_remove in args.remove_filters:
