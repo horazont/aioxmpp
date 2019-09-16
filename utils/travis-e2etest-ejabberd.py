@@ -34,12 +34,23 @@ if ejabberd_version == "latest":
 else:
     ejabberd_version_numeric = float(ejabberd_version)
 
-if ejabberd_version_numeric >= 18.01:
+cfg_files = None
+if ejabberd_version_numeric >= 19.08:
+    cfg_dir = "/home/ejabberd/conf/"
+    cfg_files = ["ejabberd.yml", "server.pem"]
+elif ejabberd_version_numeric >= 18.01:
     cfg_dir = "/home/ejabberd/conf/"
 elif ejabberd_version_numeric >= 17.12:
     cfg_dir = "/home/ejabberd/config/"
 else:
     cfg_dir = "/home/p1/cfg"
+
+local_cfg_dir = os.path.join(cwd, "utils/ejabberd-cfg", ejabberd_version)
+if cfg_files is None:
+    volumes = ["{}:{}".format(local_cfg_dir, cfg_dir)]
+else:
+    volumes = ["{}/{file_}:{}/{file_}".format(local_cfg_dir, cfg_dir, file_=file_)
+               for file_ in cfg_files]
 
 print(
     "using cfg_dir={!r} for ejabberd {:.2f}".format(
@@ -47,20 +58,19 @@ print(
     )
 )
 
-ejabberd = subprocess.Popen(
-    [
-        "docker",
-        "run",
-        "-p", "5222:5222",
-        "--rm",
-        "--name", "ejabberd",
-        "-v", "{}:{}".format(
-            os.path.join(cwd, "utils/ejabberd-cfg", ejabberd_version),
-            cfg_dir,
-        ),
-        "ejabberd/ecs:{}".format(ejabberd_version),
-    ],
-)
+argv = [
+    "docker",
+    "run",
+    "-p", "5222:5222",
+    "--rm",
+    "--name", "ejabberd",
+]
+for volume in volumes:
+    argv.append("-v")
+    argv.append(volume)
+argv.append("ejabberd/ecs:{}".format(ejabberd_version))
+
+ejabberd = subprocess.Popen(argv)
 
 time.sleep(5)
 
