@@ -47,6 +47,21 @@ matrix:
       apt:
         update: yes
     env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.11 WITH_BUILD_DEP=yes
+  - os: osx
+    language: sh
+    env: TEST_MODE=unittest TOXENV=py3 HOMEBREW_NO_INSTALL_CLEANUP=1 HOMEBREW_NO_ANALYTICS=1
+    before_cache:
+    - rm -f "$HOME/Library/Caches/pip/log/debug.log"
+    cache:
+      directories:
+      - "$HOME/Library/Caches/pip"
+    addons:
+      homebrew:
+        packages: python3
+    before_install:
+    - python3 -m pip install --upgrade virtualenv
+    - virtualenv -p python3 --system-site-packages "$HOME/venv"
+    - source "$HOME/venv/bin/activate"
   allow_failures:
   - python: "3.6"
     env: TEST_MODE=e2e-prosody PROSODY_BRANCH=trunk WITH_BUILD_DEP=yes
@@ -75,5 +90,6 @@ script:
 - if [[ "x$TEST_MODE" = 'xe2e-metronome' ]]; then ./utils/travis-e2etest-metronome.py; fi
 - if [[ "x$TEST_MODE" = 'xe2e-ejabberd' ]]; then ./utils/travis-e2etest-ejabberd.py; fi
 - if [[ "x$TEST_MODE" = 'xcoverage' ]]; then nosetests --with-cover --cover-package aioxmpp tests; fi
+- if [[ "x$TEST_MODE" = 'xunittest' ]]; then python3 -m nose tests; fi
 after_success:
 - if [[ "x$TEST_MODE" = 'xcoverage' ]]; then coveralls; fi
