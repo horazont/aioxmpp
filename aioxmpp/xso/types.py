@@ -251,7 +251,7 @@ class AbstractElementType(metaclass=abc.ABCMeta):
 
 class String(AbstractCDataType):
     """
-    Interpret the input value as string.
+    String :term:`Character Data Type`, optionally with string preparation.
 
     Optionally, a stringprep function `prepfunc` can be applied on the
     string. A stringprep function must take the string and prepare it
@@ -280,7 +280,7 @@ class String(AbstractCDataType):
 
 class Integer(AbstractCDataType):
     """
-    Parse the value as base-10 integer and return the result as :class:`int`.
+    Integer :term:`Character Data Type`, to the base 10.
     """
 
     def coerce(self, v):
@@ -294,7 +294,7 @@ class Integer(AbstractCDataType):
 
 class Float(AbstractCDataType):
     """
-    Parse the value as decimal float and return the result as :class:`float`.
+    Floating point or decimal :term:`Character Data Type`.
     """
 
     def coerce(self, v):
@@ -308,6 +308,8 @@ class Float(AbstractCDataType):
 
 class Bool(AbstractCDataType):
     """
+    XML boolean :term:`Character Data Type`.
+
     Parse the value as boolean:
 
     * ``"true"`` and ``"1"`` are taken as :data:`True`,
@@ -337,6 +339,8 @@ class Bool(AbstractCDataType):
 
 class DateTime(AbstractCDataType):
     """
+    ISO datetime :term:`Character Data Type`.
+
     Parse the value as ISO datetime, possibly including microseconds and
     timezone information.
 
@@ -418,6 +422,8 @@ class DateTime(AbstractCDataType):
 
 class Date(AbstractCDataType):
     """
+    ISO date :term:`Character Data Type`.
+
     Implement the Date type from :xep:`0082`.
 
     Values must have the :class:`date` type, :class:`datetime` is forbidden to
@@ -437,6 +443,8 @@ class Date(AbstractCDataType):
 
 class Time(AbstractCDataType):
     """
+    ISO time :term:`Character Data Type`.
+
     Implement the Time type from :xep:`0082`.
 
     Values must have the :class:`time` type, :class:`datetime` is forbidden to
@@ -510,6 +518,8 @@ class _BinaryType(AbstractCDataType):
 
 class Base64Binary(_BinaryType):
     """
+    :term:`Character Data Type` for :class:`bytes` encoded as base64.
+
     Parse the value as base64 and return the :class:`bytes` object obtained
     from decoding.
 
@@ -532,6 +542,8 @@ class Base64Binary(_BinaryType):
 
 class HexBinary(_BinaryType):
     """
+    :term:`Character Data Type` for :class:`bytes` encoded as hexadecimal.
+
     Parse the value as hexadecimal blob and return the :class:`bytes` object
     obtained from decoding.
     """
@@ -545,6 +557,8 @@ class HexBinary(_BinaryType):
 
 class JID(AbstractCDataType):
     """
+    :term:`Character Data Type` for :class:`aioxmpp.JID` objects.
+
     Parse the value as Jabber ID using :meth:`~aioxmpp.JID.fromstr` and
     return the :class:`aioxmpp.JID` object.
 
@@ -571,6 +585,8 @@ class JID(AbstractCDataType):
 
 class ConnectionLocation(AbstractCDataType):
     """
+    :term:`Character Data Type` for a hostname-port pair.
+
     Parse the value as a host-port pair, as for example used for Stream
     Management reconnection location advisories.
     """
@@ -645,6 +661,8 @@ class ConnectionLocation(AbstractCDataType):
 
 class LanguageTag(AbstractCDataType):
     """
+    :term:`Character Data Type` for language tags.
+
     Parses the value as Language Tag using
     :meth:`~.structs.LanguageTag.fromstr`.
 
@@ -663,7 +681,7 @@ class LanguageTag(AbstractCDataType):
 
 class JSON(AbstractCDataType):
     """
-    Character data type for JSON structured data.
+    :term:`Character Data Type` for JSON formatted data.
 
     .. versionadded:: 0.11
 
