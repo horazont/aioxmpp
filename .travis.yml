@@ -6,47 +6,11 @@ addons:
   apt:
     update: yes
 
-python:
-- "3.4"
-- "3.5"
-- "3.6"
+python: "3.6"
 env:
 - TEST_MODE=e2e-prosody PROSODY_BRANCH=0.11 WITH_BUILD_DEP=yes
 matrix:
   include:
-  - python: "3.6"
-    env: TEST_MODE=e2e-ejabberd EJABBERD_VERSION=latest
-    services:
-    - docker
-  - python: "3.6"
-    env: TEST_MODE=e2e-ejabberd EJABBERD_VERSION=18.09
-    services:
-    - docker
-  - python: "3.6"
-    env: TEST_MODE=e2e-ejabberd EJABBERD_VERSION=19.08
-    services:
-    - docker
-  - python: "3.6"
-    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.9 LUA_VERSION=5.1 WITH_BUILD_DEP=yes
-  - python: "3.6"
-    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.10 LUA_VERSION=5.1 WITH_BUILD_DEP=yes
-  - python: "3.6"
-    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=trunk WITH_BUILD_DEP=yes
-  - python: "3.6"
-    env: TEST_MODE=e2e-metronome METRONOME_VERSION=master
-    addons:
-      apt:
-        packages:
-        - libevent-dev
-  - python: "3.6"
-    env: TEST_MODE=coverage
-  - sudo: required
-    dist: xenial
-    python: "3.7"
-    addons:
-      apt:
-        update: yes
-    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.11 WITH_BUILD_DEP=yes
   - os: osx
     language: sh
     env: TEST_MODE=unittest TOXENV=py3 HOMEBREW_NO_INSTALL_CLEANUP=1 HOMEBREW_NO_ANALYTICS=1
@@ -62,19 +26,6 @@ matrix:
     - python3 -m pip install --upgrade virtualenv
     - virtualenv -p python3 --system-site-packages "$HOME/venv"
     - source "$HOME/venv/bin/activate"
-  allow_failures:
-  - python: "3.6"
-    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=trunk WITH_BUILD_DEP=yes
-  - python: "3.6"
-    env: TEST_MODE=e2e-metronome METRONOME_VERSION=master
-    addons:
-      apt:
-        packages:
-        - libevent-dev
-  - python: "3.6"
-    env: TEST_MODE=e2e-ejabberd EJABBERD_VERSION=latest
-    services:
-    - docker
 
 before_install:
 - export PATH=$PWD/lua_install/bin:$PATH
