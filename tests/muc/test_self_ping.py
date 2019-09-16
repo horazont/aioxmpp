@@ -428,8 +428,8 @@ class TestMUCPinger(unittest.TestCase):
             ping.reset_mock()
 
     def test_pinger_picks_up_on_timeout_change(self):
-        interval = get_timeout(0.1)
-        timeout = get_timeout(0.1)
+        interval = get_timeout(0.3)
+        timeout = get_timeout(0.3)
 
         futures = []
 
