@@ -44,6 +44,10 @@ Jabber IDs
 
 .. autoclass:: JID(localpart, domain, resource)
 
+.. autofunction:: jid_escape
+
+.. autofunction:: jid_unescape
+
 Presence
 ========
 
@@ -1342,3 +1346,83 @@ class LanguageMap(dict):
             return self[None]
         except KeyError:
             return self[min(self)]
+
+
+# \ is treated specially because it is only escaped if followed by a valid
+# escape sequence... that is so weird.
+ESCAPABLE_CODEPOINTS = " \"&'/:<>@"
+
+
+def jid_escape(s):
+    """
+    Return an escaped version of a string for use in a JID localpart.
+
+    .. seealso::
+
+        :func:`jid_unescape`
+            for the reverse transformation
+
+    :param s: The string to escape for use as localpart.
+    :type s: :class:`str`
+    :raise ValueError: If the string starts or ends with a space.
+    :return: The escaped string.
+    :rtype: :class:`str`
+
+    .. note::
+
+        JID Escaping does not allow embedding arbitrary characters in the
+        localpart. Only a defined subset of characters can be escaped.
+        Refer to :xep:`0106` for details.
+
+    .. note::
+
+        No validity check is made on the result. It is assumed that the
+        result is passed to the :class:`JID` constructor, which will
+        perform validity checks on its own.
+
+    """
+
+    # we first escape all backslashes which need to be escaped
+    for cp in ESCAPABLE_CODEPOINTS + "\\":
+        seq = "\\{:02x}".format(ord(cp))
+        s = s.replace(seq, "\\5c{:02x}".format(ord(cp)))
+
+    # now we escape all the other stuff
+    for cp in ESCAPABLE_CODEPOINTS:
+        s = s.replace(cp, "\\{:02x}".format(ord(cp)))
+
+    return s
+
+
+def jid_unescape(localpart):
+    """
+    Un-escape a JID Escaped localpart.
+
+    .. seealso::
+
+        :func:`jid_escape`
+            for the reverse transformation
+
+    :param localpart: The escaped localpart
+    :type localpart: :class:`str`
+    :return: The unescaped localpart.
+    :rtype: :class:`str`
+
+    .. note::
+
+        JID Escaping does not allow embedding arbitrary characters in the
+        localpart. Only a defined subset of characters can be escaped.
+        Refer to :xep:`0106` for details.
+    """
+    s = localpart
+
+    for cp in ESCAPABLE_CODEPOINTS:
+        s = s.replace("\\{:02x}".format(ord(cp)), cp)
+
+    for cp in ESCAPABLE_CODEPOINTS + "\\":
+        s = s.replace(
+            "\\5c{:02x}".format(ord(cp)),
+            "\\{:02x}".format(ord(cp)),
+        )
+
+    return s

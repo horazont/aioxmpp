@@ -115,6 +115,8 @@ from .structs import (  # NOQA: F401
     PresenceType,
     IQType,
     ErrorType,
+    jid_escape,
+    jid_unescape,
 )
 from .security_layer import make as make_security_layer  # NOQA: F401
 from .node import Client, PresenceManagedClient  # NOQA: F401
