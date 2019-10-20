@@ -29,8 +29,8 @@ Features
   of the time, you will not get in contact with raw XML or character data, even
   when implementing a new protocol.
 
-* Secure by default: TLS is required by default, as well as certificate
-  validation. Certificate or public key pinning can be used, if needed.
+* Secure by default: TLS is required by default, as well as a certificate
+  validation. A certificate or public key pinning can be used if needed.
 
 * Support for `RFC 6121 (Instant Messaging and Presence)
   <https://tools.ietf.org/html/rfc6121>`_ roster and presence management, along
@@ -57,9 +57,9 @@ Features
 
 
 There is more and there’s yet more to come! Check out the list of supported XEPs
-in the `official documentation`_ and `open GitHub issues tagged as enhancement
+in the `official documentation`_ and `open GitHub issues tagged as an enhancement
 <https://github.com/horazont/aioxmpp/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement>`_
-for things which are planned and read on below on how to contribute.
+for things that are planned and read on below on how to contribute.
 
 Documentation
 =============
@@ -119,8 +119,7 @@ account. There are several ways to get in touch with the aioxmpp developer(s):
 
 * The development MUC at ``aioxmpp@conference.zombofant.net``. Pull requests
   announced in the MUC are also welcome! Note that the MUC is set persistent,
-  but nevertheless there may not always be people around. If in doubt, use the
-  mailing list instead.
+  but nevertheless, there may not always be people around. If in doubt, use the mailing list instead.
 
 * Open or comment on an issue or post a pull request on `GitHub
   <https://github.com/horazont/aioxmpp/issues>`_.
