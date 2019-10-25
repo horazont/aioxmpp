@@ -113,6 +113,7 @@ Current Jabber OpenPGP Usage (:xep:`27`)
 """
 
 from .delay import Delay  # NOQA: F401
+from .lmc import Replace  # NOQA: F401
 from .forwarding import Forwarded  # NOQA: F401
 from .oob import OOBExtension  # NOQA: F401
 from .markers import (  # NOQA: F401
