@@ -182,14 +182,14 @@ class FutureListener:
     def data(self, data):
         try:
             self.fut.set_result(data)
-        except asyncio.futures.InvalidStateError:
+        except asyncio.InvalidStateError:
             pass
         return True
 
     def error(self, exc):
         try:
             self.fut.set_exception(exc)
-        except asyncio.futures.InvalidStateError:
+        except asyncio.InvalidStateError:
             pass
         return True
 
