@@ -1803,7 +1803,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             running = True
             try:
                 yield from asyncio.sleep(10)
-            except Exception as inner_exc:
+            except BaseException as inner_exc:
                 exc = inner_exc
                 raise
 
@@ -1837,7 +1837,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             running = True
             try:
                 yield from asyncio.sleep(10)
-            except Exception as inner_exc:
+            except BaseException as inner_exc:
                 exc = inner_exc
                 raise
 
