@@ -122,12 +122,14 @@ class TestMUCPinger(unittest.TestCase):
     def test_start_starts_the_pinger_coroutine(self):
         with contextlib.ExitStack() as stack:
             ensure_future = stack.enter_context(unittest.mock.patch(
-                "asyncio.ensure_future"
+                "asyncio.ensure_future",
             ))
             stack.enter_context(unittest.mock.patch.object(
                 self.p,
                 "_pinger",
-                return_value=unittest.mock.sentinel.pinger_coro
+                new=unittest.mock.Mock(
+                    return_value=unittest.mock.sentinel.pinger_coro,
+                ),
             ))
 
             self.p.start()
@@ -148,7 +150,9 @@ class TestMUCPinger(unittest.TestCase):
             stack.enter_context(unittest.mock.patch.object(
                 self.p,
                 "_pinger",
-                return_value=unittest.mock.sentinel.pinger_coro
+                new=unittest.mock.Mock(
+                    return_value=unittest.mock.sentinel.pinger_coro,
+                ),
             ))
 
             self.p.start()
@@ -169,7 +173,9 @@ class TestMUCPinger(unittest.TestCase):
             stack.enter_context(unittest.mock.patch.object(
                 self.p,
                 "_pinger",
-                return_value=unittest.mock.sentinel.pinger_coro
+                new=unittest.mock.Mock(
+                    return_value=unittest.mock.sentinel.pinger_coro,
+                ),
             ))
 
             self.p.start()
@@ -194,7 +200,9 @@ class TestMUCPinger(unittest.TestCase):
             stack.enter_context(unittest.mock.patch.object(
                 self.p,
                 "_pinger",
-                return_value=unittest.mock.sentinel.pinger_coro
+                new=unittest.mock.Mock(
+                    return_value=unittest.mock.sentinel.pinger_coro,
+                ),
             ))
 
             stack.enter_context(unittest.mock.patch(
@@ -307,7 +315,9 @@ class TestMUCPinger(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             ping = stack.enter_context(unittest.mock.patch(
                 "aioxmpp.ping.ping",
-                side_effect=ping_func
+                new=unittest.mock.Mock(
+                    side_effect=ping_func,
+                ),
             ))
 
             self.p.start()
@@ -345,7 +355,9 @@ class TestMUCPinger(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             ping = stack.enter_context(unittest.mock.patch(
                 "aioxmpp.ping.ping",
-                side_effect=ping
+                new=unittest.mock.Mock(
+                    side_effect=ping,
+                ),
             ))
 
             self.p.start()
@@ -444,7 +456,9 @@ class TestMUCPinger(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             ping = stack.enter_context(unittest.mock.patch(
                 "aioxmpp.ping.ping",
-                side_effect=ping_func,
+                new=unittest.mock.Mock(
+                    side_effect=ping_func,
+                ),
             ))
 
             self.p.start()
@@ -515,7 +529,9 @@ class TestMUCPinger(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             ping = stack.enter_context(unittest.mock.patch(
                 "aioxmpp.ping.ping",
-                side_effect=ping_func,
+                new=unittest.mock.Mock(
+                    side_effect=ping_func,
+                ),
             ))
 
             _interpret_result = stack.enter_context(unittest.mock.patch.object(
@@ -525,22 +541,26 @@ class TestMUCPinger(unittest.TestCase):
 
             self.p.start()
 
+            logging.debug("test: sleeping for %s", interval / 2)
             run_coroutine(asyncio.sleep(interval / 2))
             # t_interval = 0.025 / 0.05, t_timeout = 0.025 / 0.08
             self.assertEqual(len(futures), 1)
             self.assertFalse(futures[0].done())
 
+            logging.debug("test: sleeping for %s", interval * 0.6)
             run_coroutine(asyncio.sleep(interval * 0.6))
             # t_interval = 0.005 / 0.05, t_timeout = 0.055 / 0.08
             self.assertEqual(len(futures), 2)
             self.assertFalse(futures[0].done())
             self.assertTrue(futures[1].done())
 
+            logging.debug("test: verifying")
             _interpret_result.assert_called_once_with(unittest.mock.ANY)
             _, (fut, ), _ = _interpret_result.mock_calls[0]
             self.assertEqual(fut.result(), futures[1].result())
             _interpret_result.reset_mock()
 
+            logging.debug("test: sleeping for %s", interval * 0.6)
             run_coroutine(asyncio.sleep(interval * 0.6))
             # t_interval = 0.035 / 0.05, t_timeout = 0.085 / 0.08
             self.assertEqual(len(futures), 2)
