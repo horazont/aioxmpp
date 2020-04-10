@@ -94,14 +94,14 @@ class TestStanzaBase(unittest.TestCase):
         s = self.FakeStanza()
         s.autoset_id()
         id1 = s.id_
-        self.assertTrue(id1.startswith("x"))
+        self.assertTrue(id1.startswith(":"))
         self.assertTrue(s.id_)
         del s.id_
         s.autoset_id()
         self.assertTrue(s.id_)
         self.assertNotEqual(id1, s.id_)
         self.assertIsInstance(s.id_, str)
-        self.assertTrue(s.id_.startswith("x"))
+        self.assertTrue(s.id_.startswith(":"))
 
         # ensure that there are not too many A chars (i.e. zero bits)
         self.assertLess(sum(1 for c in id1 if c == "A"), 5)
@@ -111,14 +111,14 @@ class TestStanzaBase(unittest.TestCase):
         s.id_ = None
         s.autoset_id()
         id1 = s.id_
-        self.assertTrue(id1.startswith("x"))
+        self.assertTrue(id1.startswith(":"))
         self.assertTrue(s.id_)
         del s.id_
         s.autoset_id()
         self.assertTrue(s.id_)
         self.assertNotEqual(id1, s.id_)
         self.assertIsInstance(s.id_, str)
-        self.assertTrue(s.id_.startswith("x"))
+        self.assertTrue(s.id_.startswith(":"))
 
         # ensure that there are not too many A chars (i.e. zero bits)
         self.assertLess(sum(1 for c in id1 if c == "A"), 5)
@@ -254,11 +254,6 @@ class TestMessage(unittest.TestCase):
             stanza.Message.type_.default,
             structs.MessageType.NORMAL,
         )
-
-    def test_ext_attr(self):
-        self.assertIsInstance(
-            stanza.Message.ext,
-            xso.ChildMap)
 
     def test_body_attr(self):
         self.assertIsInstance(
@@ -500,11 +495,6 @@ class TestPresence(unittest.TestCase):
             0,
             stanza.Presence.priority.default
         )
-
-    def test_ext_attr(self):
-        self.assertIsInstance(
-            stanza.Presence.ext,
-            xso.ChildMap)
 
     def test_error_attr(self):
         self.assertIsInstance(

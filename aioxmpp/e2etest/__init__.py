@@ -78,6 +78,10 @@ The following decorators can be used on test methods (including ``setUp`` and
 
 .. autodecorator:: require_feature
 
+.. autodecorator:: require_identity
+
+.. autodecorator:: require_feature_subset
+
 .. autodecorator:: skip_with_quirk
 
 General decorators
@@ -103,6 +107,8 @@ Provisioners
 
 .. autoclass:: AnonymousProvisioner
 
+.. autoclass:: AnyProvisioner
+
 .. currentmodule:: aioxmpp.e2etest
 
 .. autoclass:: Quirk
@@ -117,7 +123,7 @@ Helper functions
 .. autofunction:: configure_tls_config
 
 .. autofunction:: configure_quirks
-"""
+"""  # NOQA: E501
 import asyncio
 import configparser
 import functools
@@ -128,13 +134,14 @@ import unittest
 
 from nose.plugins import Plugin
 
+from ..testutils import get_timeout
 from .utils import blocking
-from .provision import Quirk  # NOQA
+from .provision import Quirk  # NOQA: F401
 
 
 provisioner = None
 config = None
-timeout = 1
+timeout = get_timeout(1.0)
 
 
 def require_feature(feature_var, argname=None, *, multiple=False):
@@ -179,6 +186,30 @@ def require_feature(feature_var, argname=None, *, multiple=False):
                 raise unittest.SkipTest(
                     "provisioner does not provide a peer with "
                     "{!r}".format(feature_var)
+                )
+
+            if argname is None:
+                args = args+(arg,)
+            else:
+                kwargs[argname] = arg
+
+            return f(*args, **kwargs)
+        return wrapper
+
+    return decorator
+
+
+def require_identity(category, type_, argname=None):
+    def decorator(f):
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            global provisioner
+            arg = provisioner.get_identity_provider(category, type_)
+            has_provider = arg is not None
+            if not has_provider:
+                raise unittest.SkipTest(
+                    "provisioner does not provide a peer with a "
+                    "{!r} identity".format((category, type_))
                 )
 
             if argname is None:

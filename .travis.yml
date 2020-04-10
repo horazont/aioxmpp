@@ -11,7 +11,7 @@ python:
 - "3.5"
 - "3.6"
 env:
-- TEST_MODE=e2e-prosody PROSODY_BRANCH=0.10 WITH_BUILD_DEP=yes LUA_VERSION=5.1
+- TEST_MODE=e2e-prosody PROSODY_BRANCH=0.11 WITH_BUILD_DEP=yes
 matrix:
   include:
   - python: "3.6"
@@ -19,11 +19,11 @@ matrix:
     services:
     - docker
   - python: "3.6"
-    env: TEST_MODE=e2e-ejabberd EJABBERD_VERSION=18.01
+    env: TEST_MODE=e2e-ejabberd EJABBERD_VERSION=18.09
     services:
     - docker
   - python: "3.6"
-    env: TEST_MODE=e2e-ejabberd EJABBERD_VERSION=18.03
+    env: TEST_MODE=e2e-ejabberd EJABBERD_VERSION=19.08
     services:
     - docker
   - python: "3.6"
@@ -46,7 +46,14 @@ matrix:
     addons:
       apt:
         update: yes
-    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.10 WITH_BUILD_DEP=yes
+    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.11 WITH_BUILD_DEP=yes
+  - sudo: required
+    dist: xenial
+    python: "3.8"
+    addons:
+      apt:
+        update: yes
+    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.11 WITH_BUILD_DEP=yes
   allow_failures:
   - python: "3.6"
     env: TEST_MODE=e2e-prosody PROSODY_BRANCH=trunk WITH_BUILD_DEP=yes

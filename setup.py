@@ -34,12 +34,16 @@ with open(os.path.join(here, "README.rst"), encoding="utf-8") as f:
 
 version_mod = runpy.run_path("aioxmpp/_version.py")
 
+lxml_constraint = "lxml~=4.0"
+if sys.version_info < (3, 5):
+    lxml_constraint += ",<4.4"
+
 install_requires = [
     'aiosasl>=0.3',  # need 0.2+ for LGPLv3
     'aioopenssl>=0.1',
     'babel~=2.3',
     'dnspython~=1.0',
-    'lxml~=4.0',
+    lxml_constraint,
     'multidict<5,>=2.0',
     'sortedcollections>=0.5',
     'pyOpenSSL',
@@ -61,7 +65,7 @@ setup(
     description="Pure-python XMPP library for asyncio",
     long_description=long_description,
     url="https://github.com/horazont/aioxmpp",
-    author="Jonas Wielicki",
+    author="Jonas Schäfer",
     author_email="jonas@wielicki.name",
     license="LGPLv3+",
     classifiers=[
@@ -70,8 +74,10 @@ setup(
         "Operating System :: POSIX",
         "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
         "Programming Language :: Python :: 3 :: Only",
-        "Programming Language :: Python :: 3.3",
-        "Programming Language :: Python :: 3.4",
+        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
         "Topic :: Communications :: Chat",
         "Topic :: Internet :: XMPP",
     ],

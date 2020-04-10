@@ -73,15 +73,15 @@ Enumerations
 .. autoclass:: ActionType
 """
 
-from .service import (  # NOQA
+from .service import (  # NOQA: F401
     AdHocClient,
     ClientSession,
     AdHocServer,
 )
 
-from .xso import (  # NOQA
+from .xso import (  # NOQA: F401
     CommandStatus,
     ActionType,
 )
 
-from . import xso  # NOQA
+from . import xso  # NOQA: F401

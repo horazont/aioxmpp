@@ -175,8 +175,8 @@ class MessageTracker:
     tracking implementations at once. The idea is that different tracking
     implementations can cover different parts of the path a stanza takes: one
     can cover the path to the server (by hooking into the events of a
-    :class:`~.StanzaToken`), the other implementation can use e.g. :xep:`184` to
-    determine delivery at the target and so on.
+    :class:`~.StanzaToken`), the other implementation can use e.g. :xep:`184`
+    to determine delivery at the target and so on.
 
     Methods and attributes from the "protected" interface are marked by a
     leading underscore.
@@ -318,7 +318,7 @@ class MessageTracker:
         * :attr:`~.MessageState.ABORTED` -> any state
         * :attr:`~.MessageState.ERROR` -> any state
 
-        If the tracker is already :meth:`close`\ -d, :class:`RuntimeError` is
+        If the tracker is already :meth:`close`\\ -d, :class:`RuntimeError` is
         raised. This check happens *before* a test is made whether the
         transition is valid.
 
@@ -354,7 +354,7 @@ class MessageTracker:
 
 class BasicTrackingService(aioxmpp.service.Service):
     """
-    Error handling and :class:`~.StanzaToken`\ -based tracking for messages.
+    Error handling and :class:`~.StanzaToken`\\ -based tracking for messages.
 
     This service provides the most basic tracking of message stanzas. It can be
     combined with other forms of tracking.
@@ -413,7 +413,7 @@ class BasicTrackingService(aioxmpp.service.Service):
             fut.result()
         except asyncio.CancelledError:
             return
-        except:
+        except:  # NOQA: E722
             next_state = MessageState.ABORTED
         else:
             next_state = MessageState.DELIVERED_TO_SERVER

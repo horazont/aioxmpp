@@ -3,6 +3,229 @@
 Changelog
 #########
 
+.. _api-cahngelog-0.11:
+
+Version 0.11
+============
+
+New XEP implementations
+-----------------------
+
+* Support for the :xep:`27` (Current Jabber OpenPGP Usage) schema in
+  :mod:`aioxmpp.misc`.
+
+* :xep:`47` (In-Band Bytestreams), see :mod:`aioxmpp.ibb`.
+
+* The :xep:`106` (JID Escaping) encoding can now be used via
+  :func:`aioxmpp.jid_escape`, :func:`aioxmpp.jid_unescape`.
+
+* `@LukeMarlin <https://github.com/LukeMarlin>`_ contributed support for the
+  :xep:`308` schema in :mod:`aioxmpp.misc`.
+
+* The :xep:`335` (JSON Containers) schema is available for use via
+  :class:`aioxmpp.misc.JSONContainer`.
+
+* Implement support for :xep:`410` (MUC Self-Ping (Schrödinger’s Chat)).
+
+  This introduces two new signals to :class:`aioxmpp.muc.Room` objects:
+
+  - :meth:`~aioxmpp.muc.Room.on_muc_stale`: Emits when a possible connectivity
+    issue with the MUC is detected, but it is unclear whether the user is still
+    joined or not and/or whether messages are being lost.
+
+  - :meth:`~aioxmpp.muc.Room.on_muc_fresh`: Emits when a possible connectivity
+    issue with the MUC is detected as resolved and the user is still joined.
+    Presence may be out-of-sync and messages may have been lost, however.
+
+  If a connectivity issue which has caused the user to be removed from the MUC
+  is detected, the appropriate signals (with
+  :attr:`aioxmpp.muc.LeaveMode.DISCONNECTED`) are emitted, *or* the room is
+  automatically re-joined if it is set to
+  :attr:`~aioxmpp.muc.Room.muc_autorejoin` (no history is requested on this
+  rejoin).
+
+  In addition to that, the :meth:`aioxmpp.MUCClient.cycle` method has been
+  introduced. It allows an application to leave and join a MUC in quick
+  succession using without discarding the :class:`aioxmpp.muc.Room` object
+  (just like a stream disconnect would). This is useful to deal with stale
+  situations by forcing a resync.
+
+Security Fixes
+--------------
+
+* CVE-2019-1000007: Fix incorrect error handling in :mod:`aioxmpp.xso` when a
+  supressing :meth:`aioxmpp.xso.XSO.xso_error_handler` is in use.
+
+  Under certain circumstances, it is possible that the handling of supressed
+  error causes another error later on because the parsing stack mis-counts the
+  depth in which it is inside the XML tree. This makes elements appear in the
+  wrong place, typically leading to further errors.
+
+  In the worst case, using a supressing
+  :meth:`~aioxmpp.xso.XSO.xso_error_handler` in specific circumstances can be
+  vulnerable to denial of service and data injection into the XML stream.
+
+  (The fix was also backported to 0.10.3.)
+
+New major features
+------------------
+
+* The :mod:`aioxmpp.pubsub` implementation gained support for node
+  configuration and the related publish-options. This is vital for proper
+  operation of private storage in PEP.
+
+  Relevant additions are:
+
+  * :meth:`aioxmpp.PubSubClient.get_node_config`
+  * :meth:`aioxmpp.PubSubClient.set_node_config`
+  * :class:`aioxmpp.pubsub.NodeConfigForm`
+  * The new ``publish_options`` argument to
+    :meth:`aioxmpp.PubSubClient.publish`
+  * The new ``access_model`` argument to :meth:`aioxmpp.PEPClient.publish`
+
+* The new :meth:`aioxmpp.Client.on_stream_resumed` event allows services and
+  application code to learn when the stream was resumed after it suspended due
+  to loss of connectivity. This is the counterpart to
+  :meth:`aioxmpp.Client.on_stream_suspended`.
+
+  This allows services and application code to defer actions until the stream
+  is alive again. While this is generally not necessary, it can be good to
+  delay periodic tasks or bulk operations in order to not overload the newly
+  established stream with queued messages.
+
+New examples
+------------
+
+Breaking changes
+----------------
+
+* The undocumented and unused descriptors :attr:`aioxmpp.Message.ext`
+  and :attr:`aioxmpp.Presence.ext` were removed. If your code relies on them
+  you can instead patch a descriptor to the class (with a prefix that uniquely
+  identifies your extension).
+
+  A good example is how aioxmpp itself makes use of that feature in
+  :mod:`aioxmpp.misc`.
+
+* :mod:`aioxmpp.stringprep` now uses the Unicode database in version 3.2.0 as
+  specified in :rfc:`3454`.
+
+* The way the topological sort of service dependencies is handled was
+  simplified: We no longer keep a toposort of all service classes.
+  *This implies that :class:`Service` subclasses are no longer ordered objects.*
+  However, we still guarantee a runtime error when a dependency loop is
+  declared—if a class uses only one of `ORDER_BEFORE` respective `ORDER_AFTER`
+  it cannot introduce a dependency loop; only when a class uses both we have
+  to do an exhaustive search of the dependent nodes. This search touches only
+  a few nodes instead of the whole graph and is only triggered for very few
+  service classes.
+
+  Summon has been creating an independent toposort of only the required
+  classes anyway, so we use this for deriving ordering indices for filter
+  chains from now on—this also allows simpler extension, modification of the
+  filter order (e.g. ``-index`` orders in reverse).
+
+  Methods for determining transitive dependency (and independency) have been
+  added to the service classes:
+
+  * :meth:`aioxmpp.Service.orders_after`,
+  * :meth:`aioxmpp.Service.orders_after_any`,
+  * :meth:`aioxmpp.Service.independent_from`.
+
+  These search the class graph and are therefore not efficient (and the
+  results may change when new classes are defined).
+
+  Tests should always prefer to test the declared attributes when checking for
+  correct dependencies.
+
+* :func:`aioxmpp.make_security_layer` now binds the default for the ssl context
+  factory early to :func:`aioxmpp.security_layer.default_ssl_context`. This
+  means that you can not monkey-patch
+  :func:`aioxmpp.security_layer.default_ssl_context` and have your changes
+  apply to all security layers anymore. Since this behaviour was never
+  documented or intended, there is no transition period for this.
+
+* :meth:`aioxmpp.xso.XSO.unparse_to_sax` was renamed to
+  :meth:`~aioxmpp.xso.XSO.xso_serialise_to_sax`.
+
+Minor features and bug fixes
+----------------------------
+
+* Support for servers which send a :xep:`198` Stream Management counter in
+  resumption errors. This allows us to know precisely which stanzas were (not)
+  received by the server and thus improves accuracy of the stanza token state.
+
+  Stanzas which are acknowledged in this way by a server enter the
+  :attr:`~aioxmpp.stream.StanzaState.ACKED` state as normal. Stanzas which are
+  not covered by the counter enter
+  :attr:`~aioxmpp.stream.StanzaState.DISCONNECTED` state instead of
+  :attr:`~aioxmpp.stream.StanzaState.SENT_WITHOUT_SM`, since the stream knows
+  for sure that the stanza has not been received by the server.
+
+  This only works if the server provides a counter value on failure; if the
+  counter value is not provided, sent stanzas which were not acked during the
+  previous connection will enter
+  :attr:`~aioxmpp.stream.StanzaState.SENT_WITHOUT_SM` state as previously.
+
+* :mod:`aioxmpp.forms` will not complain anymore if multiple ``<option/>``
+  elements in a list-single/list-multi are lacking a label. It is recommended
+  that you default the label to the option value in such a case.
+
+  (Note that it already has been possible that *one* label was absent (i.e.
+  :data:`None`). This just allows more than one label to be absent.)
+
+* :class:`aioxmpp.xso.ChildTextMap` can now also be constructed from a
+  tag, an appropriate XSO is then constructed on the fly.
+
+* :meth:`aioxmpp.stream.StanzaStream.register_iq_request_handler`
+  and :func:`aioxmpp.service.iq_handler` now
+  support a keyword argument `with_send_reply` which makes them pass
+  an additional argument to the handler, which is a function that can be
+  used to enqueue the reply to the IQ before the handler has returned.
+  This allows sequencing other actions after the reply has been sent.
+
+* :mod:`aioxmpp.hashes` now supports the `hashes-used` element and has a
+  service that handles registering the disco features and can determine
+  which hash functions are supported by us and another entity.
+
+* Moved :class:`aioxmpp.protocol.AlivenessMonitor` to
+  :class:`aioxmpp.utils.AlivenessMonitor` for easier reuse.
+
+* Extract :func:`aioxmpp.ping.ping` from :meth:`aioxmpp.PingService.ping`.
+
+* :class:`aioxmpp.utils.proxy_property` for easier use of composed classes over
+  inherited classes.
+
+* :class:`aioxmpp.xso.ChildValue` as a natural extension of
+  :class:`aioxmpp.xso.ChildValueList` and others.
+
+* :func:`aioxmpp.make_security_layer` now supports the `ssl_context_factory`
+  argument which is already known from the (deprecated)
+  :func:`aioxmpp.security_layer.tls_with_password_based_authentication`.
+
+  It allows application code to pass a factory to create the SSL context
+  instead of defaulting to the SSL context provided by aioxmpp.
+
+* Fix incorrect parsing of :xep:`198` location specifier. We always required a
+  port number, while the standards allows omit the port number.
+
+* Fix incorrect serialisation of nested namespace declarations for the same URI.
+  One such occurence is often encountered when using the
+  ``<{urn:xmpp:forward:0}forwarded/>`` element (see
+  :class:`aioxmpp.misc.Forwarded`). It can host a ``<{jabber:client}message/>``.
+  Since we declare all namespaces of XSOs as prefixless, the nested message needs
+  to re-declare its prefix. Due to incorrect handling of namespace prefix
+  rebinding in :class:`aioxmpp.xml.XMPPXMLGenerator`, that re-declaration is not
+  emitted, leading to incorrect output.
+
+  This was reported in
+  `GitHub Issue #295 <https://github.com/horazont/aioxmpp/issues/295>`_ by
+  `@oxoWrk <https://github.com/oxoWrk>`_.
+
+* Fix assignment of enumeration members to descriptors using
+  :class:`aioxmpp.xso.EnumCDataType` with `allow_coerce` set to true but
+  `deprecate_coerce` set to false.
+
 .. _api-changelog-0.10:
 
 Version 0.10
@@ -522,7 +745,7 @@ Minor features and bug fixes
   into XSOs if no value had been set (but a default was given).
 
 * Ensure that forms with :attr:`aioxmpp.forms.Form.FORM_TYPE` attribute render
-  a proper :xep:`68`muc ``FORM_TYPE`` field.
+  a proper :xep:`68` ``FORM_TYPE`` field.
 
 * Allow unset field type in data forms. This may seem weird, but unfortunately
   it is widespread practice. In some data form types, omitting the field type

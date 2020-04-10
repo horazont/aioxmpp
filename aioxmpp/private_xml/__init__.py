@@ -35,5 +35,5 @@ exposed:
 
 """
 
-from .xso import Query  # NOQA
-from .service import PrivateXMLService  # NOQA
+from .xso import Query  # NOQA: F401
+from .service import PrivateXMLService  # NOQA: F401

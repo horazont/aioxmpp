@@ -129,7 +129,9 @@ class ChatStateManager:
         """
         if message:
             if state != chatstates_xso.ChatState.ACTIVE:
-                raise ValueError("Only the state ACTIVE can be sent with messages.")
+                raise ValueError(
+                    "Only the state ACTIVE can be sent with messages."
+                )
         elif self._state == state:
             return False
 

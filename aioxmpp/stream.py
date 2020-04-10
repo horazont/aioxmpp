@@ -192,10 +192,9 @@ import asyncio
 import contextlib
 import functools
 import logging
-import time
 import warnings
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from enum import Enum
 
 from . import (
@@ -209,8 +208,6 @@ from . import (
     structs,
     ping,
 )
-
-from .utils import namespaces
 
 
 class AppFilter(callbacks.Filter):
@@ -686,8 +683,8 @@ class StanzaStream:
        :meth:`aioxmpp.protocol.XMLStream.send_xso` method.
 
        Before :meth:`on_failure` is emitted, the :class:`~.protocol.XMLStream`
-       is :meth:`~.protocol.XMLStream.abort`\ -ed if SM is enabled and
-       :meth:`~.protocol.XMLStream.close`\ -ed if SM is not enabled.
+       is :meth:`~.protocol.XMLStream.abort`\\ -ed if SM is enabled and
+       :meth:`~.protocol.XMLStream.close`\\ -ed if SM is not enabled.
 
        .. versionchanged:: 0.6
 
@@ -927,7 +924,33 @@ class StanzaStream:
             self.on_stream_destroyed(exc)
             self._established = False
 
-    def _iq_request_coro_done(self, request, task):
+    def _compose_undefined_condition(self, request):
+        response = request.make_reply(type_=structs.IQType.ERROR)
+        response.error = stanza.Error(
+            condition=errors.ErrorCondition.UNDEFINED_CONDITION,
+            type_=structs.ErrorType.CANCEL,
+        )
+        return response
+
+    def _send_iq_reply(self, request, result):
+        try:
+            if isinstance(result, errors.XMPPError):
+                response = request.make_reply(type_=structs.IQType.ERROR)
+                response.error = stanza.Error.from_exception(result)
+            else:
+                response = request.make_reply(type_=structs.IQType.RESULT)
+                response.payload = result
+        except Exception:
+            self._logger.exception("invalid payload for an IQ response")
+            response = self._compose_undefined_condition(
+                request
+            )
+        self._enqueue(response)
+
+    def _iq_request_coro_done_remove_task(self, task):
+        self._iq_request_tasks.remove(task)
+
+    def _iq_request_coro_done_send_reply(self, request, task):
         """
         Called when an IQ request handler coroutine returns. `request` holds
         the IQ request which triggered the excecution of the coroutine and
@@ -935,23 +958,22 @@ class StanzaStream:
 
         Compose a response and send that response.
         """
-        self._iq_request_tasks.remove(task)
         try:
             payload = task.result()
         except errors.XMPPError as err:
-            response = request.make_reply(type_=structs.IQType.ERROR)
-            response.error = stanza.Error.from_exception(err)
+            self._send_iq_reply(request, err)
         except Exception:
-            response = request.make_reply(type_=structs.IQType.ERROR)
-            response.error = stanza.Error(
-                condition=errors.ErrorCondition.UNDEFINED_CONDITION,
-                type_=structs.ErrorType.CANCEL,
-            )
+            response = self._compose_undefined_condition(request)
+            self._enqueue(response)
             self._logger.exception("IQ request coroutine failed")
         else:
-            response = request.make_reply(type_=structs.IQType.RESULT)
-            response.payload = payload
-        self._enqueue(response)
+            self._send_iq_reply(request, payload)
+
+    def _iq_request_coro_done_check(self, task):
+        try:
+            task.result()
+        except Exception:
+            self._logger.exception("IQ request coroutine failed")
 
     def _process_incoming_iq(self, stanza_obj):
         """
@@ -986,7 +1008,7 @@ class StanzaStream:
             self._logger.debug("iq is request")
             key = (stanza_obj.type_, type(stanza_obj.payload))
             try:
-                coro = self._iq_request_map[key]
+                coro, with_send_reply = self._iq_request_map[key]
             except KeyError:
                 self._logger.warning(
                     "unhandleable IQ request: from=%r, type_=%r, payload=%r",
@@ -1001,17 +1023,34 @@ class StanzaStream:
                 self._enqueue(response)
                 return
 
+            args = [stanza_obj]
+            if with_send_reply:
+
+                def send_reply(result=None):
+                    nonlocal task, stanza_obj, send_reply_callback
+                    if task.done():
+                        raise RuntimeError(
+                            "send_reply called after the handler is done")
+                    if task.remove_done_callback(send_reply_callback) == 0:
+                        raise RuntimeError(
+                            "send_reply called more than once")
+                    task.add_done_callback(self._iq_request_coro_done_check)
+                    self._send_iq_reply(stanza_obj, result)
+
+                args.append(send_reply)
+
             try:
-                awaitable = coro(stanza_obj)
+                awaitable = coro(*args)
             except Exception as exc:
                 awaitable = asyncio.Future()
                 awaitable.set_exception(exc)
 
             task = asyncio.ensure_future(awaitable)
-            task.add_done_callback(
-                functools.partial(
-                    self._iq_request_coro_done,
-                    stanza_obj))
+            send_reply_callback = functools.partial(
+                self._iq_request_coro_done_send_reply,
+                stanza_obj)
+            task.add_done_callback(self._iq_request_coro_done_remove_task)
+            task.add_done_callback(send_reply_callback)
             self._iq_request_tasks.append(task)
             self._logger.debug("started task to handle request: %r", task)
 
@@ -1302,8 +1341,8 @@ class StanzaStream:
           possible stanza errors, catching :class:`.errors.StanzaError` is
           sufficient and future-proof.
 
-        * :class:`ConnectionError` if the stream is :meth:`stop`\ -ped (only if
-          SM is not enabled) or :meth:`close`\ -ed.
+        * :class:`ConnectionError` if the stream is :meth:`stop`\\ -ped (only
+          if SM is not enabled) or :meth:`close`\\ -ed.
 
         * Any :class:`Exception` which may be raised from
           :meth:`~.protocol.XMLStream.send_xso`, which are generally also
@@ -1352,7 +1391,8 @@ class StanzaStream:
             stacklevel=2)
         return self.register_iq_request_handler(type_, payload_cls, coro)
 
-    def register_iq_request_handler(self, type_, payload_cls, cb):
+    def register_iq_request_handler(self, type_, payload_cls, cb, *,
+                                    with_send_reply=False):
         """
         Register a coroutine function or a function returning an awaitable to
         run when an IQ request is received.
@@ -1363,6 +1403,9 @@ class StanzaStream:
             :class:`~xso.XSO`)
         :type payload_cls: :class:`~.XMLStreamClass`
         :param cb: Function or coroutine function to invoke
+        :param with_send_reply: Whether to pass a function to send a reply
+             to `cb` as second argument.
+        :type with_send_reply: :class:`bool`
         :raises ValueError: if there is already a coroutine registered for this
                             target
         :raises ValueError: if `type_` is not a request IQ type
@@ -1407,7 +1450,21 @@ class StanzaStream:
 
             Using a non-coroutine function for `cb` will generally lead to
             less readable code. For the sake of readability, it is recommended
-            prefer coroutine functions.
+            to prefer coroutine functions when strong ordering guarantees are
+            not needed.
+
+        .. versionadded:: 0.11
+
+            When the argument `with_send_reply` is true `cb` will be
+            called with two arguments: the IQ stanza to handle and a
+            unary function `send_reply(result=None)` that sends a
+            response to the IQ request and prevents that an automatic
+            response is sent. If `result` is an instance of
+            :class:`~aioxmpp.XMPPError` an error result is generated.
+
+            This is useful when the handler function needs to execute
+            actions which happen after the IQ result has been sent,
+            for example, sending other stanzas.
 
         .. versionchanged:: 0.10
 
@@ -1418,9 +1475,9 @@ class StanzaStream:
 
         .. versionadded:: 0.6
 
-           If the stream is :meth:`stop`\ -ped (only if SM is not enabled) or
-           :meth:`close`\ ed, running IQ response coroutines are
-           :meth:`asyncio.Task.cancel`\ -led.
+           If the stream is :meth:`stop`\\ -ped (only if SM is not enabled) or
+           :meth:`close`\\ ed, running IQ response coroutines are
+           :meth:`asyncio.Task.cancel`\\ -led.
 
            To protect against that, fork from your coroutine using
            :func:`asyncio.ensure_future`.
@@ -1448,7 +1505,7 @@ class StanzaStream:
         if key in self._iq_request_map:
             raise ValueError("only one listener is allowed per tag")
 
-        self._iq_request_map[key] = cb
+        self._iq_request_map[key] = cb, with_send_reply
         self._logger.debug(
             "iq request coroutine registered: type=%r, payload=%r",
             type_, payload_cls)
@@ -2293,6 +2350,11 @@ class StanzaStream:
             self._active_queue.putleft_nowait(token)
         self._sm_unacked_list.clear()
 
+    def _clear_unacked(self, new_state, *args):
+        for token in self._sm_unacked_list:
+            token._set_state(new_state, *args)
+        self._sm_unacked_list.clear()
+
     @asyncio.coroutine
     def resume_sm(self, xmlstream):
         """
@@ -2318,6 +2380,17 @@ class StanzaStream:
         If negotiation succeeds, this coroutine resumes the stream management
         session and initiates the retransmission of any unacked stanzas. The
         stream is then in running state.
+
+        .. versionchanged:: 0.11
+
+            Support for using the counter value provided some servers on a
+            failed resumption was added. Stanzas which are covered by the
+            counter will be marked as :attr:`~StanzaState.ACKED`; other stanzas
+            will be marked as :attr:`~StanzaState.DISCONNECTED`.
+
+            This is in contrast to the behaviour when resumption fails
+            *without* a counter given. In that case, stanzas which have not
+            been acked are marked as :attr:`~StanzaState.SENT_WITHOUT_SM`.
         """
 
         if self.running:
@@ -2339,13 +2412,20 @@ class StanzaStream:
             )
 
             if isinstance(response, nonza.SMFailed):
+                exc = errors.StreamNegotiationFailure(
+                    "Server rejected SM resumption"
+                )
+
+                if response.counter is not None:
+                    self.sm_ack(response.counter)
+                    self._clear_unacked(StanzaState.DISCONNECTED)
+
                 xmlstream.stanza_parser.remove_class(
                     nonza.SMRequest)
                 xmlstream.stanza_parser.remove_class(
                     nonza.SMAcknowledgement)
                 self.stop_sm()
-                raise errors.StreamNegotiationFailure(
-                    "Server rejected SM resumption")
+                raise exc
 
             self._resume_sm(response.counter)
         except:  # NOQA
@@ -2364,8 +2444,7 @@ class StanzaStream:
         self._sm_enabled = False
         del self._sm_outbound_base
         del self._sm_inbound_ctr
-        for token in self._sm_unacked_list:
-            token._set_state(StanzaState.SENT_WITHOUT_SM)
+        self._clear_unacked(StanzaState.SENT_WITHOUT_SM)
         del self._sm_unacked_list
 
         self._destroy_stream_state(ConnectionError(
@@ -2561,9 +2640,10 @@ class StanzaStream:
             handler_ok,
             handler_error,
         )
+        listener_tag = (stanza.to, stanza.id_)
 
         self._iq_response_map.add_listener(
-            (stanza.to, stanza.id_),
+            listener_tag,
             listener,
         )
 
@@ -2573,16 +2653,23 @@ class StanzaStream:
             listener.cancel()
             raise
 
-        if not timeout:
-            reply = yield from fut
-        else:
+        try:
+            if not timeout:
+                reply = yield from fut
+            else:
+                try:
+                    reply = yield from asyncio.wait_for(
+                        fut,
+                        timeout=timeout
+                    )
+                except asyncio.TimeoutError:
+                    raise TimeoutError
+        finally:
             try:
-                reply = yield from asyncio.wait_for(
-                    fut,
-                    timeout=timeout
-                )
-            except asyncio.TimeoutError:
-                raise TimeoutError
+                self._iq_response_map.remove_listener(listener_tag)
+            except KeyError:
+                pass
+
         return reply
 
     @asyncio.coroutine
@@ -2594,11 +2681,13 @@ class StanzaStream:
 
         .. deprecated:: 0.10
         """
-        raise NotImplementedError("only available on streams owned by a Client")
+        raise NotImplementedError(
+            "only available on streams owned by a Client"
+        )
 
 
 @contextlib.contextmanager
-def iq_handler(stream, type_, payload_cls, coro):
+def iq_handler(stream, type_, payload_cls, coro, *, with_send_reply=False):
     """
     Context manager to temporarily register a coroutine to handle IQ requests
     on a :class:`StanzaStream`.
@@ -2611,10 +2700,19 @@ def iq_handler(stream, type_, payload_cls, coro):
                         :class:`~xso.XSO`)
     :type payload_cls: :class:`~.XMLStreamClass`
     :param coro: Coroutine to register
+    :param with_send_reply: Whether to pass a function to send the reply
+                            early to `cb`.
+    :type with_send_reply: :class:`bool`
 
     The coroutine is registered when the context is entered and unregistered
     when the context is exited. Running coroutines are not affected by exiting
     the context manager.
+
+    .. versionadded:: 0.11
+
+       The `with_send_reply` argument. See
+       :meth:`aioxmpp.stream.StanzaStream.register_iq_request_handler` for
+       more detail.
 
     .. versionadded:: 0.8
     """
@@ -2623,6 +2721,7 @@ def iq_handler(stream, type_, payload_cls, coro):
         type_,
         payload_cls,
         coro,
+        with_send_reply=with_send_reply,
     )
     try:
         yield

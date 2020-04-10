@@ -18,4 +18,5 @@ Internal tools
    protocol
    statemachine
    tasks
+   utils
    xml

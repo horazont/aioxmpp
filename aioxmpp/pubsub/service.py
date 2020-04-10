@@ -76,8 +76,10 @@ class PubSubClient(aioxmpp.service.Service):
           delete
           get_nodes
           get_node_affiliations
+          get_node_config
           get_node_subscriptions
           purge
+          set_node_config
 
     Meta-information about the service:
 
@@ -127,91 +129,89 @@ class PubSubClient(aioxmpp.service.Service):
 
     .. automethod:: get_node_affiliations
 
+    .. automethod:: get_node_config
+
     .. automethod:: get_node_subscriptions
 
     .. automethod:: purge
 
+    .. automethod:: set_node_config
+
     Receiving notifications:
 
-    .. autosignal:: on_item_published(jid, node, item, *, message=None)
+    .. signal:: on_item_published(jid, node, item, *, message=None)
 
-    .. autosignal:: on_item_retracted(jid, node, id_, *, message=None)
+        Fires when a new item is published to a node to which we have a
+        subscription.
 
-    .. autosignal:: on_node_deleted(jid, node, *, redirect_uri=None, message=None)
+        The node at which the item has been published is identified by `jid`
+        and `node`. `item` is the :class:`xso.EventItem` payload.
 
-    .. autosignal:: on_affiliation_update(jid, node, affiliation, *, message=None)
+        `message` is the :class:`.Message` which carried the notification.
+        If a notification message contains more than one published item, the
+        event is fired for each of the items, and `message` is passed to all
+        of them.
 
-    .. autosignal:: on_subscription_update(jid, node, state, *, subid=None, message=None)
+    .. signal:: on_item_retracted(jid, node, id_, *, message=None)
+
+        Fires when an item is retracted from a node to which we have a
+        subscription.
+
+        The node at which the item has been retracted is identified by `jid`
+        and `node`. `id_` is the ID of the item which has been retract.
+
+        `message` is the :class:`.Message` which carried the notification.
+        If a notification message contains more than one retracted item, the
+        event is fired for each of the items, and `message` is passed to all
+        of them.
+
+    .. signal:: on_node_deleted(jid, node, *, redirect_uri=None, message=None)
+
+        Fires when a node is deleted. `jid` and `node` identify the node.
+
+        If the notification included a redirection URI, it is passed as
+        `redirect_uri`. Otherwise, :data:`None` is passed for `redirect_uri`.
+
+        `message` is the :class:`.Message` which carried the notification.
+
+    .. signal:: on_affiliation_update(jid, node, affiliation, *, message=None)
+
+        Fires when the affiliation with a node is updated.
+
+        `jid` and `node` identify the node for which the affiliation was updated.
+        `affiliation` is the new affiliaton.
+
+        `message` is the :class:`.Message` which carried the notification.
+
+    .. signal:: on_subscription_update(jid, node, state, *, subid=None, message=None)
+
+        Fires when the subscription state is updated.
+
+        `jid` and `node` identify the node for which the subscription was updated.
+        `subid` is optional and if it is not :data:`None` it is the affected
+        subscription id. `state` is the new subscription state.
+
+        This event can happen in several cases, for example when a subscription
+        request is approved by the node owner or when a subscription is cancelled.
+
+        `message` is the :class:`.Message` which carried the notification.
 
     .. versionchanged:: 0.8
 
        This class was formerly known as :class:`aioxmpp.pubsub.Service`. It
        is still available under that name, but the alias will be removed in
        1.0.
-    """
+    """  # NOQA: E501
 
     ORDER_AFTER = [
         aioxmpp.DiscoClient,
     ]
 
-    on_item_published = aioxmpp.callbacks.Signal(doc=
-    """
-    Fires when a new item is published to a node to which we have a
-    subscription.
-
-    The node at which the item has been published is identified by `jid` and
-    `node`. `item` is the :class:`xso.EventItem` payload.
-
-    `message` is the :class:`.Message` which carried the notification.
-    If a notification message contains more than one published item, the event
-    is fired for each of the items, and `message` is passed to all of them.
-    """)  # NOQA
-
-    on_item_retracted = aioxmpp.callbacks.Signal(doc=
-    """
-    Fires when an item is retracted from a node to which we have a subscription.
-
-    The node at which the item has been retracted is identified by `jid` and
-    `node`. `id_` is the ID of the item which has been retract.
-
-    `message` is the :class:`.Message` which carried the notification.
-    If a notification message contains more than one retracted item, the event
-    is fired for each of the items, and `message` is passed to all of them.
-    """)  # NOQA
-
-    on_node_deleted = aioxmpp.callbacks.Signal(doc=
-    """
-    Fires when a node is deleted. `jid` and `node` identify the node.
-
-    If the notification included a redirection URI, it is passed as
-    `redirect_uri`. Otherwise, :data:`None` is passed for `redirect_uri`.
-
-    `message` is the :class:`.Message` which carried the notification.
-    """)  # NOQA
-
-    on_affiliation_update = aioxmpp.callbacks.Signal(doc=
-    """
-    Fires when the affiliation with a node is updated.
-
-    `jid` and `node` identify the node for which the affiliation was updated.
-    `affiliation` is the new affiliaton.
-
-    `message` is the :class:`.Message` which carried the notification.
-    """)  # NOQA
-
-    on_subscription_update = aioxmpp.callbacks.Signal(doc=
-    """
-    Fires when the subscription state is updated.
-
-    `jid` and `node` identify the node for which the subscription was updated.
-    `subid` is optional and if it is not :data:`None` it is the affected
-    subscription id. `state` is the new subscription state.
-
-    This event can happen in several cases, for example when a subscription
-    request is approved by the node owner or when a subscription is cancelled.
-
-    `message` is the :class:`.Message` which carried the notification.s
-    """)  # NOQA
+    on_item_published = aioxmpp.callbacks.Signal()
+    on_item_retracted = aioxmpp.callbacks.Signal()
+    on_node_deleted = aioxmpp.callbacks.Signal()
+    on_affiliation_update = aioxmpp.callbacks.Signal()
+    on_subscription_update = aioxmpp.callbacks.Signal()
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
@@ -504,6 +504,61 @@ class PubSubClient(aioxmpp.service.Service):
         return response.payload.data
 
     @asyncio.coroutine
+    def get_node_config(self, jid, node=None):
+        """
+        Request the configuration of a node.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the PubSub node to query.
+        :type node: :class:`str`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
+        :return: The configuration of the node.
+        :rtype: :class:`~.forms.Data`
+
+        On success, the :class:`~.forms.Data` form is returned.
+
+        If an error occurs, the corresponding :class:`~.errors.XMPPError` is
+        raised.
+        """
+
+        iq = aioxmpp.stanza.IQ(to=jid, type_=aioxmpp.structs.IQType.GET)
+        iq.payload = pubsub_xso.OwnerRequest(
+            pubsub_xso.OwnerConfigure(node=node)
+        )
+
+        response = yield from self.client.send(iq)
+        return response.payload.data
+
+    @asyncio.coroutine
+    def set_node_config(self, jid, config, node=None):
+        """
+        Update the configuration of a node.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param config: Configuration form
+        :type config: :class:`aioxmpp.forms.Data`
+        :param node: Name of the PubSub node to query.
+        :type node: :class:`str`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
+        :return: The configuration of the node.
+        :rtype: :class:`~.forms.Data`
+
+        .. seealso::
+
+            :class:`aioxmpp.pubsub.NodeConfigForm`
+        """
+
+        iq = aioxmpp.stanza.IQ(to=jid, type_=aioxmpp.structs.IQType.SET)
+        iq.payload = pubsub_xso.OwnerRequest(
+            pubsub_xso.OwnerConfigure(node=node)
+        )
+        iq.payload.payload.data = config
+
+        yield from self.client.send(iq)
+
+    @asyncio.coroutine
     def get_items(self, jid, node, *, max_items=None):
         """
         Request the most recent items from a node.
@@ -583,7 +638,7 @@ class PubSubClient(aioxmpp.service.Service):
         :type node: :class:`str`
         :raises aioxmpp.errors.XMPPError: as returned by the service
         :return: The subscriptions response from the service.
-        :rtype: :class:`.xso.Subscriptions.
+        :rtype: :class:`.xso.Subscriptions`
 
         If `node` is :data:`None`, subscriptions on all nodes of the entity
         `jid` are listed.
@@ -598,7 +653,9 @@ class PubSubClient(aioxmpp.service.Service):
         return response.payload
 
     @asyncio.coroutine
-    def publish(self, jid, node, payload, *, id_=None):
+    def publish(self, jid, node, payload, *,
+                id_=None,
+                publish_options=None):
         """
         Publish an item to a node.
 
@@ -610,7 +667,12 @@ class PubSubClient(aioxmpp.service.Service):
         :type payload: :class:`aioxmpp.xso.XSO`
         :param id_: Item ID to use for the item.
         :type id_: :class:`str` or :data:`None`.
+        :param publish_options: A data form with the options for the publish
+            request
+        :type publish_options: :class:`aioxmpp.forms.Data`
         :raises aioxmpp.errors.XMPPError: as returned by the service
+        :raises RuntimeError: if `publish_options` is not :data:`None` but
+            the service does not support `publish_options`
         :return: The Item ID which was used to publish the item.
         :rtype: :class:`str` or :data:`None`
 
@@ -621,6 +683,17 @@ class PubSubClient(aioxmpp.service.Service):
         as the ID for the item. If an item with the same ID already exists at
         the node, it is replaced. If no ID is given, a ID is generated by the
         server.
+
+        If `publish_options` is given, it is passed as ``<publish-options/>``
+        element to the server. This needs to be a data form which allows to
+        define e.g. node configuration as a pre-condition to publishing. If
+        the publish-options cannot be satisfied, the server will raise a
+        :attr:`aioxmpp.ErrorCondition.CONFLICT` error.
+
+        If `publish_options` is given and the server does not announce the
+        :attr:`aioxmpp.pubsub.xso.Feature.PUBLISH_OPTIONS` feature,
+        :class:`RuntimeError` is raised to prevent security issues (e.g. if
+        the publish options attempt to assert a restrictive access model).
 
         Return the ID of the item as published (or :data:`None` if the server
         does not inform us; this is unfortunately common).
@@ -639,6 +712,16 @@ class PubSubClient(aioxmpp.service.Service):
         iq.payload = pubsub_xso.Request(
             publish
         )
+
+        if publish_options is not None:
+            features = yield from self.get_features(jid)
+            if pubsub_xso.Feature.PUBLISH_OPTIONS not in features:
+                raise RuntimeError(
+                    "publish-options given, but not supported by server"
+                )
+
+            iq.payload.publish_options = pubsub_xso.PublishOptions()
+            iq.payload.publish_options.data = publish_options
 
         response = yield from self.client.send(iq)
 

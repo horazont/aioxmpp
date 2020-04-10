@@ -37,6 +37,8 @@ Service
 
 .. currentmodule:: aioxmpp.ping
 
+.. autofunction:: ping
+
 XSOs
 ====
 
@@ -47,5 +49,5 @@ Sometimes it is useful to send a ping manually instead of relying on the
 
 """
 
-from .service import PingService
-from .xso import Ping
+from .service import PingService, ping  # NOQA: F401
+from .xso import Ping  # NOQA: F401

@@ -28,6 +28,7 @@ import collections
 import contextlib
 import functools
 import logging
+import os
 import time
 import unittest
 import unittest.mock
@@ -41,23 +42,30 @@ import aioxmpp.nonza as nonza
 from aioxmpp.utils import etree
 
 
+logger = logging.getLogger(__name__)
+
+
 GLOBAL_TIMEOUT_FACTOR = 1.0
 
 _monotonic_info = time.get_clock_info("monotonic")
+# this is a fun hack to make things work on windows, where the monotonic
+# resolution isn’t that great
 GLOBAL_TIMEOUT_FACTOR *= max(_monotonic_info.resolution, 0.0015) / 0.0015
 
+# and now we slap on some extra for travis CI
+if os.environ.get("CI") == "true":
+    GLOBAL_TIMEOUT_FACTOR *= 4
+    logger.debug("increasing GLOBAL_TIMEOUT_FACTOR for CI")
 
-logging.getLogger(__name__).debug("using GLOBAL_TIMEOUT_FACTOR = %.3f",
-                                  GLOBAL_TIMEOUT_FACTOR)
+
+logger.debug("using GLOBAL_TIMEOUT_FACTOR = %.3f", GLOBAL_TIMEOUT_FACTOR)
 
 
 def get_timeout(base):
     return base * GLOBAL_TIMEOUT_FACTOR
 
 
-# FIXME: find a way to detect Travis CI and use 2.0 there, 1.0 otherwise.
-# 1.0 is sufficient normally, but on Travis we sometimes get spurious failures.
-DEFAULT_TIMEOUT = get_timeout(2.0)
+DEFAULT_TIMEOUT = get_timeout(1.0)
 
 
 def make_protocol_mock():
@@ -108,7 +116,7 @@ def run_coroutine_with_peer(
         fut = next(iter(done))
         try:
             fut.result()
-        except:
+        except:  # NOQA: E722
             # everything is fine, the other one failed
             raise
         else:
@@ -167,6 +175,8 @@ class FilterMock(unittest.mock.Mock):
 class ConnectedClientMock(unittest.mock.Mock):
     on_stream_established = callbacks.Signal()
     on_stream_destroyed = callbacks.Signal()
+    on_stream_suspended = callbacks.Signal()
+    on_stream_resumed = callbacks.Signal()
     on_failure = callbacks.Signal()
     on_stopped = callbacks.Signal()
 
@@ -185,6 +195,7 @@ class ConnectedClientMock(unittest.mock.Mock):
         ])
 
         self.established = True
+        self.suspended = False
 
         self.stream_features = nonza.StreamFeatures()
         self.stream.on_message_received = callbacks.AdHocSignal()

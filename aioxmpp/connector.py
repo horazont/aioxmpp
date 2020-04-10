@@ -58,7 +58,9 @@ import aioxmpp.nonza as nonza
 import aioxmpp.protocol as protocol
 import aioxmpp.ssl_transport as ssl_transport
 
-from aioxmpp.utils import namespaces
+
+def to_ascii(s):
+    return s.encode("idna").decode("ascii")
 
 
 class BaseConnector(metaclass=abc.ABCMeta):
@@ -197,7 +199,7 @@ class STARTTLSConnector(BaseConnector):
                 host=host,
                 port=port,
                 peer_hostname=host,
-                server_hostname=domain,
+                server_hostname=to_ascii(domain),
                 use_starttls=True,
             )
         except:  # NOQA
@@ -228,7 +230,7 @@ class STARTTLSConnector(BaseConnector):
                     nonza.StartTLSProceed,
                 ]
             )
-        except errors.StreamError as exc:
+        except errors.StreamError:
             raise errors.TLSUnavailable(
                 "STARTTLS not supported by server, but required by client"
             )
@@ -368,7 +370,7 @@ class XMPPOverTLSConnector(BaseConnector):
                 host=host,
                 port=port,
                 peer_hostname=host,
-                server_hostname=domain,
+                server_hostname=to_ascii(domain),
                 post_handshake_callback=verifier.post_handshake,
                 ssl_context_factory=context_factory,
                 use_starttls=False,

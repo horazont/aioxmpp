@@ -128,7 +128,7 @@ from everywhere. You can read more about it in the relevant chapter from the
 To install in editable mode, you first need a clone of the aioxmpp repository.
 Then you tell pip to install the local directory in editable mode. If you
 prefer to install dependencies using your system’s package manager, be sure
-to do so first (see :ref:`_ug-installation-pypi-deps-packages`), because
+to do so first (see :ref:`ug-installation-pypi-deps-packages`), because
 :program:`pip3` will install them for you if they are missing.
 
 .. code-block:: bash

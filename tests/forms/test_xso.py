@@ -448,7 +448,7 @@ class TestField(unittest.TestCase):
 
         f.validate()
 
-    def test_reject_duplicate_option_values(self):
+    def test_reject_duplicate_option_labels(self):
         f = forms_xso.Field()
         f.type_ = forms_xso.FieldType.LIST_MULTI
         f.var = "foobar"
@@ -457,8 +457,18 @@ class TestField(unittest.TestCase):
 
         with self.assertRaisesRegex(
                 ValueError,
-                "duplicate option value"):
+                "duplicate option label"):
             f.validate()
+
+    def test_allow_duplicate_Nones_in_option_labels(self):
+        f = forms_xso.Field()
+        f.type_ = forms_xso.FieldType.LIST_MULTI
+        f.var = "foobar"
+        f.options["foo"] = "bar"
+        f.options["baz"] = None
+        f.options["fnord"] = None
+
+        f.validate()
 
     def test_init(self):
         f = forms_xso.Field()

@@ -71,6 +71,6 @@ might cause data loss due to race conditions.
 
 """
 
-from .xso import (Storage, Bookmark, Conference, URL,  # NOQA
+from .xso import (Storage, Bookmark, Conference, URL,  # NOQA: F401
                   as_bookmark_class)
-from .service import BookmarkClient  # NOQA
+from .service import BookmarkClient  # NOQA: F401

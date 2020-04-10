@@ -19,7 +19,43 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+"""
+:mod:`~aioxmpp.ibr` --- In-Band Registration (:xep:`0077`)
+##########################################################
 
-from .service import RegistrationService, get_registration_fields, register
-from .service import get_used_fields
-from .xso import Query
+This module implements in-band registration.
+
+Registration Functions
+======================
+
+The module level registration functions work on an
+:class:`aioxmpp.protocol.XMLStream` and before authentication. They
+allow to register a new account with a server.
+
+.. autofunction:: get_registration_fields
+
+.. autofunction:: register
+
+Helper Function
+===============
+
+.. autofunction:: get_used_fields
+
+Service
+=======
+
+.. autoclass:: RegistrationService
+
+XSO Definitions
+===============
+
+.. autoclass:: Query
+"""
+
+from .service import (  # NOQA: F401
+    RegistrationService,
+    get_registration_fields,
+    register,
+)
+from .service import get_used_fields  # NOQA: F401
+from .xso import Query  # NOQA: F401

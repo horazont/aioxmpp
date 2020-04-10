@@ -28,13 +28,13 @@ attributes are added by this module to the existing stanza classes:
 
 .. attribute:: aioxmpp.Message.xep0131_headers
 
-   A :class:`xso.Headers` instance or :data:`None`. Represents the SHIM headers of
-   the stanza.
+   A :class:`xso.Headers` instance or :data:`None`. Represents the SHIM
+   headers of the stanza.
 
 .. attribute:: aioxmpp.Presence.xep0131_headers
 
-   A :class:`xso.Headers` instance or :data:`None`. Represents the SHIM headers of
-   the stanza.
+   A :class:`xso.Headers` instance or :data:`None`. Represents the SHIM
+   headers of the stanza.
 
 The attributes are available as soon as :mod:`aioxmpp.shim` is loaded.
 
@@ -57,8 +57,8 @@ The attributes are available as soon as :mod:`aioxmpp.shim` is loaded.
 .. autoclass:: Headers
 
 """
-from . import xso  # NOQA
+from . import xso  # NOQA: F401
 
-from .service import (  # NOQA
+from .service import (  # NOQA: F401
     SHIMService,
 )

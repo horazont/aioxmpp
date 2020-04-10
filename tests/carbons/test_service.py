@@ -58,9 +58,9 @@ class TestCarbonsClient(unittest.TestCase):
         ))
 
     def test_requires_DiscoClient(self):
-        self.assertLess(
+        self.assertIn(
             aioxmpp.DiscoClient,
-            carbons_service.CarbonsClient,
+            carbons_service.CarbonsClient.ORDER_AFTER,
         )
 
     def test__check_for_feature_uses_disco(self):

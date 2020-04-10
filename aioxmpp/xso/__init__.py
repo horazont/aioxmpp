@@ -23,7 +23,7 @@
 :mod:`~aioxmpp.xso` --- Working with XML stream contents
 ########################################################
 
-This subpackage deals with **X**\ ML **S**\ tream **O**\ bjects. XSOs can be
+This subpackage deals with **X**\\ ML **S**\\ tream **O**\\ bjects. XSOs can be
 stanzas, but in general any XML.
 
 The facilities in this subpackage are supposed to help developers of XEP
@@ -33,8 +33,45 @@ allow declarative-style parsing and un-parsing of XML subtrees into XSOs and
 the :mod:`aioxmpp.xso.types` module, which provides classes which implement
 validators and type parsers for content represented as strings in XML.
 
-Terminology
-===========
+
+Introduction
+============
+
+.. seealso::
+
+    For a more in-depth introduction into :mod:`aioxmpp.xso`, please refer to
+    the :ref:`ug-introduction-to-xso` chapter in the user guide. This document
+    here is a reference manual.
+
+The :mod:`aioxmpp.xso` subpackage provides declarative-style parsing of XML
+document fragments. The declarations are similar to what you might know from
+declarative Object-Relational-Mappers such as :mod:`sqlalchemy`. Due to the
+different data model of XML and relational databases, they are not identical
+of course.
+
+An abstract class describing the common properties of an XMPP stanza might
+look like this:
+
+.. code:: python
+
+    class Stanza(xso.XSO):
+        from_ = xso.Attr(tag="from", type_=xso.JID(), default=None)
+        to = xso.Attr(tag="to", type_=xso.JID(), default=None)
+        lang = xso.LangAttr(tag=(namespaces.xml, "lang"))
+
+
+Instances of classes deriving from :class:`aioxmpp.xso.XSO` are called XML
+stream objects, or XSOs for short. Each XSO maps to an XML element node.
+
+The declaration of an XSO class typically has one or more
+:term:`descriptors <descriptor>` describing the mapping of XML child nodes of
+the element. XML nodes which can be mapped include attributes, text and
+elements (processing instructions and comments are not supported; CDATA
+sections are treated like text).
+
+
+XSO-specific Terminology
+========================
 
 Definition of an XSO
 --------------------
@@ -55,6 +92,18 @@ representing tags as tuples of ``(namespace_uri, localname)``, where
    convert from and to ElementTree compatible strings.
 
 
+XML stream events
+-----------------
+
+XSOs are parsed using SAX-like events. This allows them to be built one-by-one
+in memory (and discarded) even while the XML stream is in progress.
+
+The XSO module uses a subset of the original SAX event list, and it uses a
+custom format. The reason for that is that instead of using an interface with
+methods, the parsing parts are implemented using suspendable functions (see
+below).
+
+
 Suspendable functions
 ---------------------
 
@@ -66,7 +115,7 @@ suspendable functions here.
 Suspendable functions possibly take arguments and then operate on input which
 is fed to them in a push-manner step by step (using the
 :meth:`~types.GeneratorType.send` method). The main usage in this module is to
-process SAX events: The SAX events are processed step-by-step by the functions,
+process XML stream events: The SAX events are processed step-by-step by the functions,
 and when the event is fully processed, it suspends itself (using ``yield``)
 until the next event is sent into it.
 
@@ -94,6 +143,25 @@ descriptors.
 Descriptors for XML-sourced attributes
 --------------------------------------
 
+.. autosummary::
+
+    Attr
+    LangAttr
+    Text
+    Child
+    ChildTag
+    ChildFlag
+    ChildText
+    ChildTextMap
+    ChildValue
+    ChildList
+    ChildMap
+    ChildLangMap
+    ChildValueList
+    ChildValueMap
+    ChildValueMultiMap
+    Collector
+
 The following descriptors can be used to load XSO attributes from XML. There
 are two fundamentally different descriptor types: *scalar* and *non-scalar*
 (e.g. list) descriptors. Assignment to the descriptor attribute is
@@ -118,6 +186,8 @@ repeated that detailed on the other classes. Refer to the documentation of the
 .. autoclass:: ChildFlag(tag, *[, text_policy=UnknownTextPolicy.FAIL][, child_policy=UnknownChildPolicy.FAIL][, attr_policy=UnknownAttrPolicy.FAIL])
 
 .. autoclass:: ChildText(tag, *[, child_policy=UnknownChildPolicy.FAIL][, attr_policy=UnknownAttrPolicy.FAIL][, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, default][, erroneous_as_absent=False])
+
+.. autoclass:: ChildValue(type_)
 
 .. autoclass:: Text(*[, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, default][, erroneous_as_absent=False])
 
@@ -244,12 +314,31 @@ in :mod:`~aioxmpp.xso.model`.
 Character Data types
 --------------------
 
+.. autosummary::
+
+    String
+    Float
+    Integer
+    Bool
+    DateTime
+    Date
+    Time
+    Base64Binary
+    HexBinary
+    JID
+    ConnectionLocation
+    LanguageTag
+    JSON
+    EnumCDataType
+
 These types describe character data, i.e. text in XML. Thus, they can be used
 with :class:`Attr`, :class:`Text` and similar descriptors. They are used to
 deserialise XML character data to python values, such as integers or dates and
 vice versa. These types inherit from :class:`AbstractCDataType`.
 
 .. autoclass:: String
+
+.. autoclass:: Float
 
 .. autoclass:: Integer
 
@@ -271,6 +360,8 @@ vice versa. These types inherit from :class:`AbstractCDataType`.
 
 .. autoclass:: LanguageTag
 
+.. autoclass:: JSON
+
 .. autoclass:: EnumCDataType(enum_class, nested_type=xso.String(), *, allow_coerce=False, deprecate_coerce=False, allow_unknown=True, accept_unknown=True)
 
 .. autofunction:: EnumType(enum_class[, nested_type], *, allow_coerce=False, deprecate_coerce=False, allow_unknown=True, accept_unknown=True)
@@ -279,6 +370,11 @@ vice versa. These types inherit from :class:`AbstractCDataType`.
 
 Element types
 -------------
+
+.. autosummary::
+
+    EnumElementType
+    TextChildMap
 
 These types describe structured XML data, i.e. subtrees. Thus, they can be used
 with the :class:`ChildValueList` and :class:`ChildValueMap` family of
@@ -443,7 +539,7 @@ provided which faciliate the use.
 .. autoclass:: AbstractTextChild
 
 
-"""
+"""  # NOQA: E501
 
 
 def tag_to_str(tag):
@@ -489,7 +585,7 @@ def normalize_tag(tag):
     return tag
 
 
-from .types import (  # NOQA
+from .types import (  # NOQA: F401
     Unknown,
     AbstractCDataType,
     AbstractElementType,
@@ -505,6 +601,7 @@ from .types import (  # NOQA
     JID,
     ConnectionLocation,
     LanguageTag,
+    JSON,
     TextChildMap,
     EnumType,
     EnumCDataType,
@@ -516,9 +613,7 @@ from .types import (  # NOQA
     NumericRange,
 )
 
-from .model import (  # NOQA
-    tag_to_str,
-    normalize_tag,
+from .model import (  # NOQA: F401
     UnknownChildPolicy,
     UnknownAttrPolicy,
     UnknownTextPolicy,
@@ -526,6 +621,7 @@ from .model import (  # NOQA
     UnknownTopLevelTag,
     Attr,
     LangAttr,
+    ChildValue,
     Child,
     ChildFlag,
     ChildList,
@@ -547,59 +643,16 @@ from .model import (  # NOQA
     lang_attr,
     capture_events,
     events_to_sax,
+    AbstractTextChild,
 )
 
 
-class AbstractTextChild(XSO):
-    """
-    One of the recurring patterns when using :mod:`xso` is the use of a XSO
-    subclass to represent an XML node which has only character data and an
-    ``xml:lang`` attribute.
-
-    The `text` and `lang` arguments to the constructor can be used to
-    initialize the attributes.
-
-    This class provides exactly that. It inherits from :class:`XSO`.
-
-    .. attribute:: lang
-
-       The ``xml:lang`` of the node, as :class:`~.structs.LanguageTag`.
-
-    .. attribute:: text
-
-       The textual content of the node (XML character data).
-
-    Example use as base class::
-
-      class Subject(xso.AbstractTextChild):
-          TAG = (namespaces.client, "subject")
-
-    The full example can also be found in the source code of
-    :class:`.stanza.Subject`.
-
-    """
-
-    lang = LangAttr()
-    text = Text(default=None)
-
-    def __init__(self, text=None, lang=None):
-        super().__init__()
-        self.text = text
-        self.lang = lang
-
-    def __eq__(self, other):
-        try:
-            other_key = (other.lang, other.text)
-        except AttributeError:
-            return NotImplemented
-        return (self.lang, self.text) == other_key
-
-from .model import _PropBase
+from .model import _PropBase  # NOQA: E402
 NO_DEFAULT = _PropBase.NO_DEFAULT
 del _PropBase
 
 
-from .query import (  # NOQA
+from .query import (  # NOQA: F401
     where,
     not_,
 )

@@ -25,6 +25,7 @@ import unittest
 import unittest.mock
 
 import aioxmpp
+import aioxmpp.forms
 import aioxmpp.disco.xso as disco_xso
 import aioxmpp.pep as pep
 import aioxmpp.pep.service as pep_service
@@ -70,9 +71,15 @@ class TestPEPClient(unittest.TestCase):
         self.assertTrue(issubclass(pep.PEPClient, aioxmpp.service.Service))
 
     def test_depends_on_entity_caps(self):
-        self.assertLess(
+        self.assertIn(
             aioxmpp.EntityCapsService,
-            pep.PEPClient,
+            pep.PEPClient.ORDER_AFTER,
+        )
+
+    def test_depends_on_pubsub(self):
+        self.assertIn(
+            aioxmpp.PubSubClient,
+            pep.PEPClient.ORDER_AFTER,
         )
 
     def test_check_for_pep(self):
@@ -140,7 +147,54 @@ class TestPEPClient(unittest.TestCase):
             "urn:example",
             unittest.mock.sentinel.data,
             id_="example-id",
+            publish_options=None,
         )
+
+    def test_publish_with_access_model(self):
+        with contextlib.ExitStack() as stack:
+            check_for_pep_mock = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.s,
+                    "_check_for_pep",
+                    CoroutineMock(),
+                )
+            )
+
+            publish_mock = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.pubsub,
+                    "publish",
+                    CoroutineMock(),
+                )
+            )
+
+            run_coroutine(self.s.publish(
+                "urn:example",
+                unittest.mock.sentinel.data,
+                id_="example-id",
+                access_model="foobar",
+            ))
+
+        check_for_pep_mock.assert_called_once_with()
+        publish_mock.assert_called_once_with(
+            None,
+            "urn:example",
+            unittest.mock.sentinel.data,
+            id_="example-id",
+            publish_options=unittest.mock.ANY,
+        )
+
+        _, _, kwargs = publish_mock.mock_calls[-1]
+
+        publish_options = kwargs.pop("publish_options")
+
+        self.assertIsInstance(publish_options, aioxmpp.forms.Data)
+        self.assertEqual(publish_options.get_form_type(),
+                         "http://jabber.org/protocol/pubsub#publish-options")
+        self.assertEqual(len(publish_options.fields), 2)
+        self.assertEqual(publish_options.fields[1].var, "pubsub#access_model")
+        self.assertCountEqual(publish_options.fields[1].values,
+                              ["foobar"])
 
     def test_claim_pep_node_twice(self):
         handler1 = unittest.mock.Mock()

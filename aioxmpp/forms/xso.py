@@ -119,9 +119,9 @@ class FieldType(enum.Enum):
 
           The field is intended for data description (e.g., human-readable text
           such as "section" headers) rather than data gathering or provision.
-          The <value/> child SHOULD NOT contain newlines (the ``\\n`` and ``\\r``
-          characters); instead an application SHOULD generate multiple fixed
-          fields, each with one <value/> child.
+          The <value/> child SHOULD NOT contain newlines (the ``\\n`` and
+          ``\\r`` characters); instead an application SHOULD generate multiple
+          fixed fields, each with one <value/> child.
 
        As such, the :attr:`Field.values` sequence should contain exactly one
        element. :attr:`Field.desc`, :attr:`Field.label`, :attr:`Field.options`
@@ -285,7 +285,7 @@ class Field(xso.XSO):
     :type values: :class:`list` of :class:`str`
     :param desc: Description which can be shown in a tool-tip or similar,
                  without newlines.
-    :type desc: :class:`str` or :data:`None`s
+    :type desc: :class:`str` or :data:`None`
     :param label: Human-readable label to be shown next to the field input
     :type label: :class:`str` or :data:`None`
     :param required: Flag to indicate that the field is required
@@ -427,11 +427,13 @@ class Field(xso.XSO):
             if not self.type_.is_multivalued and len(self.values) > 1:
                 raise ValueError("too many values on non-multi field")
 
-        values_list = [opt for opt in self.options.values()]
+        values_list = [opt for opt in self.options.values() if opt is not None]
         values_set = set(values_list)
 
         if len(values_list) != len(values_set):
-            raise ValueError("duplicate option value")
+            raise ValueError("duplicate option label in {}".format(
+                values_list
+            ))
 
 
 class AbstractItem(xso.XSO):

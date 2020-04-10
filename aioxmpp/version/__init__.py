@@ -41,7 +41,7 @@ system of other entities in the XMPP network.
 
 .. automodule:: aioxmpp.version.xso
 """
-from .service import (  # NOQA
+from .service import (  # NOQA: F401
     VersionServer,
     query_version,
 )

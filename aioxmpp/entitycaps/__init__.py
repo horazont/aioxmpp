@@ -56,8 +56,8 @@ Service
 .. currentmodule:: aioxmpp.entitycaps.xso
 
 
-"""
+"""  # NOQA: E501
 
-from .service import EntityCapsService, Cache  # NOQA
-from . import xso  # NOQA
+from .service import EntityCapsService, Cache  # NOQA: F401
+from . import xso  # NOQA: F401
 Service = EntityCapsService

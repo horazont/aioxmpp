@@ -189,6 +189,13 @@ class PresenceClient(aioxmpp.service.Service):
         aioxmpp.structs.PresenceType.ERROR,
         None)
     def handle_presence(self, st):
+        if st.from_ is None:
+            if st.type_ != aioxmpp.structs.PresenceType.ERROR:
+                self.logger.debug(
+                    "dropping unhandled presence from account"
+                )
+            return
+
         bare = st.from_.bare()
         resource = st.from_.resource
 
@@ -232,12 +239,6 @@ class PresenceClient(aioxmpp.service.Service):
 class PresenceServer(aioxmpp.service.Service):
     """
     Manage the presence broadcast by the client.
-
-    .. .. note::
-
-    ..    This was formerly handled by the :class:`aioxmpp.PresenceManagedClient`,
-    ..    which is now merely a shim wrapper around :class:`aioxmpp.Client` and
-    ..    :class:`PresenceServer`.
 
     The :class:`PresenceServer` manages broadcasting and re-broadcasting the
     presence of the client as needed.
@@ -372,10 +373,10 @@ class PresenceServer(aioxmpp.service.Service):
         `status` must be either a string or something which can be passed to
         the :class:`dict` constructor. If it is a string, it is wrapped into a
         dict using ``{None: status}``. The mapping must map
-        :class:`~.LanguageTag` objects (or :data:`None`) to strings. The
-        information will be used to generate internationalised presence status
-        information. If you do not need internationalisation, simply use the
-        string version of the argument.
+        :class:`~.structs.LanguageTag` objects (or :data:`None`) to strings.
+        The information will be used to generate internationalised presence
+        status information. If you do not need internationalisation, simply use
+        the string version of the argument.
         """
 
         if not isinstance(priority, numbers.Integral):

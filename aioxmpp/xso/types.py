@@ -25,7 +25,7 @@
 
 See :mod:`aioxmpp.xso` for documentation.
 
-"""
+"""  # NOQA: E501
 
 import abc
 import array
@@ -33,6 +33,7 @@ import base64
 import binascii
 import decimal
 import ipaddress
+import json
 import numbers
 import re
 import unicodedata
@@ -250,7 +251,7 @@ class AbstractElementType(metaclass=abc.ABCMeta):
 
 class String(AbstractCDataType):
     """
-    Interpret the input value as string.
+    String :term:`Character Data Type`, optionally with string preparation.
 
     Optionally, a stringprep function `prepfunc` can be applied on the
     string. A stringprep function must take the string and prepare it
@@ -279,7 +280,7 @@ class String(AbstractCDataType):
 
 class Integer(AbstractCDataType):
     """
-    Parse the value as base-10 integer and return the result as :class:`int`.
+    Integer :term:`Character Data Type`, to the base 10.
     """
 
     def coerce(self, v):
@@ -293,7 +294,7 @@ class Integer(AbstractCDataType):
 
 class Float(AbstractCDataType):
     """
-    Parse the value as decimal float and return the result as :class:`float`.
+    Floating point or decimal :term:`Character Data Type`.
     """
 
     def coerce(self, v):
@@ -307,6 +308,8 @@ class Float(AbstractCDataType):
 
 class Bool(AbstractCDataType):
     """
+    XML boolean :term:`Character Data Type`.
+
     Parse the value as boolean:
 
     * ``"true"`` and ``"1"`` are taken as :data:`True`,
@@ -336,6 +339,8 @@ class Bool(AbstractCDataType):
 
 class DateTime(AbstractCDataType):
     """
+    ISO datetime :term:`Character Data Type`.
+
     Parse the value as ISO datetime, possibly including microseconds and
     timezone information.
 
@@ -417,6 +422,8 @@ class DateTime(AbstractCDataType):
 
 class Date(AbstractCDataType):
     """
+    ISO date :term:`Character Data Type`.
+
     Implement the Date type from :xep:`0082`.
 
     Values must have the :class:`date` type, :class:`datetime` is forbidden to
@@ -436,6 +443,8 @@ class Date(AbstractCDataType):
 
 class Time(AbstractCDataType):
     """
+    ISO time :term:`Character Data Type`.
+
     Implement the Time type from :xep:`0082`.
 
     Values must have the :class:`time` type, :class:`datetime` is forbidden to
@@ -509,6 +518,8 @@ class _BinaryType(AbstractCDataType):
 
 class Base64Binary(_BinaryType):
     """
+    :term:`Character Data Type` for :class:`bytes` encoded as base64.
+
     Parse the value as base64 and return the :class:`bytes` object obtained
     from decoding.
 
@@ -531,6 +542,8 @@ class Base64Binary(_BinaryType):
 
 class HexBinary(_BinaryType):
     """
+    :term:`Character Data Type` for :class:`bytes` encoded as hexadecimal.
+
     Parse the value as hexadecimal blob and return the :class:`bytes` object
     obtained from decoding.
     """
@@ -544,6 +557,8 @@ class HexBinary(_BinaryType):
 
 class JID(AbstractCDataType):
     """
+    :term:`Character Data Type` for :class:`aioxmpp.JID` objects.
+
     Parse the value as Jabber ID using :meth:`~aioxmpp.JID.fromstr` and
     return the :class:`aioxmpp.JID` object.
 
@@ -570,6 +585,8 @@ class JID(AbstractCDataType):
 
 class ConnectionLocation(AbstractCDataType):
     """
+    :term:`Character Data Type` for a hostname-port pair.
+
     Parse the value as a host-port pair, as for example used for Stream
     Management reconnection location advisories.
     """
@@ -644,6 +661,8 @@ class ConnectionLocation(AbstractCDataType):
 
 class LanguageTag(AbstractCDataType):
     """
+    :term:`Character Data Type` for language tags.
+
     Parses the value as Language Tag using
     :meth:`~.structs.LanguageTag.fromstr`.
 
@@ -657,6 +676,41 @@ class LanguageTag(AbstractCDataType):
     def coerce(self, v):
         if not isinstance(v, structs.LanguageTag):
             raise TypeError("{!r} is not a LanguageTag", v)
+        return v
+
+
+class JSON(AbstractCDataType):
+    """
+    :term:`Character Data Type` for JSON formatted data.
+
+    .. versionadded:: 0.11
+
+    Upon deserialisation, character data is parsed as JSON using :mod:`json`.
+    On serialisation, the value is serialised as JSON. This implies that the
+    data must be JSON serialisable, but there is no check for that in
+    :meth:`coerce`, as this check would be (a) expensive to do for nested data
+    structures and (b) impossible to do for mutable data structures.
+
+    Example:
+
+    .. code-block:: python
+
+        class JSONContainer(aioxmpp.xso.XSO):
+            TAG = ("urn:xmpp:json:0", "json")
+
+            data = aioxmpp.xso.Text(
+                type_=aioxmpp.xso.JSON()
+            )
+
+    """
+
+    def parse(self, v):
+        return json.loads(v)
+
+    def format(self, v):
+        return json.dumps(v)
+
+    def coerce(self, v):
         return v
 
 
@@ -820,10 +874,11 @@ class EnumCDataType(AbstractCDataType):
                 isinstance(value, Unknown)):
             return value
 
+        if isinstance(value, self.enum_class):
+            return value
+
         if self.allow_coerce:
             if self.deprecate_coerce:
-                if isinstance(value, self.enum_class):
-                    return value
                 stacklevel = (4 if self.deprecate_coerce is True
                               else self.deprecate_coerce)
                 warnings.warn(
@@ -840,9 +895,6 @@ class EnumCDataType(AbstractCDataType):
                 if self.pass_unknown:
                     return value
                 raise
-
-        if isinstance(value, self.enum_class):
-            return value
 
         if self.pass_unknown:
             value = self.nested_type.coerce(value)

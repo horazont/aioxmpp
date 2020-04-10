@@ -23,6 +23,7 @@ Contents:
    user-guide/index.rst
    api/index.rst
    dev-guide/index.rst
+   glossary.rst
 
 .. _features:
 
@@ -98,10 +99,12 @@ From XMPP Extension Proposals (XEPs)
 ------------------------------------
 
 * :xep:`4` (Data Forms), see :mod:`aioxmpp.forms`
+* :xep:`27` (Current Jabber OpenPGP Usage), schema-only, see :mod:`aioxmpp.misc`
 * :xep:`30` (Service Discovery), see :mod:`aioxmpp.disco`
 * :xep:`45` (Multi-User Chat), see :mod:`aioxmpp.muc`
 * :xep:`48` (Bookmarks), see :mod:`aioxmpp.bookmarks`
 * :xep:`49` (Private XML Storage), see :mod:`aioxmpp.private_xml`
+* :xep:`47` (In-Band Bytestreams), see :mod:`aioxmpp.ibb`
 * :xep:`50` (Ad-Hoc Commands), see :mod:`aioxmpp.adhoc` (no support for offering
   commands to other entities)
 * :xep:`59` (Result Set Management), see :mod:`aioxmpp.rsm`
@@ -112,6 +115,7 @@ From XMPP Extension Proposals (XEPs)
 * :xep:`82` (XMPP Date and Time Profiles), via :class:`aioxmpp.xso.DateTime` and others
 * :xep:`84` (User Avatar), see :mod:`aioxmpp.avatar`
 * :xep:`92` (Software Version), see :mod:`aioxmpp.version`
+* :xep:`106` (JID Escaping), see :func:`aioxmpp.jid_unescape`, :func:`aioxmpp.jid_escape`
 * :xep:`115` (Entity Capabilities), see :mod:`aioxmpp.entitycaps`, including
   read/write support for the capsdb
 * :xep:`163` (Personal Eventing Protocol), see :mod:`aioxmpp.pep`
@@ -126,7 +130,9 @@ From XMPP Extension Proposals (XEPs)
 * :xep:`280` (Message Carbons), see :mod:`aioxmpp.carbons`
 * :xep:`300` (Use of Cryptographic Hash Functions in XMPP),
   see :mod:`aioxmpp.hashes`
+* :xep:`308` (Last Message Correction), schema-only, see :mod:`aioxmpp.misc`
 * :xep:`333` (Chat Markers), schema-only, see :mod:`aioxmpp.misc`
+* :xep:`335` (JSON Containers), see :mod:`aioxmpp.misc`
 * :xep:`363` (HTTP Upload), see :mod:`aioxmpp.httpupload`
 * :xep:`368` (SRV records for XMPP over TLS)
 * :xep:`379` (Pre-Authenticared Roster Subscription), schema-only, see
@@ -184,7 +190,7 @@ Security Issues
 ###############
 
 If you believe that a bug you found in aioxmpp has security implications,
-you are welcome to notify me privately. To do so, send a mail to `Jonas Wielicki
+you are welcome to notify me privately. To do so, send a mail to `Jonas Schäfer
 <mailto:jonas@wielicki.name>`_, encrypted using the GPG public key::
 
   0xE5EDE5AC679E300F

@@ -22,10 +22,12 @@
 import abc
 import ast
 import asyncio
+import base64
 import enum
 import fnmatch
 import json
 import logging
+import random
 
 import aioxmpp
 import aioxmpp.disco
@@ -34,6 +36,7 @@ import aioxmpp.connector
 
 
 _logger = logging.getLogger(__name__)
+_rng = random.SystemRandom()
 
 
 class Quirk(enum.Enum):
@@ -60,7 +63,13 @@ class Quirk(enum.Enum):
 
        The quirk does not need to be set if the environment does not provide a
        MUC implementation at all.
-    """
+
+    .. attribute:: PUBSUB_GET_ITEMS_BY_ID_BROKEN
+       :annotation: https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#broken-pubsub-get-multiple-by-id
+
+       Indicates that the "Get Items by Id" operation in the PubSub service used
+       is broken when more than one item is requested.
+    """  # NOQA: E501
 
     MUC_REWRITES_MESSAGE_ID = \
         "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#muc-id-rewrite"
@@ -70,6 +79,8 @@ class Quirk(enum.Enum):
         "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#muc-no-333"
     BROKEN_MUC = \
         "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#broken-muc"
+    PUBSUB_GET_MULTIPLE_ITEMS_BY_ID_BROKEN = \
+        "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#broken-pubsub-get-multiple-by-id"  # NOQA: E501
 
 
 def fix_quirk_str(s):
@@ -229,6 +240,64 @@ def discover_server_features(disco, peer, recurse_into_items=True,
     return all_features
 
 
+@asyncio.coroutine
+def discover_server_identities(disco, peer, recurse_into_items=True):
+    """
+    Use :xep:`30` service discovery to discover identities provided by the
+    server.
+
+    :param disco: Service discovery client which can query the `peer` server.
+    :type disco: :class:`aioxmpp.DiscoClient`
+    :param peer: The JID of the server to query
+    :type peer: :class:`~aioxmpp.JID`
+    :param recurse_into_items: If set to true, the :xep:`30` items exposed by
+                               the server will also be queried for their
+                               identities. Only one level of recursion is
+                               performed.
+    :return: A mapping which maps :xep:`30` (category, type) tuples to the
+        JIDs at which the identity is provided.
+
+    This uses :xep:`30` service discovery to obtain a set of identities offered
+    at `peer`. The set of identities is returned as a mapping which maps the
+    ``(category, type)`` tuples of the identities to the JID at which they were
+    discovered.
+
+    If `recurse_into_items` is true, a :xep:`30` items query is run against
+    `peer`. For each JID discovered that way,
+    :func:`discover_server_identities` is re-invoked (with `recurse_into_items`
+    set to false). The resulting mappings are merged with the mapping obtained
+    from querying the identities of `peer` (existing entries are *not*
+    overriden -- so `peer` takes precedence).
+    """
+
+    server_info = yield from disco.query_info(peer)
+
+    all_identities = {
+        (identity.category, identity.type_): [peer]
+        for identity in server_info.identities
+    }
+
+    if recurse_into_items:
+        server_items = yield from disco.query_items(peer)
+        identities_list = yield from asyncio.gather(
+            *(
+                discover_server_identities(
+                    disco,
+                    item.jid,
+                    recurse_into_items=False,
+                )
+                for item in server_items.items
+                if item.jid is not None and item.node is None
+            )
+        )
+
+        for identities in identities_list:
+            for identity, providers in identities.items():
+                all_identities.setdefault(identity, []).extend(providers)
+
+    return all_identities
+
+
 class Provisioner(metaclass=abc.ABCMeta):
     """
     Base class for provisioners.
@@ -249,6 +318,8 @@ class Provisioner(metaclass=abc.ABCMeta):
 
     .. automethod:: get_feature_provider
 
+    .. automethod:: get_identity_provider
+
     .. automethod:: has_quirk
 
     These methods can be used by provisioners to perform plumbing tasks, such
@@ -268,6 +339,7 @@ class Provisioner(metaclass=abc.ABCMeta):
         super().__init__()
         self._accounts_to_dispose = []
         self._featuremap = {}
+        self._identitymap = {}
         self._account_info = None
         self._logger = logger
         self.__counter = 0
@@ -368,6 +440,9 @@ class Provisioner(metaclass=abc.ABCMeta):
         if not providers:
             return None
         return next(iter(providers))
+
+    def get_identity_provider(self, category, type_):
+        return next(iter(self._identitymap.get((category, type_), [])))
 
     def get_feature_subset_provider(self, feature_nses, required_subset):
         required_subset = set(required_subset)
@@ -483,7 +558,50 @@ class Provisioner(metaclass=abc.ABCMeta):
         )
 
 
-class AnonymousProvisioner(Provisioner):
+class _AutoConfiguredProvisioner(Provisioner):
+    def configure(self, section):
+        super().configure(section)
+        self._blockmap = configure_blockmap(section)
+
+    @asyncio.coroutine
+    def initialise(self):
+        self._logger.debug("auto-configuring provisioner %s", self)
+
+        client = yield from self.get_connected_client()
+        disco = client.summon(aioxmpp.DiscoClient)
+
+        self._featuremap.update(
+            (yield from discover_server_features(
+                disco,
+                self._domain,
+                blockmap=self._blockmap,
+            ))
+        )
+
+        self._identitymap.update(
+            (yield from discover_server_identities(
+                disco,
+                self._domain,
+            ))
+        )
+
+        self._logger.debug("found %d features", len(self._featuremap))
+        if self._logger.isEnabledFor(logging.DEBUG):
+            for feature, providers in self._featuremap.items():
+                self._logger.debug(
+                    "%s provided by %s",
+                    feature,
+                    ", ".join(sorted(map(str, providers)))
+                )
+
+        self._account_info = yield from disco.query_info(None)
+
+        # clean up state
+        del client
+        yield from self.teardown()
+
+
+class AnonymousProvisioner(_AutoConfiguredProvisioner):
     """
     This provisioner uses SASL ANONYMOUS to obtain accounts.
 
@@ -505,21 +623,12 @@ class AnonymousProvisioner(Provisioner):
     allow communication between the clients connected that way. It may provide
     PubSub and/or MUC services, which will be auto-discovered if they are
     provided in the :xep:`30` items of the server.
-
-    .. note::
-
-       Make sure to disable PEP (:xep:`163`) support on the server, to avoid
-       the ``…pubsub#publish`` feature to be bound to the server instead of the
-       pubsub component.
-
-       This is unfortunate because it prohibits testing PEP properly. This may
-       be fixed in a future release when anything PEP-specific is implemented.
     """
 
     def configure(self, section):
         super().configure(section)
         self.__host = section.get("host")
-        self.__domain = aioxmpp.JID.fromstr(section.get(
+        self._domain = aioxmpp.JID.fromstr(section.get(
             "domain",
             self.__host
         ))
@@ -531,7 +640,6 @@ class AnonymousProvisioner(Provisioner):
                 section
             )
         )
-        self.__blockmap = configure_blockmap(section)
         self._quirks = configure_quirks(section)
 
     @asyncio.coroutine
@@ -544,38 +652,76 @@ class AnonymousProvisioner(Provisioner):
             )
 
         return aioxmpp.PresenceManagedClient(
-            self.__domain,
+            self._domain,
             self.__security_layer,
             override_peer=override_peer,
             logger=logger,
         )
 
-    @asyncio.coroutine
-    def initialise(self):
-        self._logger.debug("initialising anonymous provisioner")
 
-        client = yield from self.get_connected_client()
-        disco = client.summon(aioxmpp.DiscoClient)
+class AnyProvisioner(_AutoConfiguredProvisioner):
+    """
+    This provisioner randomly generates usernames and uses a hardcoded password
+    to authenticate with the XMPP server.
 
-        self._featuremap.update(
-            (yield from discover_server_features(
-                disco,
-                self.__domain,
-                blockmap=self.__blockmap,
-            ))
+    This is for use with ``mod_auth_any`` of prosody.
+
+    It is dead-simple to configure: it needs a host to connect to, and
+    optionally some TLS and quirks configuration. The host is specified as
+    configuration key ``host``, TLS can be configured as documented in
+    :func:`configure_tls_config` and quirks are set as described in
+    :func:`configure_quirks`. A configuration for a locally running Prosody
+    instance might look like this:
+
+    .. code-block:: ini
+
+       [aioxmpp.e2etest.provision.AnyProvisioner]
+       host=localhost
+       no_verify=true
+       quirks=[]
+
+    The server configured in ``host`` must allow authentication with any
+    username/password pair and allow communication between the clients
+    connected that way. It may provide PubSub and/or MUC services, which will
+    be auto-discovered if they are provided in the :xep:`30` items of the
+    server.
+    """
+
+    def configure(self, section):
+        super().configure(section)
+        self.__host = section.get("host")
+        self._domain = aioxmpp.JID.fromstr(section.get(
+            "domain",
+            self.__host
+        ))
+        self.__port = section.getint("port")
+        self.__security_layer = aioxmpp.make_security_layer(
+            "foobar2342",  # password is irrelevant, but must be given.
+            **configure_tls_config(
+                section
+            )
         )
+        self._quirks = configure_quirks(section)
+        self.__username_rng = random.Random()
+        self.__username_rng.seed(_rng.getrandbits(256))
 
-        self._logger.debug("found %d features", len(self._featuremap))
-        if self._logger.isEnabledFor(logging.DEBUG):
-            for feature, providers in self._featuremap.items():
-                self._logger.debug(
-                    "%s provided by %s",
-                    feature,
-                    ", ".join(sorted(map(str, providers)))
-                )
+    @asyncio.coroutine
+    def _make_client(self, logger):
+        override_peer = []
+        if self.__port is not None:
+            override_peer.append(
+                (self.__host, self.__port,
+                 aioxmpp.connector.STARTTLSConnector())
+            )
 
-        self._account_info = yield from disco.query_info(None)
+        user = base64.b32encode(
+            self.__username_rng.getrandbits(128).to_bytes(128//8, 'little')
+        ).decode("ascii").rstrip("=")
+        user_jid = self._domain.replace(localpart=user)
 
-        # clean up state
-        del client
-        yield from self.teardown()
+        return aioxmpp.PresenceManagedClient(
+            user_jid,
+            self.__security_layer,
+            override_peer=override_peer,
+            logger=logger,
+        )

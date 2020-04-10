@@ -62,6 +62,12 @@ class TestServiceMeta(unittest.TestCase):
     def tearDown(self):
         del self.FooDescriptor
 
+    def _assertOrdersBefore(self, service1, service2):
+        self.assertTrue(service2.orders_after(service1))
+
+    def _assertOrdersAfter(self, service1, service2):
+        self.assertTrue(service1.orders_after(service2))
+
     def test_inherits_from_ABCMeta(self):
         self.assertTrue(issubclass(service.Meta, abc.ABCMeta))
 
@@ -90,12 +96,11 @@ class TestServiceMeta(unittest.TestCase):
             class Foo(metaclass=service.Meta):
                 PATCHED_ORDER_AFTER = [Bar]
 
-    def test_defining_DEPGRAPH_NODE_raises(self):
+    def test_defining_DEPGRAPH_NODE_warns(self):
 
-        with self.assertRaisesRegex(
-                TypeError,
-                "_DEPGRAPH_NODE must not be defined manually\. "
-                "it is supplied automatically by the metaclass\."):
+        with self.assertWarnsRegex(
+                Warning,
+                "^_DEPGRAPH_NODE should not be defined manually\."):
 
             class Foo(metaclass=service.Meta):
                 _DEPGRAPH_NODE = None
@@ -143,9 +148,9 @@ class TestServiceMeta(unittest.TestCase):
         class Baz(metaclass=service.Meta):
             ORDER_BEFORE = [Bar]
 
-        self.assertGreater(Foo, Bar)
-        self.assertGreater(Bar, Baz)
-        self.assertGreater(Foo, Baz)
+        self._assertOrdersAfter(Foo, Bar)
+        self._assertOrdersAfter(Bar, Baz)
+        self._assertOrdersAfter(Foo, Baz)
 
     def test_transitive_after_ordering(self):
         class Foo(metaclass=service.Meta):
@@ -157,9 +162,9 @@ class TestServiceMeta(unittest.TestCase):
         class Baz(metaclass=service.Meta):
             ORDER_AFTER = [Bar]
 
-        self.assertLess(Foo, Bar)
-        self.assertLess(Bar, Baz)
-        self.assertLess(Foo, Baz)
+        self._assertOrdersBefore(Foo, Bar)
+        self._assertOrdersBefore(Bar, Baz)
+        self._assertOrdersBefore(Foo, Baz)
 
     def test_loop_detect(self):
         class Foo(metaclass=service.Meta):
@@ -192,57 +197,11 @@ class TestServiceMeta(unittest.TestCase):
         class Fourth(metaclass=service.Meta):
             ORDER_BEFORE = [Bar]
 
-        self.assertLess(Baz, Bar)
-        self.assertLess(Fourth, Bar)
-        self.assertLess(Bar, Foo)
-        self.assertLess(Baz, Foo)
-        self.assertLess(Fourth, Foo)
-
-        self.assertLessEqual(Baz, Bar)
-        self.assertLessEqual(Fourth, Bar)
-        self.assertLessEqual(Bar, Foo)
-        self.assertLessEqual(Baz, Foo)
-        self.assertLessEqual(Fourth, Foo)
-
-        self.assertGreater(Foo, Bar)
-        self.assertGreater(Foo, Baz)
-        self.assertGreater(Foo, Fourth)
-        self.assertGreater(Bar, Baz)
-        self.assertGreater(Bar, Fourth)
-
-        self.assertGreaterEqual(Foo, Bar)
-        self.assertGreaterEqual(Foo, Baz)
-        self.assertGreaterEqual(Foo, Fourth)
-        self.assertGreaterEqual(Bar, Baz)
-        self.assertGreaterEqual(Bar, Fourth)
-
-    def test_topological_ordering_fail2(self):
-        class A(metaclass=service.Meta):
-            pass
-
-        self.assertEqual(A, A)
-        self.assertLessEqual(A, A)
-        self.assertGreaterEqual(A, A)
-
-    def test_topological_ordering_sort_fail(self):
-        class A(metaclass=service.Meta):
-            pass
-
-        class B(metaclass=service.Meta):
-            pass
-
-        class C(metaclass=service.Meta):
-            ORDER_AFTER = [B]
-
-        class D(metaclass=service.Meta):
-            ORDER_BEFORE = [A, C]
-
-        for services in itertools.permutations([A, B, C, D]):
-            services = list(services)
-            services.sort()
-
-            if services.index(C) < services.index(B):
-                self.fail(services)
+        self._assertOrdersBefore(Baz, Bar)
+        self._assertOrdersBefore(Fourth, Bar)
+        self._assertOrdersBefore(Bar, Foo)
+        self._assertOrdersBefore(Baz, Foo)
+        self._assertOrdersBefore(Fourth, Foo)
 
     def test_inheritance_ignores_non_service_classes(self):
         class Foo(metaclass=service.Meta):
@@ -267,9 +226,9 @@ class TestServiceMeta(unittest.TestCase):
             SERVICE_BEFORE = [Foo]
             SERVICE_AFTER = [Bar]
 
-        self.assertGreater(Foo, A)
-        self.assertGreater(A, Bar)
-        self.assertGreater(Foo, Bar)
+        self._assertOrdersAfter(Foo, A)
+        self._assertOrdersAfter(A, Bar)
+        self._assertOrdersAfter(Foo, Bar)
 
         self.assertEqual(
             Foo.PATCHED_ORDER_AFTER,
@@ -325,7 +284,7 @@ class TestServiceMeta(unittest.TestCase):
     def test_collect_handlers(self):
         class ObjectWithHandlers:
             def __init__(self, handlers=[]):
-                self._aioxmpp_service_handlers = set(handlers)
+                self._aioxmpp_service_handlers = {h: {} for h in handlers}
 
         class Foo(metaclass=service.Meta):
             x = ObjectWithHandlers(
@@ -344,8 +303,8 @@ class TestServiceMeta(unittest.TestCase):
         self.assertCountEqual(
             Foo.SERVICE_HANDLERS,
             (
-                (unittest.mock.sentinel.k1, Foo.x),
-                (unittest.mock.sentinel.k2, Foo.x),
+                (unittest.mock.sentinel.k1, Foo.x, {}),
+                (unittest.mock.sentinel.k2, Foo.x, {}),
             ),
         )
 
@@ -354,7 +313,7 @@ class TestServiceMeta(unittest.TestCase):
     def test_reject_missing_dependencies(self):
         class ObjectWithHandlers:
             def __init__(self, handlers=[]):
-                self._aioxmpp_service_handlers = set(handlers)
+                self._aioxmpp_service_handlers = {h: {} for h in handlers}
 
         with self.assertRaisesRegex(
                 TypeError,
@@ -373,7 +332,7 @@ class TestServiceMeta(unittest.TestCase):
     def test_allow_properly_declared_dependencies(self):
         class ObjectWithHandlers:
             def __init__(self, handlers=[]):
-                self._aioxmpp_service_handlers = set(handlers)
+                self._aioxmpp_service_handlers = {h: {} for h in handlers}
 
         class Other(metaclass=service.Meta):
             pass
@@ -394,7 +353,7 @@ class TestServiceMeta(unittest.TestCase):
     def test_reject_duplicate_handlers_on_different_objects(self):
         class ObjectWithHandlers:
             def __init__(self, handlers=[]):
-                self._aioxmpp_service_handlers = set(handlers)
+                self._aioxmpp_service_handlers = {h: {} for h in handlers}
 
         with self.assertRaisesRegex(
                 TypeError,
@@ -426,7 +385,7 @@ class TestServiceMeta(unittest.TestCase):
     def test_allow_duplicate_handlers_on_different_objects_for_non_unique(self):  # NOQA
         class ObjectWithHandlers:
             def __init__(self, handlers=[]):
-                self._aioxmpp_service_handlers = set(handlers)
+                self._aioxmpp_service_handlers = {h: {} for h in handlers}
 
         class Foo(metaclass=service.Meta):
             x = ObjectWithHandlers(
@@ -456,7 +415,7 @@ class TestServiceMeta(unittest.TestCase):
     def test_reject_inheritance_from_class_with_handlers(self):
         class ObjectWithHandlers:
             def __init__(self, handlers=[]):
-                self._aioxmpp_service_handlers = set(handlers)
+                self._aioxmpp_service_handlers = {h: {} for h in handlers}
 
         class Foo(metaclass=service.Meta):
             x = ObjectWithHandlers(
@@ -575,7 +534,7 @@ class TestService(unittest.TestCase):
 
         class ObjectWithHandlers:
             def __init__(self, handlers=[]):
-                self._aioxmpp_service_handlers = set(handlers)
+                self._aioxmpp_service_handlers = {h: {} for h in handlers}
 
             def __get__(self, instance, owner):
                 if instance is None:
@@ -639,7 +598,7 @@ class TestService(unittest.TestCase):
                 unittest.mock.call().enter_context(
                     handler_cm()
                 )
-                for (handler_cm, args), obj
+                for (handler_cm, args), obj, kwargs
                 in ServiceWithHandlers.SERVICE_HANDLERS
             ]
         )
@@ -736,7 +695,7 @@ class TestService(unittest.TestCase):
 
         class ObjectWithHandlers:
             def __init__(self, handlers=[]):
-                self._aioxmpp_service_handlers = set(handlers)
+                self._aioxmpp_service_handlers = {h: {} for h in handlers}
 
             def __get__(self, instance, owner):
                 if instance is None:
@@ -829,6 +788,7 @@ class Test_apply_iq_handler(unittest.TestCase):
                 unittest.mock.sentinel.func,
                 unittest.mock.sentinel.type_,
                 unittest.mock.sentinel.payload_cls,
+                with_send_reply=unittest.mock.sentinel.with_send_reply,
             )
 
         iq_handler.assert_called_with(
@@ -836,17 +796,21 @@ class Test_apply_iq_handler(unittest.TestCase):
             unittest.mock.sentinel.type_,
             unittest.mock.sentinel.payload_cls,
             unittest.mock.sentinel.func,
+            with_send_reply=unittest.mock.sentinel.with_send_reply,
         )
 
 
 class Test_apply_inbound_message_filter(unittest.TestCase):
     def test_uses_stream_stanza_filter(self):
         stream = unittest.mock.Mock()
+        instance = unittest.mock.Mock()
+        instance.service_order_index = \
+            unittest.mock.sentinel.service_order_index
 
         with unittest.mock.patch(
                 "aioxmpp.stream.stanza_filter") as stanza_filter:
             service._apply_inbound_message_filter(
-                unittest.mock.sentinel.instance,
+                instance,
                 stream,
                 unittest.mock.sentinel.func,
             )
@@ -854,18 +818,21 @@ class Test_apply_inbound_message_filter(unittest.TestCase):
         stanza_filter.assert_called_with(
             stream.service_inbound_message_filter,
             unittest.mock.sentinel.func,
-            type(unittest.mock.sentinel.instance),
+            unittest.mock.sentinel.service_order_index,
         )
 
 
 class Test_apply_inbound_presence_filter(unittest.TestCase):
     def test_uses_stream_stanza_filter(self):
         stream = unittest.mock.Mock()
+        instance = unittest.mock.Mock()
+        instance.service_order_index = \
+            unittest.mock.sentinel.service_order_index
 
         with unittest.mock.patch(
                 "aioxmpp.stream.stanza_filter") as stanza_filter:
             service._apply_inbound_presence_filter(
-                unittest.mock.sentinel.instance,
+                instance,
                 stream,
                 unittest.mock.sentinel.func,
             )
@@ -873,18 +840,21 @@ class Test_apply_inbound_presence_filter(unittest.TestCase):
         stanza_filter.assert_called_with(
             stream.service_inbound_presence_filter,
             unittest.mock.sentinel.func,
-            type(unittest.mock.sentinel.instance),
+            unittest.mock.sentinel.service_order_index,
         )
 
 
 class Test_apply_outbound_message_filter(unittest.TestCase):
     def test_uses_stream_stanza_filter(self):
         stream = unittest.mock.Mock()
+        instance = unittest.mock.Mock()
+        instance.service_order_index = \
+            unittest.mock.sentinel.service_order_index
 
         with unittest.mock.patch(
                 "aioxmpp.stream.stanza_filter") as stanza_filter:
             service._apply_outbound_message_filter(
-                unittest.mock.sentinel.instance,
+                instance,
                 stream,
                 unittest.mock.sentinel.func,
             )
@@ -892,18 +862,21 @@ class Test_apply_outbound_message_filter(unittest.TestCase):
         stanza_filter.assert_called_with(
             stream.service_outbound_message_filter,
             unittest.mock.sentinel.func,
-            type(unittest.mock.sentinel.instance),
+            unittest.mock.sentinel.service_order_index,
         )
 
 
 class Test_apply_outbound_presence_filter(unittest.TestCase):
     def test_uses_stream_stanza_filter(self):
         stream = unittest.mock.Mock()
+        instance = unittest.mock.Mock()
+        instance.service_order_index = \
+            unittest.mock.sentinel.service_order_index
 
         with unittest.mock.patch(
                 "aioxmpp.stream.stanza_filter") as stanza_filter:
             service._apply_outbound_presence_filter(
-                unittest.mock.sentinel.instance,
+                instance,
                 stream,
                 unittest.mock.sentinel.func,
             )
@@ -911,7 +884,7 @@ class Test_apply_outbound_presence_filter(unittest.TestCase):
         stanza_filter.assert_called_with(
             stream.service_outbound_presence_filter,
             unittest.mock.sentinel.func,
-            type(unittest.mock.sentinel.instance),
+            unittest.mock.sentinel.service_order_index,
         )
 
 
@@ -1099,7 +1072,7 @@ class Test_apply_connect_depfilter(unittest.TestCase):
             [
                 unittest.mock.call.filter_name.context_register(
                     unittest.mock.sentinel.func,
-                    type(instance),
+                    instance.service_order_index,
                 )
             ]
         )
@@ -1127,7 +1100,7 @@ class Test_apply_connect_depfilter(unittest.TestCase):
             [
                 unittest.mock.call.filter_name.context_register(
                     unittest.mock.sentinel.func,
-                    type(instance),
+                    instance.service_order_index,
                 )
             ]
         )
@@ -1242,9 +1215,9 @@ class Testadd_handler_spec(unittest.TestCase):
     def test_preserves_existing_magic_attr(self):
         target = unittest.mock.Mock(spec=[])
         service.automake_magic_attr(target)
-        service.get_magic_attr(target).add(
+        service.get_magic_attr(target)[
             unittest.mock.sentinel.bar
-        )
+        ] = {}
 
         self.assertTrue(
             service.has_magic_attr(target),
@@ -1261,10 +1234,10 @@ class Testadd_handler_spec(unittest.TestCase):
 
         self.assertCountEqual(
             service.get_magic_attr(target),
-            [
-                unittest.mock.sentinel.foo,
-                unittest.mock.sentinel.bar,
-            ]
+            {
+                unittest.mock.sentinel.foo: {},
+                unittest.mock.sentinel.bar: {},
+            }
         )
 
 
@@ -1360,7 +1333,7 @@ class Testiq_handler(unittest.TestCase):
         def coro():
             pass
 
-        coro._aioxmpp_service_handlers = {"foo"}
+        coro._aioxmpp_service_handlers = {"foo": {}}
 
         self.decorator(coro)
 
@@ -1496,7 +1469,7 @@ class Testinbound_message_filter(unittest.TestCase):
         def cb():
             pass
 
-        cb._aioxmpp_service_handlers = {"foo"}
+        cb._aioxmpp_service_handlers = {"foo": {}}
 
         self.decorator(cb)
 
@@ -1572,7 +1545,7 @@ class Testinbound_presence_filter(unittest.TestCase):
         def cb():
             pass
 
-        cb._aioxmpp_service_handlers = {"foo"}
+        cb._aioxmpp_service_handlers = {"foo": {}}
 
         self.decorator(cb)
 
@@ -1648,7 +1621,7 @@ class Testoutbound_message_filter(unittest.TestCase):
         def cb():
             pass
 
-        cb._aioxmpp_service_handlers = {"foo"}
+        cb._aioxmpp_service_handlers = {"foo": {}}
 
         self.decorator(cb)
 
@@ -1724,7 +1697,7 @@ class Testoutbound_presence_filter(unittest.TestCase):
         def cb():
             pass
 
-        cb._aioxmpp_service_handlers = {"foo"}
+        cb._aioxmpp_service_handlers = {"foo": {}}
 
         self.decorator(cb)
 
@@ -1950,7 +1923,7 @@ class Testdepsignal(unittest.TestCase):
         def cb():
             pass
 
-        cb._aioxmpp_service_handlers = {"foo"}
+        cb._aioxmpp_service_handlers = {"foo": {}}
 
         self.decorator(cb)
 
@@ -2046,7 +2019,7 @@ class Testdepfilter(unittest.TestCase):
         def cb():
             pass
 
-        cb._aioxmpp_service_handlers = {"foo"}
+        cb._aioxmpp_service_handlers = {"foo": {}}
 
         self.decorator(cb)
 
@@ -2103,7 +2076,6 @@ class Testattrsignal(unittest.TestCase):
     class DescriptorValue:
         signal = callbacks.Signal()
         sync = callbacks.SyncSignal()
-
 
     class Descriptor(service.Descriptor):
         def init_cm(self, instance):
@@ -2303,7 +2275,7 @@ class Testattrsignal(unittest.TestCase):
         def cb():
             pass
 
-        cb._aioxmpp_service_handlers = {"foo"}
+        cb._aioxmpp_service_handlers = {"foo": {}}
 
         self.decorator(cb)
 
@@ -2341,13 +2313,13 @@ class Testis_iq_handler(unittest.TestCase):
 
     def test_return_true_if_token_in_magic_attr(self):
         m = unittest.mock.Mock()
-        m._aioxmpp_service_handlers = [
+        m._aioxmpp_service_handlers = {
             service.HandlerSpec(
                 (service._apply_iq_handler,
                  (unittest.mock.sentinel.type_,
                   unittest.mock.sentinel.payload_cls)),
-            )
-        ]
+            ): {"with_send_reply": False}
+        }
 
         self.assertTrue(
             service.is_iq_handler(
@@ -2357,15 +2329,53 @@ class Testis_iq_handler(unittest.TestCase):
             )
         )
 
+    def test_return_true_if_token_in_magic_attr_non_standard_args(self):
+        m = unittest.mock.Mock()
+        m._aioxmpp_service_handlers = {
+            service.HandlerSpec(
+                (service._apply_iq_handler,
+                 (unittest.mock.sentinel.type_,
+                  unittest.mock.sentinel.payload_cls)),
+            ): {"with_send_reply": True}
+        }
+
+        self.assertTrue(
+            service.is_iq_handler(
+                unittest.mock.sentinel.type_,
+                unittest.mock.sentinel.payload_cls,
+                m,
+                with_send_reply=True,
+            )
+        )
+
+    def test_return_false_if_token_in_magic_attr_wrong_args(self):
+        m = unittest.mock.Mock()
+        m._aioxmpp_service_handlers = {
+            service.HandlerSpec(
+                (service._apply_iq_handler,
+                 (unittest.mock.sentinel.type_,
+                  unittest.mock.sentinel.payload_cls)),
+            ): {"with_send_reply": False}
+        }
+
+        self.assertFalse(
+            service.is_iq_handler(
+                unittest.mock.sentinel.type_,
+                unittest.mock.sentinel.payload_cls,
+                m,
+                with_send_reply=True,
+            )
+        )
+
     def test_return_false_if_token_not_in_magic_attr(self):
         m = unittest.mock.Mock()
-        m._aioxmpp_service_handlers = [
+        m._aioxmpp_service_handlers = {
             service.HandlerSpec(
                 (service._apply_iq_handler,
                  (unittest.mock.sentinel.type2,
                   unittest.mock.sentinel.payload_cls2)),
-            )
-        ]
+            ): {}
+        }
 
         self.assertFalse(
             service.is_iq_handler(
@@ -2432,12 +2442,12 @@ class Testis_inbound_message_filter(unittest.TestCase):
 
     def test_return_true_if_token_in_magic_attr(self):
         m = unittest.mock.Mock()
-        m._aioxmpp_service_handlers = [
+        m._aioxmpp_service_handlers = {
             service.HandlerSpec(
                 (service._apply_inbound_message_filter,
                  ())
-            )
-        ]
+            ): {}
+        }
 
         self.assertTrue(
             service.is_inbound_message_filter(m)
@@ -2445,12 +2455,12 @@ class Testis_inbound_message_filter(unittest.TestCase):
 
     def test_return_false_if_token_not_in_magic_attr(self):
         m = unittest.mock.Mock()
-        m._aioxmpp_service_handlers = [
+        m._aioxmpp_service_handlers = {
             service.HandlerSpec(
                 (service._apply_inbound_presence_filter,
                  ())
-            )
-        ]
+            ): {}
+        }
 
         self.assertFalse(
             service.is_inbound_message_filter(m)
@@ -2467,12 +2477,12 @@ class Testis_inbound_presence_filter(unittest.TestCase):
 
     def test_return_true_if_token_in_magic_attr(self):
         m = unittest.mock.Mock()
-        m._aioxmpp_service_handlers = [
+        m._aioxmpp_service_handlers = {
             service.HandlerSpec(
                 (service._apply_inbound_presence_filter,
                  ())
-            )
-        ]
+            ): {}
+        }
 
         self.assertTrue(
             service.is_inbound_presence_filter(m)
@@ -2480,12 +2490,12 @@ class Testis_inbound_presence_filter(unittest.TestCase):
 
     def test_return_false_if_token_not_in_magic_attr(self):
         m = unittest.mock.Mock()
-        m._aioxmpp_service_handlers = [
+        m._aioxmpp_service_handlers = {
             service.HandlerSpec(
                 (service._apply_inbound_message_filter,
                  ())
-            )
-        ]
+            ): {}
+        }
 
         self.assertFalse(
             service.is_inbound_presence_filter(m)
@@ -2502,12 +2512,12 @@ class Testis_outbound_message_filter(unittest.TestCase):
 
     def test_return_true_if_token_in_magic_attr(self):
         m = unittest.mock.Mock()
-        m._aioxmpp_service_handlers = [
+        m._aioxmpp_service_handlers = {
             service.HandlerSpec(
                 (service._apply_outbound_message_filter,
                  ())
-            )
-        ]
+            ): {}
+        }
 
         self.assertTrue(
             service.is_outbound_message_filter(m)
@@ -2515,12 +2525,12 @@ class Testis_outbound_message_filter(unittest.TestCase):
 
     def test_return_false_if_token_not_in_magic_attr(self):
         m = unittest.mock.Mock()
-        m._aioxmpp_service_handlers = [
+        m._aioxmpp_service_handlers = {
             service.HandlerSpec(
                 (service._apply_outbound_presence_filter,
                  ())
-            )
-        ]
+            ): {}
+        }
 
         self.assertFalse(
             service.is_outbound_message_filter(m)
@@ -2537,12 +2547,12 @@ class Testis_outbound_presence_filter(unittest.TestCase):
 
     def test_return_true_if_token_in_magic_attr(self):
         m = unittest.mock.Mock()
-        m._aioxmpp_service_handlers = [
+        m._aioxmpp_service_handlers = {
             service.HandlerSpec(
                 (service._apply_outbound_presence_filter,
                  ())
-            )
-        ]
+            ): {}
+        }
 
         self.assertTrue(
             service.is_outbound_presence_filter(m)
@@ -2550,12 +2560,12 @@ class Testis_outbound_presence_filter(unittest.TestCase):
 
     def test_return_false_if_token_not_in_magic_attr(self):
         m = unittest.mock.Mock()
-        m._aioxmpp_service_handlers = [
+        m._aioxmpp_service_handlers = {
             service.HandlerSpec(
                 (service._apply_outbound_message_filter,
                  ())
-            )
-        ]
+            ): {}
+        }
 
         self.assertFalse(
             service.is_outbound_presence_filter(m)
@@ -2668,10 +2678,9 @@ class Testis_depsignal_handler(unittest.TestCase):
                         new=unittest.mock.sentinel.async_with_loop)
                 )
 
-
-                obj._aioxmpp_service_handlers = [
-                    spec,
-                ]
+                obj._aioxmpp_service_handlers = {
+                    spec: {},
+                }
 
                 self.assertTrue(
                     service.is_depsignal_handler(
@@ -2685,12 +2694,12 @@ class Testis_depsignal_handler(unittest.TestCase):
 
     def test_return_false_if_token_not_in_magic_attr(self):
         m = unittest.mock.Mock()
-        m._aioxmpp_service_handlers = [
+        m._aioxmpp_service_handlers = {
             service.HandlerSpec(
                 (service._apply_outbound_message_filter,
                  ())
-            )
-        ]
+            ): {}
+        }
 
         self.assertFalse(
             service.is_depsignal_handler(
@@ -2782,12 +2791,12 @@ class Testis_depfilter_handler(unittest.TestCase):
 
     def test_return_false_if_token_not_in_magic_attr(self):
         m = unittest.mock.Mock()
-        m._aioxmpp_service_handlers = [
+        m._aioxmpp_service_handlers = {
             service.HandlerSpec(
                 (service._apply_outbound_message_filter,
                  ())
-            )
-        ]
+            ): {}
+        }
 
         self.assertFalse(
             service.is_depfilter_handler(
@@ -2802,7 +2811,6 @@ class Testis_attrsignal_handler(unittest.TestCase):
     class DescriptorValue:
         signal = callbacks.Signal()
         sync = callbacks.SyncSignal()
-
 
     class Descriptor(service.Descriptor):
         def init_cm(self, instance):
@@ -2915,9 +2923,9 @@ class Testis_attrsignal_handler(unittest.TestCase):
                         new=unittest.mock.sentinel.async_with_loop)
                 )
 
-                obj._aioxmpp_service_handlers = [
-                    spec,
-                ]
+                obj._aioxmpp_service_handlers = {
+                    spec: {},
+                }
 
                 self.assertTrue(
                     service.is_attrsignal_handler(
@@ -2931,12 +2939,12 @@ class Testis_attrsignal_handler(unittest.TestCase):
 
     def test_return_false_if_token_not_in_magic_attr(self):
         m = unittest.mock.Mock()
-        m._aioxmpp_service_handlers = [
+        m._aioxmpp_service_handlers = {
             service.HandlerSpec(
                 (service._apply_outbound_message_filter,
                  ())
-            )
-        ]
+            ): {}
+        }
 
         self.assertFalse(
             service.is_attrsignal_handler(

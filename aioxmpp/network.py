@@ -295,7 +295,7 @@ def repeated_query(qname, rdtype,
 def lookup_srv(
         domain: bytes,
         service: str,
-        transport: str="tcp",
+        transport: str = "tcp",
         **kwargs):
     """
     Query the DNS for SRV records describing how the given `service` over the

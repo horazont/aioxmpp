@@ -32,6 +32,7 @@ from aioxmpp.testutils import (
     make_connected_client,
     run_coroutine,
     CoroutineMock,
+    make_listener,
 )
 
 
@@ -55,6 +56,7 @@ class TestPresenceClient(unittest.TestCase):
             aioxmpp.dispatcher.SimplePresenceDispatcher:
                 self.presence_dispatcher,
         })
+        self.listener = make_listener(self.s)
 
     def test_handle_presence_decorated(self):
         self.assertTrue(
@@ -255,6 +257,27 @@ class TestPresenceClient(unittest.TestCase):
                 unittest.mock.call.full(st2.from_, st2),
             ]
         )
+
+    def test_handle_presence_ignores_available_presence_from_None(self):
+        st1 = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
+                              from_=None)
+        self.s.handle_presence(st1)
+
+        self.assertSequenceEqual(self.listener.mock_calls, [])
+
+    def test_handle_presence_ignores_available_presence_from_None(self):
+        st1 = stanza.Presence(type_=structs.PresenceType.UNAVAILABLE,
+                              from_=None)
+        self.s.handle_presence(st1)
+
+        self.assertSequenceEqual(self.listener.mock_calls, [])
+
+    def test_handle_presence_ignores_available_presence_from_None(self):
+        st1 = stanza.Presence(type_=structs.PresenceType.ERROR,
+                              from_=None)
+        self.s.handle_presence(st1)
+
+        self.assertSequenceEqual(self.listener.mock_calls, [])
 
     def test_handle_presence_emits_available_signals_only_if_not_available(self):
         base = unittest.mock.Mock()

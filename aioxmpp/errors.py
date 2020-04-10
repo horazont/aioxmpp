@@ -350,8 +350,8 @@ class StreamError(ConnectionError):
         if not isinstance(condition, StreamErrorCondition):
             condition = StreamErrorCondition(condition)
             warnings.warn(
-                "as of aioxmpp 1.0, stream error conditions must be members of "
-                "the aioxmpp.errors.StreamErrorCondition enumeration",
+                "as of aioxmpp 1.0, stream error conditions must be members "
+                "of the aioxmpp.errors.StreamErrorCondition enumeration",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -373,7 +373,8 @@ class XMPPError(StanzaError):
 
     :param condition: The :rfc:`6120` defined error condition as enumeration
         member or :class:`aioxmpp.xso.XSO`
-    :type condition: :class:`aioxmpp.ErrorCondition` or :class:`aioxmpp.xso.XSO`
+    :type condition: :class:`aioxmpp.ErrorCondition` or
+        :class:`aioxmpp.xso.XSO`
     :param text: Optional human-readable text explaining the error
     :type text: :class:`str`
     :param application_defined_condition: Object describing the error in more

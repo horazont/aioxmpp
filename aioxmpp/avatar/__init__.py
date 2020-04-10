@@ -87,5 +87,5 @@ handle it in the application:
    :attr:`~AbstractAvatarDescriptor.url`.
 """
 
-from .service import (AvatarSet, AvatarService,  # NOQA
+from .service import (AvatarSet, AvatarService,  # NOQA: F401
                       normalize_id)

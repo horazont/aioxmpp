@@ -53,6 +53,17 @@ Stanza Forwarding (:xep:`297`)
 .. autoclass:: Forwarded()
 
 
+Last Message Correction (:xep:`308`)
+====================================
+
+.. autoclass:: Replace()
+
+.. attribute:: aioxmpp.Message.xep308_replace
+
+    A :class:`Replace` instance which indicates that the message is supposed
+    to replcae another message.
+
+
 Chat Markers (:xep:`333`)
 =========================
 
@@ -64,6 +75,23 @@ Chat Markers (:xep:`333`)
 
 .. attribute:: aioxmpp.Message.xep0333_marker
 
+
+JSON Containers (:xep:`335`)
+============================
+
+:xep:`335` defines a standard way to transport JSON data in XMPP. The
+:class:`JSONContainer` is an XSO class which represents the ``<json/>`` element
+specified in :xep:`335`.
+
+:mod:`aioxmpp` also provides an :class:`~aioxmpp.xso.AbstractElementType`
+called :class:`JSONContainerType` which can be used to extract JSON data from
+an element using the :class:`JSONContainer` format.
+
+.. autoclass:: JSONContainer
+
+.. autoclass:: JSONContainerType
+
+
 Pre-Authenticated Roster Subcription (:xep:`379`)
 =================================================
 
@@ -73,10 +101,40 @@ Pre-Authenticated Roster Subcription (:xep:`379`)
 
    The pre-auth element associate with a subscription request.
 
+
+Current Jabber OpenPGP Usage (:xep:`27`)
+========================================
+
+.. autoclass:: OpenPGPEncrypted
+
+.. autoclass:: OpenPGPSigned
+
+.. attribute:: aioxmpp.Message.xep0027_encrypted
+
+    Instance of :class:`OpenPGPEncrypted`, if present.
+
+    .. note::
+
+        :xep:`27` does not specify the signing of messages.
+
+.. attribute:: aioxmpp.Presence.xep0027_signed
+
+    Instance of :class:`OpenPGPSigned`, if present.
+
 """
 
-from .delay import Delay  # NOQA
-from .forwarding import Forwarded  # NOQA
-from .oob import OOBExtension  # NOQA
-from .markers import ReceivedMarker, DisplayedMarker, AcknowledgedMarker  # NOQA
-from .pars import Preauth  # NOQA
+from .delay import Delay  # NOQA: F401
+from .lmc import Replace  # NOQA: F401
+from .forwarding import Forwarded  # NOQA: F401
+from .oob import OOBExtension  # NOQA: F401
+from .markers import (  # NOQA: F401
+    ReceivedMarker,
+    DisplayedMarker,
+    AcknowledgedMarker,
+)
+from .json import JSONContainer, JSONContainerType  # NOQA: F401
+from .pars import Preauth  # NOQA: F401
+from .openpgp_legacy import (
+    OpenPGPEncrypted,
+    OpenPGPSigned,
+)

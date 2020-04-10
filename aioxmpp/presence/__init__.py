@@ -46,5 +46,5 @@ of peers, no matter whether they are in the roster or not.
 
 """
 
-from .service import PresenceClient, PresenceServer  # NOQA
+from .service import PresenceClient, PresenceServer  # NOQA: F401
 Service = PresenceClient  # NOQA

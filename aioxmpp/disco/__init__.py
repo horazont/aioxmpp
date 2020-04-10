@@ -114,6 +114,6 @@ Item queries
 
 """
 
-from . import xso  # NOQA
-from .service import (DiscoClient, DiscoServer, Node, StaticNode,  # NOQA
+from . import xso  # NOQA: F401
+from .service import (DiscoClient, DiscoServer, Node, StaticNode,  # NOQA: F401
                       mount_as_node, register_feature, RegisteredFeature)

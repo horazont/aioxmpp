@@ -48,4 +48,4 @@ defined by PubSub.
 .. currentmodule:: aioxmpp.pep
 
 """
-from .service import (PEPClient, register_pep_node)  # NOQA
+from .service import (PEPClient, register_pep_node)  # NOQA: F401

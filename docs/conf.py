@@ -55,8 +55,11 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.intersphinx',
     'sphinx.ext.viewcode',
+    'sphinx.ext.napoleon',
     'sphinx.ext.autosummary',
     'aioxmppspecific']
+
+napoleon_numpy_docstring = False
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['sphinx-data/templates']
@@ -72,7 +75,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'aioxmpp'
-copyright = '2014 – 2016, Jonas Wielicki'
+copyright = '2014 – 2018, Jonas Schäfer'
 
 version_mod = runpy.run_path("../aioxmpp/_version.py")
 
@@ -231,7 +234,7 @@ latex_elements = {
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
   ('index', 'aioxmpp.tex', 'aioxmpp Documentation',
-   'Jonas Wielicki', 'manual'),
+   'Jonas Schäfer', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -261,7 +264,7 @@ latex_documents = [
 # (source start file, name, description, authors, manual section).
 man_pages = [
     ('index', 'aioxmpp', 'aioxmpp Documentation',
-     ['Jonas Wielicki'], 1)
+     ['Jonas Schäfer'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -275,7 +278,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
   ('index', 'aioxmpp', 'aioxmpp Documentation',
-   'Jonas Wielicki', 'aioxmpp', 'One line description of project.',
+   'Jonas Schäfer', 'aioxmpp', 'One line description of project.',
    'Miscellaneous'),
 ]
 

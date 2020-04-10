@@ -44,6 +44,10 @@ Jabber IDs
 
 .. autoclass:: JID(localpart, domain, resource)
 
+.. autofunction:: jid_escape
+
+.. autofunction:: jid_unescape
+
 Presence
 ========
 
@@ -94,8 +98,8 @@ class CompatibilityMixin:
             return True
         if self.value == other:
             warnings.warn(
-                "as of aioxmpp 1.0, {} members will not compare equal to their "
-                "values".format(type(self).__name__),
+                "as of aioxmpp 1.0, {} members will not compare equal to "
+                "their values".format(type(self).__name__),
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -169,8 +173,8 @@ class ErrorType(CompatibilityMixin, enum.Enum):
        This behaviour will cease with aioxmpp 1.0, and the first assertion will
        fail, the second may fail.
 
-       Please see the Changelog for :ref:`api-changelog-0.7` for further details
-       on how to upgrade your code efficiently.
+       Please see the Changelog for :ref:`api-changelog-0.7` for further
+       details on how to upgrade your code efficiently.
 
     """
 
@@ -283,8 +287,8 @@ class MessageType(CompatibilityMixin, enum.Enum):
        This behaviour will cease with aioxmpp 1.0, and the first assertion will
        fail, the second may fail.
 
-       Please see the Changelog for :ref:`api-changelog-0.7` for further details
-       on how to upgrade your code efficiently.
+       Please see the Changelog for :ref:`api-changelog-0.7` for further
+       details on how to upgrade your code efficiently.
 
     """
 
@@ -424,8 +428,8 @@ class PresenceType(CompatibilityMixin, enum.Enum):
        This behaviour will cease with aioxmpp 1.0, and the first assertion will
        fail, the second may fail.
 
-       Please see the Changelog for :ref:`api-changelog-0.7` for further details
-       on how to upgrade your code efficiently.
+       Please see the Changelog for :ref:`api-changelog-0.7` for further
+       details on how to upgrade your code efficiently.
     """
 
     ERROR = "error"
@@ -557,8 +561,8 @@ class IQType(CompatibilityMixin, enum.Enum):
        This behaviour will cease with aioxmpp 1.0, and the first assertion will
        fail, the second may fail.
 
-       Please see the Changelog for :ref:`api-changelog-0.7` for further details
-       on how to upgrade your code efficiently.
+       Please see the Changelog for :ref:`api-changelog-0.7` for further
+       details on how to upgrade your code efficiently.
     """
 
     GET = "get"
@@ -591,8 +595,27 @@ class IQType(CompatibilityMixin, enum.Enum):
 
 class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
     """
-    A Jabber ID (JID). To construct a JID, either use the actual constructor,
-    or use the :meth:`fromstr` class method.
+    Represent a :term:`Jabber ID (JID) <Jabber ID>`.
+
+    To construct a :class:`JID`, either use the actual constructor, or use the
+    :meth:`fromstr` class method.
+
+    :param localpart: The part in front of the ``@`` of the JID, or
+        :data:`None` if the localpart shall be omitted (which is different from
+        it being empty, which would be invalid).
+    :type localpart: :class:`str` or :data:`None`
+    :param domain: The domain of the JID. This is the only mandatory part of
+        a JID.
+    :type domain: :class:`str`
+    :param resource: The resource part of the JID or :data:`None` to omit the
+        resource part.
+    :type resource: :class:`str` or :data:`None`
+    :param strict: Enable strict validation
+    :type strict: :class:`bool`
+    :raises ValueError: if the JID composed of the given parts is invalid
+
+    Construct a JID out of its parts. It validates the parts individually, as
+    well as the JID as a whole.
 
     If `strict` is false, unassigned codepoints are allowed in any of the parts
     of the JID. In the future, other deviations from the respective stringprep
@@ -672,6 +695,19 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
         Construct a new :class:`JID` object, using the values of the current
         JID. Use the arguments to override specific attributes on the new
         object.
+
+        All arguments are keyword arguments.
+
+        :param localpart: Set the local part of the resulting JID.
+        :param domain: Set the domain of the resulting JID.
+        :param resource: Set the resource part of the resulting JID.
+        :raises: See :class:`JID`
+        :return: A new :class:`JID` object with the corresponding
+            substitutions performed.
+        :rtype: :class:`JID`
+
+        The attributes of parameters which are omitted are not modified and
+        copied down to the result.
         """
 
         new_kwargs = {}
@@ -731,6 +767,11 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
 
     def bare(self):
         """
+        Create a copy of the :class:`JID` which is bare.
+
+        :return: This JID with the :attr:`resource` set to :data:`None`.
+        :rtype: :class:`JID`
+
         Return the bare version of this JID as new :class:`JID` object.
         """
         return self.replace(resource=None)
@@ -754,8 +795,18 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
     @classmethod
     def fromstr(cls, s, *, strict=True):
         """
-        Obtain a :class:`JID` object by parsing a JID from the given string
-        `s`.
+        Construct a JID out of a string containing it.
+
+        :param s: The string to parse.
+        :type s: :class:`str`
+        :param strict: Whether to enable strict parsing.
+        :type strict: :class:`bool`
+        :raises: See :class:`JID`
+        :return: The parsed JID
+        :rtype: :class:`JID`
+
+        See the :class:`JID` class level documentation for the semantics of
+        `strict`.
         """
         nodedomain, sep, resource = s.partition("/")
         if not sep:
@@ -1174,6 +1225,7 @@ class LanguageRange:
             parts.pop()
         return type(self).fromstr("-".join(parts))
 
+
 LanguageRange.WILDCARD = LanguageRange(tag="*")
 
 
@@ -1294,3 +1346,83 @@ class LanguageMap(dict):
             return self[None]
         except KeyError:
             return self[min(self)]
+
+
+# \ is treated specially because it is only escaped if followed by a valid
+# escape sequence... that is so weird.
+ESCAPABLE_CODEPOINTS = " \"&'/:<>@"
+
+
+def jid_escape(s):
+    """
+    Return an escaped version of a string for use in a JID localpart.
+
+    .. seealso::
+
+        :func:`jid_unescape`
+            for the reverse transformation
+
+    :param s: The string to escape for use as localpart.
+    :type s: :class:`str`
+    :raise ValueError: If the string starts or ends with a space.
+    :return: The escaped string.
+    :rtype: :class:`str`
+
+    .. note::
+
+        JID Escaping does not allow embedding arbitrary characters in the
+        localpart. Only a defined subset of characters can be escaped.
+        Refer to :xep:`0106` for details.
+
+    .. note::
+
+        No validity check is made on the result. It is assumed that the
+        result is passed to the :class:`JID` constructor, which will
+        perform validity checks on its own.
+
+    """
+
+    # we first escape all backslashes which need to be escaped
+    for cp in ESCAPABLE_CODEPOINTS + "\\":
+        seq = "\\{:02x}".format(ord(cp))
+        s = s.replace(seq, "\\5c{:02x}".format(ord(cp)))
+
+    # now we escape all the other stuff
+    for cp in ESCAPABLE_CODEPOINTS:
+        s = s.replace(cp, "\\{:02x}".format(ord(cp)))
+
+    return s
+
+
+def jid_unescape(localpart):
+    """
+    Un-escape a JID Escaped localpart.
+
+    .. seealso::
+
+        :func:`jid_escape`
+            for the reverse transformation
+
+    :param localpart: The escaped localpart
+    :type localpart: :class:`str`
+    :return: The unescaped localpart.
+    :rtype: :class:`str`
+
+    .. note::
+
+        JID Escaping does not allow embedding arbitrary characters in the
+        localpart. Only a defined subset of characters can be escaped.
+        Refer to :xep:`0106` for details.
+    """
+    s = localpart
+
+    for cp in ESCAPABLE_CODEPOINTS:
+        s = s.replace("\\{:02x}".format(ord(cp)), cp)
+
+    for cp in ESCAPABLE_CODEPOINTS + "\\":
+        s = s.replace(
+            "\\5c{:02x}".format(ord(cp)),
+            "\\{:02x}".format(ord(cp)),
+        )
+
+    return s

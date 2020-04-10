@@ -9,3 +9,5 @@ library.
    installation
    quickstart
    pitfalls
+   faq
+   an-introduction-to-xso

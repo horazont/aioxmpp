@@ -636,8 +636,8 @@ class AbstractConversation(metaclass=abc.ABCMeta):
     @property
     def service_member(self):
         """
-        The member representing the service on which the conversation is hosted,
-        if available.
+        The member representing the service on which the conversation is
+        hosted, if available.
 
         This is never included in :attr:`members`. It may be used as member
         argument in events to make it clear that the message originates from
@@ -951,11 +951,12 @@ class AbstractConversationService(metaclass=abc.ABCMeta):
         aioxmpp.im.p2p.Service
         aioxmpp.muc.MUCClient
 
-    In general, conversation services should provide a method (*not* a coroutine
-    method) to start a conversation using the service. That method should return
-    the fresh :class:`~.AbstractConversation` object immediately and start
-    possibly needed background tasks to actually initiate the conversation. The
-    caller should use the :meth:`~.AbstractConversation.on_enter` and
+    In general, conversation services should provide a method (*not* a
+    coroutine method) to start a conversation using the service. That method
+    should return the fresh :class:`~.AbstractConversation` object immediately
+    and start possibly needed background tasks to actually initiate the
+    conversation. The caller should use the
+    :meth:`~.AbstractConversation.on_enter` and
     :meth:`~.AbstractConversation.on_failure` signals to be notified of the
     result of the join operation.
 

@@ -58,11 +58,9 @@ Utility functions
 
 .. autofunction:: read_single_xso
 
-"""
+"""  # NOQA: E501
 
 import copy
-import ctypes
-import ctypes.util
 import contextlib
 import io
 
@@ -312,16 +310,32 @@ class XMPPXMLGenerator:
 
         new_decls = self._ns_decls_floating_in
         new_prefixes = self._ns_prefixes_floating_in
+        old_ns_map = self._curr_ns_map
         self._ns_map_stack.append(
             (
-                self._curr_ns_map.copy(),
+                old_ns_map,
                 set(new_prefixes) - self._ns_auto_prefixes_floating_in,
                 old_counter
             )
         )
 
+        new_ns_map = dict(new_decls)
         cleared_new_prefixes = dict(new_prefixes)
-        for uri, prefix in self._curr_ns_map.items():
+        for uri, prefix in old_ns_map.items():
+            try:
+                new_uri = new_prefixes[prefix]
+            except KeyError:
+                pass
+            else:
+                if new_uri != uri:
+                    # -> the entry must be dropped because the prefix is
+                    # re-assigned
+                    continue
+
+            # use setdefault: new entries (as assigned in new_ns_map =
+            # dict(...)) need to win over old entries
+            new_ns_map.setdefault(uri, prefix)
+
             try:
                 new_uri = cleared_new_prefixes[prefix]
             except KeyError:
@@ -330,7 +344,7 @@ class XMPPXMLGenerator:
                 if new_uri == uri:
                     del cleared_new_prefixes[prefix]
 
-        self._curr_ns_map.update(new_decls)
+        self._curr_ns_map = new_ns_map
         self._ns_decls_floating_in = {}
         self._ns_prefixes_floating_in = {}
         self._ns_auto_prefixes_floating_in.clear()
@@ -581,7 +595,7 @@ class XMPPXMLGenerator:
             copy.copy(self._ns_auto_prefixes_floating_in)
         try:
             yield
-        except:
+        except:  # NOQA: E722
             self._ns_prefixes_floating_in = ns_prefixes_floating_in
             self._ns_prefixes_floating_out = ns_prefixes_floating_out
             self._ns_decls_floating_in = ns_decls_floating_in
@@ -758,7 +772,7 @@ class XMLStreamWriter:
 
         """
         with self._writer.buffer():
-            xso.unparse_to_sax(self._writer)
+            xso.xso_serialise_to_sax(self._writer)
 
     def abort(self):
         """
@@ -1107,7 +1121,7 @@ def serialize_single_xso(x):
     gen = XMPPXMLGenerator(buf,
                            short_empty_elements=True,
                            sorted_attributes=True)
-    x.unparse_to_sax(gen)
+    x.xso_serialise_to_sax(gen)
     return buf.getvalue().decode("utf8")
 
 
@@ -1118,7 +1132,7 @@ def write_single_xso(x, dest):
     gen = XMPPXMLGenerator(dest,
                            short_empty_elements=True,
                            sorted_attributes=True)
-    x.unparse_to_sax(gen)
+    x.xso_serialise_to_sax(gen)
 
 
 def read_xso(src, xsomap):

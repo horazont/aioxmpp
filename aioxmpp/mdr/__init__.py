@@ -44,7 +44,7 @@ function is provided.
 
 .. autofunction:: compose_receipt
 """
-from .service import (  # NOQA
+from .service import (  # NOQA: F401
     DeliveryReceiptsService,
     compose_receipt,
 )

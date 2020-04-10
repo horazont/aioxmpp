@@ -63,4 +63,4 @@ XSOs
 .. autoclass:: Sent
 
 """
-from .service import CarbonsClient  # NOQA
+from .service import CarbonsClient  # NOQA: F401

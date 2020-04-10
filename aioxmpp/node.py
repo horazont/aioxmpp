@@ -88,7 +88,6 @@ from . import (
     dispatcher,
     presence as mod_presence,
 )
-from .utils import namespaces
 
 
 logger = logging.getLogger(__name__)
@@ -421,22 +420,20 @@ class Client:
     """
     Base class to implement an XMPP client.
 
-    :param local_jid: Jabber ID to connect as
-    :type local_jid: :class:`~aioxmpp.JID`
-    :param security_layer: Configuration for authentication and TLS
-    :type security_layer: :class:`~aioxmpp.SecurityLayer`
-    :param negotiation_timeout: Timeout for the individual stream negotiation
-                                steps (bounds initial connection time)
-    :type negotiation_timeout: :class:`datetime.timedelta`
-    :param override_peer: Connection options which take precedence over the
-                          standardised connection options
-    :type override_peer: sequence of connection option triples
-    :param max_inital_attempts: Maximum number of initial connection attempts
-    :type max_initial_attempts: :class:`int`
-    :param loop: Override the :mod:`asyncio` event loop to use
-    :type loop: :class:`asyncio.BaseEventLoop` or :data:`None`
-    :param logger: Logger to use instead of the default logger
-    :type logger: :class:`logging.Logger` or :data:`None`
+    Args:
+        local_jid (:class:`~aioxmpp.JID`): Jabber ID to connect as.
+        security_layer (:class:`~aioxmpp.SecurityLayer`): Configuration
+            for authentication and TLS.
+        negotiation_timeout (:class:`datetime.timedelta`): Timeout for the
+            individual stream negotiation steps (bounds initial connect time)
+        override_peer: Connection options which take precedence over the
+            standardised connection options
+        max_inital_attempts (:class:`int`): Maximum number of initial
+            connection attempts before giving up.
+        loop (:class:`asyncio.BaseEventLoop` or :data:`None`): Override the
+            :mod:`asyncio` event loop to use.
+        logger (:class:`logging.Logger` or :data:`None`): Override the logger
+            to use.
 
     These classes deal with managing the :class:`~aioxmpp.stream.StanzaStream`
     and the underlying :class:`~aioxmpp.protocol.XMLStream` instances. The
@@ -562,6 +559,8 @@ class Client:
         While this event is cleared, :meth:`enqueue` fails with
         :class:`ConnectionError` and :meth:`send` blocks.
 
+    .. autoattribute:: suspended
+
     .. autoattribute:: local_jid
 
     .. attribute:: stream
@@ -650,11 +649,30 @@ class Client:
        :meth:`on_stream_suspended` is not emitted if the stream was stopped on
        user request.
 
-       Only :meth:`on_stream_destroyed` indicates that state was actually lost
-       and that others most likely see or saw an unavailable presence broadcast
-       for the resource.
+       After :meth:`on_stream_suspended` is emitted, one of the two following
+       signals is emitted:
+
+       - :meth:`on_stream_destroyed` indicates that state was actually lost and
+         that others most likely see or saw an unavailable presence broadcast
+         for the resource.
+       - :meth:`on_stream_resumed` indicates that no state was lost and the
+         stream is fully usable again.
 
        .. versionadded:: 0.8
+
+    .. signal:: on_stream_resumed()
+
+        The stream has been resumed after it has been suspended, without loss
+        of data.
+
+        This is the counterpart to :meth:`on_stream_suspended`.
+
+        In general, this signal exists solely for informational purposes. It
+        can be used to drive a user interface which indicates that messages may
+        be delivered with delay, because the underlying network is transiently
+        interrupted.
+
+        .. versionadded:: 0.11
 
     .. signal:: on_stream_destroyed(reason=None)
 
@@ -701,6 +719,7 @@ class Client:
     on_stopped = callbacks.Signal()
     on_stream_destroyed = callbacks.Signal()
     on_stream_suspended = callbacks.Signal()
+    on_stream_resumed = callbacks.Signal()
     on_stream_established = callbacks.Signal()
 
     before_stream_established = callbacks.SyncSignal()
@@ -957,6 +976,8 @@ class Client:
                 xmlstream,
                 features)
 
+            if self._is_suspended:
+                self.on_stream_resumed()
             self._is_suspended = False
             self._backoff_time = None
 
@@ -1049,8 +1070,6 @@ class Client:
         self.logger.debug("stopping main task of %r", self, stack_info=True)
         self._main_task.cancel()
 
-    # services
-
     def _summon(self, class_, visited):
         # this is essentially a topological sort algorithm
         try:
@@ -1059,13 +1078,21 @@ class Client:
             if class_ in visited:
                 raise ValueError("dependency loop")
             visited.add(class_)
+
+            # summon dependencies before taking len(self._services) as
+            # the instanciation index of the service
+            dependencies = {
+                depclass: self._summon(depclass, visited)
+                for depclass in class_.PATCHED_ORDER_AFTER
+            }
+
+            service_order_index = len(self._services)
+
             instance = class_(
                 self,
                 logger_base=self.logger,
-                dependencies={
-                    depclass: self._summon(depclass, visited)
-                    for depclass in class_.PATCHED_ORDER_AFTER
-                }
+                dependencies=dependencies,
+                service_order_index=service_order_index,
             )
             self._services[class_] = instance
             return instance
@@ -1125,6 +1152,16 @@ class Client:
         :attr:`on_stream_established`) and false otherwise.
         """
         return self.established_event.is_set()
+
+    @property
+    def suspended(self):
+        """
+        true if the stream is currently suspended (see
+        :meth:`on_stream_suspended`)
+
+        .. versionadded:: 0.11
+        """
+        return self._is_suspended
 
     @property
     def resumption_timeout(self):
@@ -1243,8 +1280,8 @@ class Client:
 
         If the stream is currently not ready, this method blocks until the
         stream is ready to send payload stanzas. Note that this may be before
-        initial presence has been sent. To synchronise with that type of events,
-        use the appropriate signals.
+        initial presence has been sent. To synchronise with that type of
+        events, use the appropriate signals.
 
         The `timeout` as well as any of the exception cases referring to a
         "response" do not apply for IQ response stanzas, message stanzas or
@@ -1260,9 +1297,9 @@ class Client:
         callable returning an awaitable. It receives the response stanza as
         first and only argument. The returned awaitable is awaited by
         :meth:`send` and the result is returned instead of the original
-        payload. `cb` is called synchronously from the stream handling loop when
-        the response is received, so it can benefit from the strong ordering
-        guarantees given by XMPP XML Streams.
+        payload. `cb` is called synchronously from the stream handling loop
+        when the response is received, so it can benefit from the strong
+        ordering guarantees given by XMPP XML Streams.
 
         The `cb` may also return :data:`None`, in which case :meth:`send` will
         simply return the IQ payload as if `cb` was not given. Since the return
@@ -1272,8 +1309,8 @@ class Client:
         .. warning::
 
             Remember that it is an implementation detail of the event loop when
-            a coroutine is scheduled after it awaited an awaitable; this implies
-            that if the caller of :meth:`send` is merely awaiting the
+            a coroutine is scheduled after it awaited an awaitable; this
+            implies that if the caller of :meth:`send` is merely awaiting the
             :meth:`send` coroutine, the strong ordering guarantees of XMPP XML
             Streams are lost.
 
@@ -1493,7 +1530,7 @@ class UseConnected:
     leaving the context still disconnects the client.
 
     If the `presence` refers to an available presence, the
-    :class:`.PresenceServer` is :meth:`~.Client.summon`\ -ed on the `client`.
+    :class:`.PresenceServer` is :meth:`~.Client.summon`\\ -ed on the `client`.
     The presence is set using :meth:`~.PresenceServer.set_presence` (clearing
     the :attr:`~.PresenceServer.status` and resetting
     :attr:`~.PresenceServer.priority` to 0) before the client is connected. If

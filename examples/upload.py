@@ -170,6 +170,8 @@ class Upload(Example):
                                      size=self.file_size,
                                      show_progress=self.show_progress),
                     headers=headers) as response:
+                if self.show_progress:
+                    print("\r", end="")
                 if response.status not in (200, 201):
                     print(
                         "error: upload failed: {}".format(response.reason),

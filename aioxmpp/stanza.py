@@ -78,16 +78,19 @@ Exceptions
 
 .. autoclass:: UnknownIQPayload
 
+Module Level Constants
+======================
+
+.. autodata:: RANDOM_ID_BYTES
 """
-import base64
-import enum
 import random
 import warnings
 
 from . import xso, errors, structs
 
-from .utils import namespaces
+from .utils import namespaces, to_nmtoken
 
+#: The number of bytes of randomness used when generating stanza IDs.
 RANDOM_ID_BYTES = 120 // 8
 
 
@@ -182,7 +185,8 @@ class Error(xso.XSO):
     attributes of the :class:`Error`.
 
     :param condition: The error condition as enumeration member or XSO.
-    :type condition: :class:`aioxmpp.ErrorCondition` or :class:`aioxmpp.xso.XSO`
+    :type condition: :class:`aioxmpp.ErrorCondition` or
+        :class:`aioxmpp.xso.XSO`
     :param type_: The type of the error
     :type type_: :class:`aioxmpp.ErrorType`
     :param text: The optional error text
@@ -221,8 +225,8 @@ class Error(xso.XSO):
 
        .. versionchanged:: 0.10
 
-          Starting with 0.10, the enumeration :class:`aioxmpp.ErrorCondition` is
-          used. Before, tuples equal to the tags of the child elements were
+          Starting with 0.10, the enumeration :class:`aioxmpp.ErrorCondition`
+          is used. Before, tuples equal to the tags of the child elements were
           used (e.g. ``(namespaces.stanzas, "bad-request")``).
 
           As of 0.10, setting the tuple equivalents is still supported.
@@ -500,14 +504,14 @@ class StanzaBase(xso.XSO):
         If the :attr:`id_` already has a non-false (false is also the empty
         string!) value, this method is a no-op.
 
-        Otherwise, the :attr:`id_` attribute is filled with eight bytes of
-        random data, encoded as base64.
+        Otherwise, the :attr:`id_` attribute is filled with
+        :data:`RANDOM_ID_BYTES` of random data, encoded by
+        :func:`aioxmpp.utils.to_nmtoken`.
 
         .. note::
 
            This method only works on subclasses of :class:`StanzaBase` which
            define the :attr:`id_` attribute.
-
         """
         try:
             self.id_
@@ -517,11 +521,7 @@ class StanzaBase(xso.XSO):
             if self.id_:
                 return
 
-        self.id_ = "x"+base64.b64encode(random.getrandbits(
-            RANDOM_ID_BYTES * 8
-        ).to_bytes(
-            RANDOM_ID_BYTES, "little"
-        )).decode("ascii")
+        self.id_ = to_nmtoken(random.getrandbits(8*RANDOM_ID_BYTES))
 
     def _make_reply(self, type_):
         obj = type(self)(type_)
@@ -721,7 +721,6 @@ class Message(StanzaBase):
     body = xso.ChildTextMap(Body)
     subject = xso.ChildTextMap(Subject)
     thread = xso.Child([Thread])
-    ext = xso.ChildMap([])
 
     def __init__(self, type_, **kwargs):
         super().__init__(**kwargs)
@@ -873,7 +872,6 @@ class Presence(StanzaBase):
         default=0
     )
 
-    ext = xso.ChildMap([])
     unhandled_children = xso.Collector()
 
     def __init__(self, *,
@@ -983,7 +981,7 @@ class IQ(StanzaBase):
     def validate(self):
         try:
             self._validate()
-        except Exception as exc:
+        except Exception:
             raise StanzaError(
                 "invalid IQ stanza",
                 self,

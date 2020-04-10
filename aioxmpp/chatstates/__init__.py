@@ -53,6 +53,6 @@ Its operation is controlled by one of the chat state strategies:
 .. autoclass:: AlwaysEmit
 
 """
-from .xso import ChatState  # NOQA
-from .utils import (ChatStateManager, DoNotEmit, AlwaysEmit,  # NOQA
+from .xso import ChatState  # NOQA: F401
+from .utils import (ChatStateManager, DoNotEmit, AlwaysEmit,  # NOQA: F401
                     DiscoverSupport)

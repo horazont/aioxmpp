@@ -335,19 +335,19 @@ class TestAvatarService(unittest.TestCase):
         ))
 
     def test_service_order(self):
-        self.assertGreater(
-            avatar_service.AvatarService,
+        self.assertIn(
             aioxmpp.DiscoClient,
+            avatar_service.AvatarService.ORDER_AFTER,
         )
 
-        self.assertGreater(
-            avatar_service.AvatarService,
+        self.assertIn(
             aioxmpp.DiscoServer,
+            avatar_service.AvatarService.ORDER_AFTER,
         )
 
-        self.assertGreater(
-            avatar_service.AvatarService,
+        self.assertIn(
             aioxmpp.PubSubClient,
+            avatar_service.AvatarService.ORDER_AFTER,
         )
 
     def test_metadata_cache_size(self):

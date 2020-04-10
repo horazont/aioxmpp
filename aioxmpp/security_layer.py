@@ -46,7 +46,7 @@ Certificate verifiers
 =====================
 
 To verify the peer certificate provided by the server, different
-:class:`CertificateVerifier`s are available:
+:class:`CertificateVerifier`\ s are available:
 
 .. autoclass:: PKIXCertificateVerifier
 
@@ -112,13 +112,12 @@ In pre-0.6 code, you might find use of the following things:
 
 .. autoclass:: STARTTLSProvider
 
-"""
+"""  # NOQA: E501
 import abc
 import asyncio
 import base64
 import collections
 import enum
-import functools
 import logging
 import ssl
 
@@ -771,7 +770,7 @@ class SASLProvider:
         :type features: :class:`~.nonza.StreamFeatures`
         :param mechanism_classes: SASL mechanism classes to use
         :type mechanism_classes: iterable of :class:`SASLMechanism`
-                                 sub\ *classes*
+                                 sub\\ *classes*
         :raises aioxmpp.errors.SASLUnavailable: if the peer does not announce
                                                 SASL support
         :return: the :class:`SASLMechanism` subclass to use and a token
@@ -912,14 +911,14 @@ class PasswordSASLProvider(SASLProvider):
     integer number. The first argument is the JID which is trying to
     authenticate and the second argument is the number of the authentication
     attempt, starting at 0. On each attempt, the number is increased, up to
-    `max_auth_attempts`\ -1. If the coroutine returns :data:`None`, the
+    `max_auth_attempts`\\ -1. If the coroutine returns :data:`None`, the
     authentication process is aborted. If the number of attempts are exceeded,
     the authentication process is also aborted. In both cases, an
     :class:`aiosasl.AuthenticationFailure` error will be raised.
 
     The SASL mechanisms used depend on whether TLS has been negotiated
-    successfully before. In any case, :class:`aiosasl.SCRAM` is used. If TLS has
-    been negotiated, :class:`aiosasl.PLAIN` is also supported.
+    successfully before. In any case, :class:`aiosasl.SCRAM` is used. If TLS
+    has been negotiated, :class:`aiosasl.PLAIN` is also supported.
 
     .. seealso::
 
@@ -1171,8 +1170,8 @@ def negotiate_sasl(transport, xmlstream,
         controlled using the :attr:`~.XMLStream.deadtime_hard_limit` timeout
         of the stream.
 
-        The argument will be removed in version 1.0. To prepare for this, please
-        pass `jid` and `features` as keyword arguments.
+        The argument will be removed in version 1.0. To prepare for this,
+        please pass `jid` and `features` as keyword arguments.
     """
 
     if not transport.get_extra_info("sslcontext"):
@@ -1318,47 +1317,62 @@ def make(
         pin_type=PinType.PUBLIC_KEY,
         post_handshake_deferred_failure=None,
         anonymous=False,
+        ssl_context_factory=default_ssl_context,
         no_verify=False):
     """
     Construct a :class:`SecurityLayer`. Depending on the arguments passed,
     different features are enabled or disabled.
 
-    :param password_provider: Source for the password to authenticate with.
-    :type password_provider: :class:`str` or coroutine
-    :param pin_store: Enable use of certificate pin store: if it is a
-        :class:`dict`, a new pin store is created (see `pin_type` argument) and
-        filled with the data from the dict. Otherwise, the given pin store is
-        used.
-    :type pin_store: :class:`dict` (compatible to
-        :meth:`~AbstractPinStore.import_from_json`) or
-        :class:`AbstractPinStore`
-    :param pin_type: Type of pin store to use with a dict passed to `pin_store`
-        (ignored if no dict is passed to `pin_store`).
-    :type pin_type: :class:`PinType`
-    :param post_handshake_deferred_failure: Coroutine to call when using pin
-        store and the certificate is not in the pin store and fails PKI
-        verification.
-    :type post_handshake_deferred_failure: coroutine
-    :param anonymous: trace token for SASL ANONYMOUS (:rfc:`4505`), enables
-        ANONYMOUS authentication
-    :type anonymous: :class:`str` or :data:`False`
-    :param no_verify: *Disable* all certificate verification. Usage is
-        **strongly discouraged** outside controlled test environments. See
-        below for alternatives.
-    :type no_verify: :class:`bool`
-    :raise RuntimeError: if `anonymous` is a :class:`str` and the version of
-        :mod:`aiosasl` in use does not provide :class:`aiosasl.ANONYMOUS`
-    :return: A new :class:`SecurityLayer` instance configured as per the
-        arguments.
+    .. warning::
 
-    `password_provider` must either be a coroutine or a :class:`str`. As a
-    coroutine, it is called during authentication with the JID we are trying to
-    authenticate against as the first, and the sequence number of the
-    authentication attempt as second argument. The sequence number starts at 0.
-    The coroutine is expected to return :data:`None` or a password. See
-    :class:`PasswordSASLProvider` for details. If it is a :class:`str`, a
-    coroutine which returns the string on the first and :data:`None` on
-    subsequent attempts is created and used.
+        When using any argument except `password_provider`, be sure to read
+        its documentation below the following overview **carefully**. Many
+        arguments can be used to shoot yourself in the foot easily, while
+        violating all security expectations.
+
+    Args:
+
+        password_provider (:class:`str` or coroutine function):
+            Password source to authenticate with.
+
+    Keyword Args:
+        pin_store (:class:`dict` or :class:`AbstractPinStore`):
+            Enable use of certificate/public key pinning. `pin_type` controls
+            the type of store used when a dict is passed instead of a pin store
+            object.
+        pin_type (:class:`~aioxmpp.security_layer.PinType`):
+            Type of pin store to create when `pin_store` is a dict.
+        post_handshake_deferred_failure (coroutine function):
+            Coroutine callback to invoke when using certificate pinning and the
+            verification of the certificate was not possible using either PKIX
+            or the pin store.
+        anonymous (:class:`str`, :data:`None` or :data:`False`):
+            trace token for SASL ANONYMOUS (:rfc:`4505`); passing a
+            non-:data:`False` value enables ANONYMOUS authentication.
+        ssl_context_factory (function): Factory function to create the SSL
+            context used to establish transport layer security. Defaults to
+            :func:`aioxmpp.security_layer.default_ssl_context`.
+        no_verify (:class:`bool`): *Disable* all certificate verification.
+            Usage is **strongly discouraged** outside controlled test
+            environments. See below for alternatives.
+
+    Raises:
+
+        RuntimeError: if `anonymous` is not :data:`False` and the version of
+            :mod:`aiosasl` does not support ANONYMOUS authentication.
+
+    Returns:
+        :class:`SecurityLayer`: object holding the entire security layer
+            configuration
+
+    `password_provider` must either be a coroutine function or a :class:`str`.
+    As a coroutine function, it is called during authentication with the JID we
+    are trying to authenticate against as the first, and the sequence number of
+    the authentication attempt as second argument. The sequence number starts
+    at 0. The coroutine is expected to return :data:`None` or a password. See
+    :class:`PasswordSASLProvider` for details. If `password_provider` is a
+    :class:`str`, a coroutine which returns the string on the first and
+    :data:`None` on subsequent attempts is created and used.
 
     If `pin_store` is not :data:`None`, :class:`PinningPKIXCertificateVerifier`
     is used instead of the default :class:`PKIXCertificateVerifier`. The
@@ -1376,19 +1390,34 @@ def make(
     :data:`None` while `pin_store` is not, a coroutine which returns
     :data:`False` is substituted.
 
-    If `no_verify` is true, none of the above regarding certificate verifiers
-    matters. The internal null verifier is used, which disables certificate
-    verification completely.
+    `ssl_context_factory` can be a callable taking no arguments and returning
+    a :class:`OpenSSL.SSL.Context` object. If given, the factory will be used
+    to obtain an SSL context when the stream negotiates transport layer
+    security via TLS. By default,
+    :func:`aioxmpp.security_layer.default_ssl_context` is used, which should be
+    fine for most applications.
 
     .. warning::
 
-       Disabling certificate verification makes your application vulnerable to
-       trivial Man-in-the-Middle attacks. Do **not** use this outside
-       controlled test environments.
+        The :func:`~.default_ssl_context` implementation sets important
+        defaults. It is **strongly recommended** to use the context returned
+        by :func:`~.default_ssl_context` and modify it, instead of creating
+        a new context from scratch when implementing your own factory.
 
-       If you need to handle certificates which cannot be verified using the
-       public key infrastructure, consider making use of the `pin_store`
-       argument instead.
+    If `no_verify` is true, none of the above regarding certificate verifiers
+    matters. The internal null verifier is used, which **disables certificate
+    verification completely**.
+
+    .. warning::
+
+        Disabling certificate verification makes your application vulnerable to
+        trivial Man-in-the-Middle attacks. Do **not** use this outside
+        controlled test environments or when you know **exactly** what you’re
+        doing!
+
+        If you need to handle certificates which cannot be verified using the
+        public key infrastructure, consider making use of the `pin_store`
+        argument instead.
 
     `anonymous` may be a string or :data:`False`. If it is not :data:`False`,
     :class:`AnonymousSASLProvider` is used before password based authentication
@@ -1399,22 +1428,36 @@ def make(
 
     .. note::
 
-       :data:`False` and ``""`` are treated differently for the `anonymous`
-       argument, despite both being false-y values!
+        :data:`False` and ``""`` are treated differently for the `anonymous`
+        argument, despite both being false-y values!
+
+    .. note::
+
+        If `anonymous` is not :data:`False` and `password_provider` is not
+        :data:`None`, both authentication types are attempted. Anonymous
+        authentication is, in that case, preferred over password-based
+        authentication.
+
+        If you need to reverse the order, you have to construct your own
+        :class:`SecurityLayer` object.
 
     .. warning::
 
-       Take the security and privacy considerations from :rfc:`4505` (which
-       specifies the ANONYMOUS SASL mechanism) and :xep:`175` (which discusses
-       the ANONYMOUS SASL mechanism in the XMPP context) into account before
-       using `anonymous`.
+        Take the security and privacy considerations from :rfc:`4505` (which
+        specifies the ANONYMOUS SASL mechanism) and :xep:`175` (which discusses
+        the ANONYMOUS SASL mechanism in the XMPP context) into account before
+        using `anonymous`.
 
-    The versaility and simplicity of use of this function make (pun intended)
+    The versatility and simplicity of use of this function make (pun intended)
     it the preferred way to construct :class:`SecurityLayer` instances.
 
     .. versionadded:: 0.8
 
-       Support for SASL ANONYMOUS was added.
+        Support for SASL ANONYMOUS was added.
+
+    .. versionadded:: 0.11
+
+        Support for `ssl_context_factory`.
     """
 
     if isinstance(password_provider, str):
@@ -1470,7 +1513,7 @@ def make(
         )
 
     return SecurityLayer(
-        default_ssl_context,
+        ssl_context_factory,
         certificate_verifier_factory,
         True,
         tuple(sasl_providers),

@@ -72,7 +72,7 @@ def register(xmlstream,
     Create a new account on the server.
 
     :param query_xso: XSO with the information needed for the registration.
-    :type query_xso: :class:`xso.Query`
+    :type query_xso: :class:`~aioxmpp.ibr.Query`
 
     :param xmlstream: Specifies the stream connected to the server where
                       the account will be created.
@@ -101,7 +101,7 @@ def get_used_fields(payload):
     xso.Query.
 
     :param payload: Query object o be
-    :type payload: :class:`xso.Query`
+    :type payload: :class:`~aioxmpp.ibr.Query`
     :return: :attr:`list`
     """
     return [
@@ -110,22 +110,21 @@ def get_used_fields(payload):
         if descriptor.__get__(payload, type(payload)) is not None
     ]
 
+
 class RegistrationService(Service):
     """
-    Service implementing XMPP In-Band Registration(:xep:`0077`).
+    Service implementing the XMPP In-Band Registration(:xep:`0077`)
+    use cases for registered entities.
 
-    This 'service' implements the possibility for an entity to register with a
-    XMPP server, cancel an existing registration, or change a password.
+    This service allows an already registered and authenticated entity
+    to request information about the registration, cancel an existing
+    registration, or change a password.
 
     .. automethod:: get_client_info
 
     .. automethod:: change_pass
 
     .. automethod:: cancel_registration
-
-    .. automethod:: get_registration_fields
-
-    .. automethod:: register
 
     """
 
@@ -135,7 +134,7 @@ class RegistrationService(Service):
         A query is sent to the server to obtain the client's data stored at the
         server.
 
-        :return: :class:`xso.Query`
+        :return: :class:`~aioxmpp.ibr.Query`
         """
         iq = aioxmpp.IQ(
             to=self.client.local_jid.bare().replace(localpart=None),

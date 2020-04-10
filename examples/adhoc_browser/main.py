@@ -112,7 +112,13 @@ class MainWindow(Qt.QMainWindow):
         self.ui.disco_items.activated.connect(self.disco_item_activated)
 
         self.commands_model = DiscoItemsModel()
-        self.ui.commands.setModel(self.commands_model)
+        self.sorted_commands_model = Qt.QSortFilterProxyModel()
+        self.sorted_commands_model.setSourceModel(self.commands_model)
+        self.sorted_commands_model.setDynamicSortFilter(True)
+        self.sorted_commands_model.setSortRole(Qt.Qt.DisplayRole)
+        self.sorted_commands_model.setSortCaseSensitivity(Qt.Qt.CaseInsensitive)
+        self.sorted_commands_model.sort(0, Qt.Qt.AscendingOrder)
+        self.ui.commands.setModel(self.sorted_commands_model)
         self.ui.commands.activated.connect(self.command_activated)
 
         self._close_fut = close_fut
@@ -139,8 +145,8 @@ class MainWindow(Qt.QMainWindow):
             return
 
         jid = aioxmpp.JID.fromstr(
-            self.commands_model.data(
-                self.commands_model.index(
+            self.sorted_commands_model.data(
+                self.sorted_commands_model.index(
                     index.row(),
                     self.disco_model.COLUMN_JID,
                     index.parent(),
@@ -148,8 +154,8 @@ class MainWindow(Qt.QMainWindow):
                 Qt.Qt.DisplayRole)
         )
 
-        node = self.commands_model.data(
-            self.commands_model.index(
+        node = self.sorted_commands_model.data(
+            self.sorted_commands_model.index(
                 index.row(),
                 self.disco_model.COLUMN_NODE,
                 index.parent(),

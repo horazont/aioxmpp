@@ -7,6 +7,9 @@
 .. image:: https://coveralls.io/repos/github/horazont/aioxmpp/badge.svg?branch=devel
   :target: https://coveralls.io/github/horazont/aioxmpp?branch=devel
 
+.. image:: https://img.shields.io/pypi/v/aioxmpp.svg
+  :target: https://pypi.python.org/pypi/aioxmpp/
+
 ... is a pure-python XMPP library using the `asyncio`_ standard library module from Python 3.4 (and `available as a third-party module to Python 3.3`__).
 
 .. _asyncio: https://docs.python.org/3/library/asyncio.html
@@ -48,10 +51,9 @@ Features
   clients.
 
 * Well-tested and modular codebase: aioxmpp is developed in test-driven
-  style and many modules are automatedly tested against a
-  `Prosody <https://prosody.im/>`_ 0.9, 0.10 and the most recent development
-  version, as well as `ejabberd <https://www.ejabberd.im/>`_, two popular XMPP
-  servers.
+  style and in addition to that, many modules are automatedly tested against
+  `Prosody <https://prosody.im/>`_ and `ejabberd <https://www.ejabberd.im/>`_,
+  two popular XMPP servers.
 
 
 There is more and there’s yet more to come! Check out the list of supported XEPs
@@ -136,13 +138,15 @@ Security issues
 ---------------
 
 If you believe that a bug you found in aioxmpp has security implications,
-you are welcome to notify me privately. To do so, send a mail to `Jonas Wielicki
+you are welcome to notify me privately. To do so, send a mail to `Jonas Schäfer
 <mailto:jonas@wielicki.name>`_, encrypted using the GPG public key
 0xE5EDE5AC679E300F (Fingerprint AA5A 78FF 508D 8CF4 F355  F682 E5ED E5AC 679E
 300F).
 
 If you prefer to disclose security issues immediately, you can do so at any of
 the places listed above.
+
+More details can be found in the `SECURITY.md <SECURITY.md>`_ file.
 
 Change log
 ==========

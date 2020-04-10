@@ -100,7 +100,7 @@ class ServerInfo(Example):
                     print("[")
                     for value in field.values:
                         print("      {!r}".format(value))
-                        print("]")
+                    print("    ]")
 
 
 if __name__ == "__main__":

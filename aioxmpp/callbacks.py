@@ -182,14 +182,14 @@ class FutureListener:
     def data(self, data):
         try:
             self.fut.set_result(data)
-        except asyncio.futures.InvalidStateError:
+        except asyncio.InvalidStateError:
             pass
         return True
 
     def error(self, exc):
         try:
             self.fut.set_exception(exc)
-        except asyncio.futures.InvalidStateError:
+        except asyncio.InvalidStateError:
             pass
         return True
 
@@ -542,7 +542,7 @@ class AdHocSignal(AbstractAdHocSignal):
 
     def future(self):
         """
-        Return a :class:`asyncio.Future` which has been :meth:`connect`\ -ed
+        Return a :class:`asyncio.Future` which has been :meth:`connect`\\ -ed
         using :attr:`AUTO_FUTURE`.
 
         The token returned by :meth:`connect` is not returned; to remove the

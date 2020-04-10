@@ -36,6 +36,7 @@ import aioxmpp.im.dispatcher as im_dispatcher
 import aioxmpp.im.service as im_service
 import aioxmpp.im.p2p as im_p2p
 import aioxmpp.misc
+import aioxmpp.muc.self_ping as muc_self_ping
 import aioxmpp.muc.service as muc_service
 import aioxmpp.muc.xso as muc_xso
 import aioxmpp.service as service
@@ -604,13 +605,30 @@ class TestRoom(unittest.TestCase):
             aioxmpp.tracking.BasicTrackingService
         ] = self.base.tracking_service
 
-        self.jmuc = muc_service.Room(self.base.service, self.mucjid)
+        self.monitor = unittest.mock.Mock(spec=muc_self_ping.MUCMonitor)
+
+        with contextlib.ExitStack() as stack:
+            MUCMonitor = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.muc.self_ping.MUCMonitor",
+                return_value=self.monitor,
+            ))
+
+            self.jmuc = muc_service.Room(self.base.service, self.mucjid)
+
+        MUCMonitor.assert_called_once_with(
+            self.mucjid,
+            self.base.service.client,
+            self.jmuc._monitor_stale,
+            self.jmuc._monitor_fresh,
+            self.jmuc._monitor_exited,
+            self.base.service.logger.getChild(),
+        )
 
         for ev in ["on_enter", "on_exit", "on_muc_suspend", "on_muc_resume",
                    "on_message", "on_topic_changed",
                    "on_join", "on_presence_changed", "on_nick_changed",
                    "on_muc_role_changed", "on_muc_affiliation_changed",
-                   "on_leave", "on_muc_enter"]:
+                   "on_leave", "on_muc_enter", "on_muc_stale", "on_muc_fresh"]:
             cb = getattr(self.base, ev)
             cb.return_value = None
             getattr(self.jmuc, ev).connect(cb)
@@ -672,12 +690,21 @@ class TestRoom(unittest.TestCase):
             self.jmuc.on_muc_resume,
             aioxmpp.callbacks.AdHocSignal
         )
+        self.assertIsInstance(
+            self.jmuc.on_muc_stale,
+            aioxmpp.callbacks.AdHocSignal,
+        )
+        self.assertIsInstance(
+            self.jmuc.on_muc_fresh,
+            aioxmpp.callbacks.AdHocSignal,
+        )
 
     def test_init(self):
         self.assertIs(self.jmuc.service, self.base.service)
         self.assertEqual(self.jmuc.jid, self.mucjid)
         self.assertDictEqual(self.jmuc.muc_subject, {})
-        self.assertIsInstance(self.jmuc.muc_subject, aioxmpp.structs.LanguageMap)
+        self.assertIsInstance(self.jmuc.muc_subject,
+                              aioxmpp.structs.LanguageMap)
         self.assertFalse(self.jmuc.muc_joined)
         self.assertFalse(self.jmuc.muc_active)
         self.assertIsNone(self.jmuc.muc_subject_setter)
@@ -4597,6 +4624,180 @@ class TestRoom(unittest.TestCase):
         self.assertEqual(invite.to, TEST_ENTITY_JID)
         self.assertEqual(invite.reason, "some text")
 
+    def test_monitor_is_not_enabled_right_away(self):
+        self.monitor.enable.assert_not_called()
+
+    def test__inbound_muc_user_presence_enables_and_resets_monitor(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="firstwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant")
+            ]
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.monitor.enable.assert_called_once_with()
+        self.monitor.reset.assert_called_once_with()
+
+    def test__handle_message_enables_and_resets_monitor(self):
+        msg = aioxmpp.stanza.Message(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+            type_=aioxmpp.structs.MessageType.GROUPCHAT,
+        )
+        msg.body.update({
+            None: "foo"
+        })
+
+        self.jmuc._handle_message(msg,
+                                  unittest.mock.sentinel.peer,
+                                  False,
+                                  im_dispatcher.MessageSource.STREAM)
+
+        self.monitor.enable.assert_called_once_with()
+        self.monitor.reset.assert_called_once_with()
+
+    def test__suspend_disables_monitor(self):
+        self.jmuc._suspend()
+
+        self.monitor.disable.assert_called_once_with()
+
+    def test__disconnect_disables_monitor(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.jmuc._disconnect()
+
+        self.monitor.disable.assert_called_once_with()
+
+    def test__inbound_muc_user_presence_disables_monitor_on_unavailable_self_presence(self):  # NOQA
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            status_codes={110},
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="none"),
+            ]
+        )
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.monitor.disable.assert_called_once_with()
+
+    def test__monitor_stale_emits_on_stale(self):
+        self.jmuc._monitor_stale()
+
+        self.listener.on_muc_stale.assert_called_once_with()
+
+    def test__monitor_fresh_emits__on_fresh(self):
+        self.jmuc._monitor_fresh()
+
+        self.listener.on_muc_fresh.assert_called_once_with
+
+    def test__monitor_exited_calls__disconnect_if_no_autorejoin(self):
+        self.assertFalse(self.jmuc.muc_autorejoin)
+
+        with contextlib.ExitStack() as stack:
+            _disconnect = stack.enter_context(unittest.mock.patch.object(
+                self.jmuc, "_disconnect"
+            ))
+
+            _suspend = stack.enter_context(unittest.mock.patch.object(
+                self.jmuc, "_suspend"
+            ))
+
+            self.jmuc._monitor_exited()
+
+        _disconnect.assert_called_once_with()
+        self.base.service._cycle.assert_not_called()
+
+    def test__monitor_exit_calls__cycle_on_service_if_not_autorejoin(self):  # NOQA
+        self.jmuc.muc_autorejoin = True
+
+        self.jmuc._monitor_exited()
+
+        self.base.service._cycle.assert_called_once_with(self.jmuc)
+
+    def test_self_presence_updates__monitor_ping_address(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.assertEqual(
+            self.monitor.ping_address,
+            presence.from_,
+        )
+
+    def test_self_presence_updates__monitor_ping_address_always(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="fnord")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.assertEqual(
+            self.monitor.ping_address,
+            presence.from_,
+        )
+
 
 class TestService(unittest.TestCase):
     def test_is_service(self):
@@ -6721,3 +6922,132 @@ class TestService(unittest.TestCase):
         )
 
         self.listener.on_muc_invitation.assert_not_called()
+
+    def test__cycle_sends_unavailable_suspends_resumes_joins_pending_muc(self):
+        requested_history = muc_xso.History()
+
+        room, future = self.s.join(TEST_MUC_JID, "thirdwitch",
+                                   history=requested_history,
+                                   password="some password")
+
+        base = unittest.mock.Mock()
+        self.cc.enqueue = base.enqueue
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                room,
+                "_suspend",
+                new=base._suspend,
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                room,
+                "_resume",
+                new=base._resume,
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.s,
+                "_send_join_presence",
+                new=base._send_join_presence,
+            ))
+
+            self.s._cycle(room)
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.enqueue(unittest.mock.ANY),
+                unittest.mock.call._suspend(),
+                unittest.mock.call._resume(),
+                unittest.mock.call._send_join_presence(
+                    TEST_MUC_JID,
+                    requested_history,
+                    "thirdwitch",
+                    "some password",
+                ),
+            ]
+        )
+
+        _, (leave_presence, ), _ = base.enqueue.mock_calls[0]
+
+        self.assertIsInstance(leave_presence, aioxmpp.stanza.Presence)
+        self.assertEqual(leave_presence.type_,
+                         aioxmpp.structs.PresenceType.UNAVAILABLE)
+        self.assertEqual(leave_presence.to,
+                         TEST_MUC_JID.replace(resource="thirdwitch"))
+
+    def test__cycle_sends_unavailable_suspends_resumes_joins_joined_muc(self):
+        requested_history = muc_xso.History()
+
+        room, future = self.s.join(TEST_MUC_JID, "thirdwitch",
+                                   history=requested_history,
+                                   password="some password")
+
+        occupant_presence = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="thirdwitch"),
+        )
+        occupant_presence.xep0045_muc_user = muc_xso.UserExt(
+            status_codes={110},
+        )
+
+        self.s._handle_presence(
+            occupant_presence,
+            occupant_presence.from_,
+            False,
+        )
+
+        self.assertTrue(future.done())
+
+        base = unittest.mock.Mock()
+        self.cc.enqueue = base.enqueue
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                room,
+                "_suspend",
+                new=base._suspend,
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                room,
+                "_resume",
+                new=base._resume,
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.s,
+                "_send_join_presence",
+                new=base._send_join_presence,
+            ))
+
+            self.s._cycle(room)
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.enqueue(unittest.mock.ANY),
+                unittest.mock.call._suspend(),
+                unittest.mock.call._resume(),
+                unittest.mock.call._send_join_presence(
+                    TEST_MUC_JID,
+                    unittest.mock.ANY,
+                    "thirdwitch",
+                    "some password",
+                ),
+            ]
+        )
+
+        _, (leave_presence, ), _ = base.enqueue.mock_calls[0]
+
+        self.assertIsInstance(leave_presence, aioxmpp.stanza.Presence)
+        self.assertEqual(leave_presence.type_,
+                         aioxmpp.structs.PresenceType.UNAVAILABLE)
+        self.assertEqual(leave_presence.to,
+                         TEST_MUC_JID.replace(resource="thirdwitch"))
+
+        _, (_, cycle_history, _, _), _ = base._send_join_presence.mock_calls[0]
+
+        self.assertIsInstance(cycle_history, muc_xso.History)
+        self.assertEqual(cycle_history.maxchars, 0)
+        self.assertEqual(cycle_history.maxstanzas, 0)

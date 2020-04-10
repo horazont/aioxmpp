@@ -171,12 +171,12 @@ Report and table support
 
 .. autoclass:: Item
 
-"""
+"""  # NOQA: E501
 
 
-from . import xso
+from . import xso  # NOQA: F401
 
-from .xso import (  # NOQA
+from .xso import (  # NOQA: F401
     Data,
     DataType,
     Field,
@@ -185,7 +185,7 @@ from .xso import (  # NOQA
     Item,
 )
 
-from .fields import (  # NOQA
+from .fields import (  # NOQA: F401
     Boolean,
     ListSingle,
     ListMulti,
@@ -196,6 +196,6 @@ from .fields import (  # NOQA
     TextPrivate,
 )
 
-from .form import (  # NOQA
+from .form import (  # NOQA: F401
     Form,
 )

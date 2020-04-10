@@ -37,7 +37,9 @@ functionality or provide backwards compatibility.
    forms
    hashes
    httpupload
+   ibb
    im
+   ibr
    mdr
    muc
    ping

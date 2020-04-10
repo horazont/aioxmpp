@@ -11,7 +11,11 @@ luarocks install luafilesystem
 luarocks install luasocket
 luarocks install luasec
 luarocks install luabitop
-hg clone https://hg.prosody.im/$PROSODY_BRANCH/ prosody
+HG_FLAGS=
+if [ "x$PROSODY_BRANCH" = 'x0.11' ]; then
+    HG_FLAGS="$HG_FLAGS -u 0.11"
+fi
+hg clone $HG_FLAGS https://hg.prosody.im/$PROSODY_BRANCH/ prosody
 hg clone https://hg.prosody.im/prosody-modules/ prosody-modules
 cp -r utils/prosody-cfg/$PROSODY_BRANCH/* prosody/
 cd prosody
