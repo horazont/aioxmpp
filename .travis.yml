@@ -47,6 +47,13 @@ matrix:
       apt:
         update: yes
     env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.11 WITH_BUILD_DEP=yes
+  - sudo: required
+    dist: xenial
+    python: "3.8"
+    addons:
+      apt:
+        update: yes
+    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.11 WITH_BUILD_DEP=yes
   allow_failures:
   - python: "3.6"
     env: TEST_MODE=e2e-prosody PROSODY_BRANCH=trunk WITH_BUILD_DEP=yes

@@ -2061,7 +2061,7 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
     def _pending_join_done(self, mucjid, room, fut):
         try:
             fut.result()
-        except Exception as exc:
+        except (Exception, asyncio.CancelledError) as exc:
             room.on_failure(exc)
 
         if fut.cancelled():
