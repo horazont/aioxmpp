@@ -174,6 +174,10 @@ class MUCPinger:
         * :class:`aioxmpp.errors.XMPPError`, ``feature-not-implemented``:
           *positive*
         * :class:`aioxmpp.errors.XMPPError`, ``item-not-found``: *inconclusive*
+        * :class:`aioxmpp.errors.XMPPError`, ``remote-server-not-found``:
+          *inconclusive*
+        * :class:`aioxmpp.errors.XMPPError`, ``remote-server-timeout``:
+          *inconclusive*
         * :class:`aioxmpp.errors.XMPPError`: *negative*
         * :class:`asyncio.TimeoutError`: *inconclusive*
         * Any other exception: *inconclusive*
@@ -197,7 +201,10 @@ class MUCPinger:
                 self._on_fresh()
                 return
 
-            if exc.condition == aioxmpp.errors.ErrorCondition.ITEM_NOT_FOUND:
+            if exc.condition in [
+                    aioxmpp.errors.ErrorCondition.ITEM_NOT_FOUND,
+                    aioxmpp.errors.ErrorCondition.REMOTE_SERVER_NOT_FOUND,
+                    aioxmpp.errors.ErrorCondition.REMOTE_SERVER_TIMEOUT]:
                 self._logger.debug(
                     "%s: ping reply has inconclusive error: %s",
                     self.ping_address,

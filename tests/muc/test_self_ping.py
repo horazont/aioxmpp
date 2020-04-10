@@ -642,6 +642,36 @@ class TestMUCPinger(unittest.TestCase):
             self.listener.on_fresh.assert_not_called()
             self.listener.on_exited.assert_not_called()
 
+    def test__interpret_result_emits_nothing_for_remote_server_not_found(self):
+        for type_ in [aioxmpp.errors.XMPPCancelError,
+                      aioxmpp.errors.XMPPWaitError,
+                      aioxmpp.errors.XMPPAuthError,
+                      aioxmpp.errors.XMPPModifyError]:
+            fut = asyncio.Future()
+            fut.set_exception(
+                type_(aioxmpp.errors.ErrorCondition.REMOTE_SERVER_NOT_FOUND)
+            )
+
+            self.p._interpret_result(fut)
+
+            self.listener.on_fresh.assert_not_called()
+            self.listener.on_exited.assert_not_called()
+
+    def test__interpret_result_emits_nothing_for_remote_server_not_found(self):
+        for type_ in [aioxmpp.errors.XMPPCancelError,
+                      aioxmpp.errors.XMPPWaitError,
+                      aioxmpp.errors.XMPPAuthError,
+                      aioxmpp.errors.XMPPModifyError]:
+            fut = asyncio.Future()
+            fut.set_exception(
+                type_(aioxmpp.errors.ErrorCondition.REMOTE_SERVER_TIMEOUT)
+            )
+
+            self.p._interpret_result(fut)
+
+            self.listener.on_fresh.assert_not_called()
+            self.listener.on_exited.assert_not_called()
+
     def test__interpret_result_emits_nothing_for_timeout(self):
         fut = asyncio.Future()
         fut.set_exception(
