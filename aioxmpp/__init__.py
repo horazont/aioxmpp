@@ -93,12 +93,12 @@ __version__ = __version__
 # version number isn’t printed in the docs (without additional maintenance
 # cost).
 
-import asyncio # NOQA
+import asyncio  # NOQA
 # Adds fallback if asyncio version does not provide an ensure_future function.
 if not hasattr(asyncio, "ensure_future"):
     asyncio.ensure_future = getattr(asyncio, "async")
 
-from .errors import ( # NOQA
+from .errors import (  # NOQA
     XMPPAuthError,
     XMPPCancelError,
     XMPPContinueError,

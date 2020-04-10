@@ -184,6 +184,8 @@ Version 0.11
   :class:`aioxmpp.xso.EnumCDataType` with `allow_coerce` set to true but
   `deprecate_coerce` set to false.
 
+* Support for the :xep:`308` schema in :mod:`aioxmpp.misc`
+
 .. _api-changelog-0.10:
 
 Version 0.10

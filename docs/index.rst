@@ -130,6 +130,7 @@ From XMPP Extension Proposals (XEPs)
 * :xep:`280` (Message Carbons), see :mod:`aioxmpp.carbons`
 * :xep:`300` (Use of Cryptographic Hash Functions in XMPP),
   see :mod:`aioxmpp.hashes`
+* :xep:`308` (Last Message Correction), schema-only, see :mod:`aioxmpp.misc`
 * :xep:`333` (Chat Markers), schema-only, see :mod:`aioxmpp.misc`
 * :xep:`335` (JSON Containers), see :mod:`aioxmpp.misc`
 * :xep:`363` (HTTP Upload), see :mod:`aioxmpp.httpupload`

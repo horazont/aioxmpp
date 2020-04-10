@@ -53,6 +53,17 @@ Stanza Forwarding (:xep:`297`)
 .. autoclass:: Forwarded()
 
 
+Last Message Correction (:xep:`308`)
+====================================
+
+.. autoclass:: Replace()
+
+.. attribute:: aioxmpp.Message.xep308_replace
+
+    A :class:`Replace` instance which indicates that the message is supposed
+    to replcae another message.
+
+
 Chat Markers (:xep:`333`)
 =========================
 
@@ -113,6 +124,7 @@ Current Jabber OpenPGP Usage (:xep:`27`)
 """
 
 from .delay import Delay  # NOQA: F401
+from .lmc import Replace  # NOQA: F401
 from .forwarding import Forwarded  # NOQA: F401
 from .oob import OOBExtension  # NOQA: F401
 from .markers import (  # NOQA: F401
