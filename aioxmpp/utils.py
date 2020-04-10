@@ -49,6 +49,8 @@ Miscellaneous utilities used throughout the aioxmpp codebase.
 
 .. autodecorator:: magicmethod
 
+.. autofunction:: proxy_property
+
 """
 
 import asyncio
@@ -537,6 +539,29 @@ class AlivenessMonitor:
 def proxy_property(owner_attr, member_attr, *,
                    readonly=False,
                    allow_delete=False):
+    """
+    Proxy a property of a member.
+
+    :param owner_attr: The name of the attribute at which the member can
+        be found.
+    :type owner_attr: :class:`str`
+    :param member_attr: The name of the member property to proxy.
+    :type member_attr: :class:`str`
+    :param readonly: If true, the proxied property will not be writable, even
+        if the original property is writable.
+    :type readonly: :class:`bool`
+    :param allow_delete: If true, the ``del`` operator is allowed on the
+        proxy property and will be forwarded to the target property.
+    :type allow_delete: :class:`bool`
+
+    .. versionadded:: 0.11.0
+
+    This can be useful when combining classes via composition instead of
+    inheritance.
+
+    It is not necessary to set `readonly` to true if the target property is
+    already readonly.
+    """
     ga = getattr
     sa = setattr
     da = delattr
