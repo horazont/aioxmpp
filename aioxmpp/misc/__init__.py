@@ -53,6 +53,17 @@ Stanza Forwarding (:xep:`297`)
 .. autoclass:: Forwarded()
 
 
+Last Message Correction (:xep:`308`)
+====================================
+
+.. autoclass:: Replace()
+
+.. attribute:: aioxmpp.Message.xep308_replace
+
+    A :class:`Replace` instance which indicates that the message is supposed
+    to replcae another message.
+
+
 Chat Markers (:xep:`333`)
 =========================
 
