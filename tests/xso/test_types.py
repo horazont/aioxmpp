@@ -1353,16 +1353,19 @@ class TestEnumCDataType(unittest.TestCase):
                 e.coerce(thing)
 
     def test_try_to_coerce_if_allow_coerce_is_set(self):
-        enum_class = unittest.mock.Mock()
-        enum_class.return_value = unittest.mock.sentinel.wrapped
         nested_t = xso.Integer()
         t = xso.EnumCDataType(
-            enum_class,
+            self.SomeEnum,
             nested_t,
             allow_coerce=True,
         )
 
         with contextlib.ExitStack() as stack:
+            enum_constructor = stack.enter_context(unittest.mock.patch.object(
+                type(self.SomeEnum), "__call__"
+            ))
+            enum_constructor.return_value = unittest.mock.sentinel.wrapped
+
             w = stack.enter_context(warnings.catch_warnings())
             coerce = stack.enter_context(
                 unittest.mock.patch.object(nested_t, "coerce")
@@ -1371,7 +1374,7 @@ class TestEnumCDataType(unittest.TestCase):
             coerce.return_value = unittest.mock.sentinel.coerced
             result = t.coerce(unittest.mock.sentinel.value)
 
-        enum_class.assert_called_with(
+        enum_constructor.assert_called_with(
             unittest.mock.sentinel.coerced,
         )
 
@@ -1382,15 +1385,25 @@ class TestEnumCDataType(unittest.TestCase):
 
         self.assertFalse(w)
 
+    def test_pass_Enum_values_through_coerce_if_coercion_is_allowed(self):
+        e = xso.EnumCDataType(self.SomeEnum, allow_coerce=True)
+        for enum_value in self.SomeEnum:
+            self.assertIs(enum_value, e.coerce(enum_value))
+
     def test_value_error_propagates(self):
         exc = ValueError()
 
-        enum_class = unittest.mock.Mock()
-        enum_class.side_effect = exc
-        e = xso.EnumCDataType(enum_class, xso.Integer(), allow_coerce=True)
+        with contextlib.ExitStack() as stack:
+            enum_constructor = stack.enter_context(unittest.mock.patch.object(
+                type(self.SomeEnum), "__call__"
+            ))
+            enum_constructor.side_effect = exc
+            e = xso.EnumCDataType(self.SomeEnum,
+                                  xso.Integer(),
+                                  allow_coerce=True)
 
-        with self.assertRaises(ValueError) as ctx:
-            e.coerce(1234)
+            with self.assertRaises(ValueError) as ctx:
+                e.coerce(1234)
 
         self.assertIs(ctx.exception, exc)
 
