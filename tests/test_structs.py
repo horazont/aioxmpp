@@ -29,6 +29,32 @@ import aioxmpp.structs as structs
 import aioxmpp.stanza as stanza
 
 
+ESCAPING_TEST_VECTORS = [
+    # boring test vectors
+    (r"foo", r"foo"),
+    # less boring test vectors
+    (r"\5c", r"\5c5c"),
+    (r"\5C", r"\5C"),
+    # those are straight from XEP-0106
+    (r"space cadet", r"space\20cadet"),
+    (r'call me "ishmael"', r"call\20me\20\22ishmael\22"),
+    (r"at&t guy", r"at\26t\20guy"),
+    (r"d'artagnan", r"d\27artagnan"),
+    (r"/.fanboy", r"\2f.fanboy"),
+    (r"::foo::", r"\3a\3afoo\3a\3a"),
+    (r"<foo>", r"\3cfoo\3e"),
+    (r"user@host", r"user\40host"),
+    (r"c:\net", r"c\3a\net"),
+    (r"c:\\net", r"c\3a\\net"),
+    (r"c:\cool stuff", r"c\3a\cool\20stuff"),
+    (r"c:\5commas", r"c\3a\5c5commas"),
+    # exceptions
+    (r"\2plus\2is\4", r"\2plus\2is\4"),
+    (r"foo\bar", r"foo\bar"),
+    (r"foo\41r", r"foo\41r"),
+]
+
+
 class DisableCompat:
     def __enter__(self):
         if aioxmpp.version_info < (1, 0, 0):
@@ -1470,3 +1496,19 @@ class TestLanguageMap(unittest.TestCase):
         m[structs.LanguageTag.fromstr("de")] = "Test"
 
         self.assertEqual(m.any(), "Test")
+
+
+class Testjid_escape(unittest.TestCase):
+    def test_vectors(self):
+        for unescaped, escaped in ESCAPING_TEST_VECTORS:
+            self.assertEqual(structs.jid_escape(unescaped),
+                             escaped,
+                             unescaped)
+
+
+class Testjid_unescape(unittest.TestCase):
+    def test_vectors(self):
+        for unescaped, escaped in ESCAPING_TEST_VECTORS:
+            self.assertEqual(structs.jid_unescape(escaped),
+                             unescaped,
+                             escaped)

@@ -115,6 +115,7 @@ From XMPP Extension Proposals (XEPs)
 * :xep:`82` (XMPP Date and Time Profiles), via :class:`aioxmpp.xso.DateTime` and others
 * :xep:`84` (User Avatar), see :mod:`aioxmpp.avatar`
 * :xep:`92` (Software Version), see :mod:`aioxmpp.version`
+* :xep:`106` (JID Escaping), see :func:`aioxmpp.jid_unescape`, :func:`aioxmpp.jid_escape`
 * :xep:`115` (Entity Capabilities), see :mod:`aioxmpp.entitycaps`, including
   read/write support for the capsdb
 * :xep:`163` (Personal Eventing Protocol), see :mod:`aioxmpp.pep`

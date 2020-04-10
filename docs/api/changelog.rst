@@ -178,6 +178,8 @@ Version 0.11
 * *Possible breaking change*: Renamed :meth:`aioxmpp.xso.XSO.unparse_to_sax` to
   :meth:`~aioxmpp.xso.XSO.xso_serialise_to_sax`.
 
+* :func:`aioxmpp.jid_escape`, :func:`aioxmpp.jid_unescape`
+
 .. _api-changelog-0.10:
 
 Version 0.10
