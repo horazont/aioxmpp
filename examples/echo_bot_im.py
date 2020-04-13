@@ -57,8 +57,7 @@ class EchoBot(Example):
         )
         return client
 
-    @asyncio.coroutine
-    def run_simple_example(self):
+    async def run_simple_example(self):
         stop_event = self.make_sigint_event()
 
         self.dispatcher.message_filter.register(
@@ -67,7 +66,7 @@ class EchoBot(Example):
         )
 
         print("echoing... (press Ctrl-C or send SIGTERM to stop)")
-        yield from stop_event.wait()
+        await stop_event.wait()
 
 
 if __name__ == "__main__":

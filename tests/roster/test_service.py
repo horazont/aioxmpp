@@ -1635,14 +1635,13 @@ class TestService(unittest.TestCase):
             )
         )
 
-        @asyncio.coroutine
-        def send(iq, timeout=None):
+        async def send(iq, timeout=None):
             # this is brutal, but a sure way to provoke the race
             asyncio.ensure_future(self.s.handle_roster_push(push))
             # give the roster push a chance to act
-            # (we cannot yield from the handle_roster_push() here: in the fixed
+            # (we cannot await the handle_roster_push() here: in the fixed
             # version that would be a deadlock)
-            yield from asyncio.sleep(0)
+            await asyncio.sleep(0)
             return initial
 
         self.cc.send = unittest.mock.Mock()

@@ -36,8 +36,7 @@ class VCardService(service.Service):
     .. automethod:: set_vcard
     """
 
-    @asyncio.coroutine
-    def get_vcard(self, jid=None):
+    async def get_vcard(self, jid=None):
         """
         Get the vCard stored for the jid `jid`. If `jid` is
         :data:`None` get the vCard of the connected entity.
@@ -58,7 +57,7 @@ class VCardService(service.Service):
         )
 
         try:
-            return (yield from self.client.send(iq))
+            return await self.client.send(iq)
         except aioxmpp.XMPPCancelError as e:
             if e.condition in (
                     aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED,
@@ -67,8 +66,7 @@ class VCardService(service.Service):
             else:
                 raise
 
-    @asyncio.coroutine
-    def set_vcard(self, vcard):
+    async def set_vcard(self, vcard):
         """
         Store the vCard `vcard` for the connected entity.
 
@@ -89,4 +87,4 @@ class VCardService(service.Service):
             type_=aioxmpp.IQType.SET,
             payload=vcard,
         )
-        yield from self.client.send(iq)
+        await self.client.send(iq)

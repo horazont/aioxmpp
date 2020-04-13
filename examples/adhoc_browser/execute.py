@@ -70,15 +70,14 @@ class Executor(Qt.QDialog):
         self._action(aioxmpp.adhoc.ActionType.COMPLETE)
 
     @asyncify_blocking
-    @asyncio.coroutine
-    def run_with_session_fut(self, name, session_fut):
+    async def run_with_session_fut(self, name, session_fut):
         self.setWindowTitle("{} - {}".format(
             name,
             self.base_title
         ))
         self.show()
         try:
-            self.session = yield from session_fut
+            self.session = await session_fut
         except Exception as exc:
             self.fail(exc)
             return
@@ -250,9 +249,8 @@ class Executor(Qt.QDialog):
         self._submit_action(type_)
 
     @asyncify_blocking
-    @asyncio.coroutine
-    def _submit_action(self, type_):
-        yield from self.session.proceed(action=type_)
+    async def _submit_action(self, type_):
+        await self.session.proceed(action=type_)
         self.response_received()
 
     def response_received(self):
@@ -273,7 +271,7 @@ class Executor(Qt.QDialog):
         self.close()
 
     @asyncify
-    def closeEvent(self, ev):
+    async def closeEvent(self, ev):
         if self.session is not None:
-            yield from self.session.close()
+            await self.session.close()
         return super().closeEvent(ev)

@@ -463,8 +463,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertFalse(w)
 
     def test_register_iq_request_handler_rejects_duplicate_registration(self):
-        @asyncio.coroutine
-        def handle_request(stanza):
+        async def handle_request(stanza):
             pass
 
         self.stream.register_iq_request_handler(
@@ -472,8 +471,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             FancyTestIQ,
             handle_request)
 
-        @asyncio.coroutine
-        def handle_request(stanza):
+        async def handle_request(stanza):
             pass
 
         with self.assertRaises(ValueError):
@@ -572,8 +570,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         response_payload, response_iq = None, None
 
-        @asyncio.coroutine
-        def handle_request(stanza):
+        async def handle_request(stanza):
             nonlocal response_payload
             response_payload = unittest.mock.sentinel.payload
             return response_payload
@@ -612,8 +609,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         response_payload, response_iq = None, None
 
-        @asyncio.coroutine
-        def handle_request(stanza):
+        async def handle_request(stanza):
             nonlocal response_payload
             response_payload = FancyTestIQ()
             return response_payload
@@ -640,8 +636,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         response_payload, response_iq = None, None
 
-        @asyncio.coroutine
-        def handle_request(stanza, send_result):
+        async def handle_request(stanza, send_result):
             nonlocal response_payload
             response_payload = FancyTestIQ()
             send_result(response_payload)
@@ -681,8 +676,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         response_payload, response_iq = None, None
 
-        @asyncio.coroutine
-        def handle_request(stanza, send_result):
+        async def handle_request(stanza, send_result):
             nonlocal response_payload
             response_payload = unittest.mock.sentinel.fnord
             send_result(response_payload)
@@ -738,8 +732,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         response_got = None
 
-        @asyncio.coroutine
-        def handle_request(stanza, send_reply):
+        async def handle_request(stanza, send_reply):
             send_reply(
                 errors.XMPPWaitError(
                     errors.ErrorCondition.GONE,
@@ -795,8 +788,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         extracted_send_result = None
 
-        @asyncio.coroutine
-        def handle_request(stanza, send_result):
+        async def handle_request(stanza, send_result):
             nonlocal extracted_send_result
             extracted_send_result = send_result
 
@@ -829,8 +821,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         ok = 0
 
-        @asyncio.coroutine
-        def handle_request(stanza, send_result):
+        async def handle_request(stanza, send_result):
             nonlocal ok
             send_result()
             try:
@@ -865,8 +856,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         response_got = None
 
-        @asyncio.coroutine
-        def handle_request(stanza, send_reply):
+        async def handle_request(stanza, send_reply):
             send_reply(
                 errors.XMPPWaitError(
                     errors.ErrorCondition.GONE,
@@ -971,8 +961,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         response_got = None
 
-        @asyncio.coroutine
-        def handle_request(stanza):
+        async def handle_request(stanza):
             raise Exception("foo")
 
         self.stream.register_iq_request_handler(
@@ -1028,8 +1017,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         response_got = None
 
-        @asyncio.coroutine
-        def handle_request(stanza):
+        async def handle_request(stanza):
             raise errors.XMPPWaitError(
                 errors.ErrorCondition.GONE,
                 text="foobarbaz",
@@ -1105,8 +1093,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         recvd = None
 
-        @asyncio.coroutine
-        def handle_request(stanza):
+        async def handle_request(stanza):
             nonlocal recvd
             recvd = stanza
 
@@ -1797,12 +1784,11 @@ class TestStanzaStream(StanzaStreamTestBase):
         exc = None
         running = False
 
-        @asyncio.coroutine
-        def coro(stanza):
+        async def coro(stanza):
             nonlocal exc, running
             running = True
             try:
-                yield from asyncio.sleep(10)
+                await asyncio.sleep(10)
             except BaseException as inner_exc:
                 exc = inner_exc
                 raise
@@ -1831,12 +1817,11 @@ class TestStanzaStream(StanzaStreamTestBase):
         exc = None
         running = False
 
-        @asyncio.coroutine
-        def coro(stanza):
+        async def coro(stanza):
             nonlocal exc, running
             running = True
             try:
-                yield from asyncio.sleep(10)
+                await asyncio.sleep(10)
             except BaseException as inner_exc:
                 exc = inner_exc
                 raise
@@ -2138,9 +2123,8 @@ class TestStanzaStream(StanzaStreamTestBase):
     def test_stanza_future_raises_if_stream_interrupts_without_sm(self):
         iq = make_test_iq()
 
-        @asyncio.coroutine
-        def kill_it():
-            yield from asyncio.sleep(0)
+        async def kill_it():
+            await asyncio.sleep(0)
             self.stream.stop()
 
         self.stream.start(self.xmlstream)
@@ -4485,8 +4469,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         iq_sent = make_test_iq()
 
-        @asyncio.coroutine
-        def starter():
+        async def starter():
             sm_start_future = asyncio.ensure_future(self.stream.start_sm())
             self.stream._enqueue(iq_sent)
 
@@ -5141,7 +5124,6 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             run_coroutine(self.stream.resume_sm(self.xmlstream))
 
     def test_sm_stop_requires_stopped_stream(self):
-        self.stream.start_sm()
         self.stream.start(self.xmlstream)
         with self.assertRaisesRegex(RuntimeError, "is running"):
             self.stream.stop_sm()

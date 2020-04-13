@@ -50,10 +50,9 @@ class ListAdhocCommands(Example):
             self.g_jid.replace(resource=None, localpart=None)
         )
 
-    @asyncio.coroutine
-    def run_simple_example(self):
+    async def run_simple_example(self):
         adhoc = self.client.summon(aioxmpp.adhoc.AdHocClient)
-        for item in (yield from adhoc.get_commands(self.adhoc_peer_jid)):
+        for item in await adhoc.get_commands(self.adhoc_peer_jid):
             print("{}: {}".format(
                 item.node,
                 item.name

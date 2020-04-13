@@ -420,7 +420,7 @@ class StanzaToken:
                 self._state_exception or
                 ValueError("failed to send stanza for unknown local reasons")
             )
-        elif     (self._state == StanzaState.SENT_WITHOUT_SM or
+        elif (self._state == StanzaState.SENT_WITHOUT_SM or
                   self._state == StanzaState.ACKED):
             self._sent_future.set_result(None)
 
@@ -450,7 +450,6 @@ class StanzaToken:
     def __repr__(self):
         return "<StanzaToken id=0x{:016x}>".format(id(self))
 
-    @asyncio.coroutine
     def __await__(self):
         try:
             yield from asyncio.shield(self.future)
@@ -1908,8 +1907,7 @@ class StanzaStream:
         self._logger.debug("sending stop signal to task")
         self._task.cancel()
 
-    @asyncio.coroutine
-    def wait_stop(self):
+    async def wait_stop(self):
         """
         Stop the stream and wait for it to stop.
 
@@ -1920,12 +1918,11 @@ class StanzaStream:
             return
         self.stop()
         try:
-            yield from self._task
+            await self._task
         except asyncio.CancelledError:
             pass
 
-    @asyncio.coroutine
-    def close(self):
+    async def close(self):
         """
         Close the stream and the underlying XML stream (if any is connected).
 
@@ -1966,8 +1963,8 @@ class StanzaStream:
                     counter=self._sm_inbound_ctr
                 ))
 
-            yield from self._xmlstream.close_and_wait()  # does not raise
-            yield from self.wait_stop()  # may raise
+            await self._xmlstream.close_and_wait()  # does not raise
+            await self.wait_stop()  # may raise
 
         self._closed = True
         self._xmlstream_exception = exc
@@ -1975,8 +1972,7 @@ class StanzaStream:
         if self.sm_enabled:
             self.stop_sm()
 
-    @asyncio.coroutine
-    def _run(self, xmlstream):
+    async def _run(self, xmlstream):
         self._xmlstream = xmlstream
         self._update_xmlstream_limits()
         active_fut = asyncio.ensure_future(self._active_queue.get(),
@@ -1987,7 +1983,7 @@ class StanzaStream:
         try:
             while True:
                 timeout = None
-                done, pending = yield from asyncio.wait(
+                done, pending = await asyncio.wait(
                     [
                         active_fut,
                         incoming_fut,
@@ -1995,7 +1991,7 @@ class StanzaStream:
                     return_when=asyncio.FIRST_COMPLETED,
                     timeout=timeout)
 
-                with (yield from self._broker_lock):
+                async with self._broker_lock:
                     if active_fut in done:
                         self._process_outgoing(xmlstream, active_fut.result())
                         active_fut = asyncio.ensure_future(
@@ -2026,7 +2022,7 @@ class StanzaStream:
 
             # we also lock shutdown, because the main race is among the SM
             # variables
-            with (yield from self._broker_lock):
+            async with self._broker_lock:
                 if not self.sm_enabled or not self.sm_resumable:
                     self._destroy_stream_state(
                         self._xmlstream_exception or
@@ -2086,8 +2082,7 @@ class StanzaStream:
         """
         return self._task is not None and not self._task.done()
 
-    @asyncio.coroutine
-    def start_sm(self, request_resumption=True, resumption_timeout=None):
+    async def start_sm(self, request_resumption=True, resumption_timeout=None):
         """
         Start stream management (version 3).
 
@@ -2191,8 +2186,8 @@ class StanzaStream:
                 nonza.SMAcknowledgement,
                 self.recv_stanza)
 
-        with (yield from self._broker_lock):
-            response = yield from protocol.send_and_wait_for(
+        async with self._broker_lock:
+            response = await protocol.send_and_wait_for(
                 self._xmlstream,
                 [
                     nonza.SMEnable(resume=bool(request_resumption),
@@ -2355,8 +2350,7 @@ class StanzaStream:
             token._set_state(new_state, *args)
         self._sm_unacked_list.clear()
 
-    @asyncio.coroutine
-    def resume_sm(self, xmlstream):
+    async def resume_sm(self, xmlstream):
         """
         Resume an SM-enabled stream using the given `xmlstream`.
 
@@ -2399,7 +2393,7 @@ class StanzaStream:
 
         self._start_prepare(xmlstream, self.recv_stanza)
         try:
-            response = yield from protocol.send_and_wait_for(
+            response = await protocol.send_and_wait_for(
                 xmlstream,
                 [
                     nonza.SMResume(previd=self.sm_id,
@@ -2505,9 +2499,7 @@ class StanzaStream:
         for token in acked:
             token._set_state(StanzaState.ACKED)
 
-    @asyncio.coroutine
-    def send_iq_and_wait_for_reply(self, iq, *,
-                                   timeout=None):
+    async def send_iq_and_wait_for_reply(self, iq, *, timeout=None):
         """
         Send an IQ stanza `iq` and wait for the response. If `timeout` is not
         :data:`None`, it must be the time in seconds for which to wait for a
@@ -2539,10 +2531,9 @@ class StanzaStream:
             DeprecationWarning,
             stacklevel=1,
         )
-        return (yield from self.send(iq, timeout=timeout))
+        return await self.send(iq, timeout=timeout)
 
-    @asyncio.coroutine
-    def send_and_wait_for_sent(self, stanza):
+    async def send_and_wait_for_sent(self, stanza):
         """
         Send the given `stanza` over the given :class:`StanzaStream` `stream`.
 
@@ -2555,10 +2546,9 @@ class StanzaStream:
             DeprecationWarning,
             stacklevel=1,
         )
-        yield from self._enqueue(stanza)
+        await self._enqueue(stanza)
 
-    @asyncio.coroutine
-    def _send_immediately(self, stanza, *, timeout=None, cb=None):
+    async def _send_immediately(self, stanza, *, timeout=None, cb=None):
         """
         Send a stanza without waiting for the stream to be ready to send
         stanzas.
@@ -2575,7 +2565,7 @@ class StanzaStream:
                 raise ValueError(
                     "cb not supported with non-IQ non-request stanzas"
                 )
-            yield from self._enqueue(stanza)
+            await self._enqueue(stanza)
             return
 
         # we use the long way with a custom listener instead of a future here
@@ -2648,17 +2638,17 @@ class StanzaStream:
         )
 
         try:
-            yield from self._enqueue(stanza)
+            await self._enqueue(stanza)
         except Exception:
             listener.cancel()
             raise
 
         try:
             if not timeout:
-                reply = yield from fut
+                reply = await fut
             else:
                 try:
-                    reply = yield from asyncio.wait_for(
+                    reply = await asyncio.wait_for(
                         fut,
                         timeout=timeout
                     )
@@ -2672,8 +2662,7 @@ class StanzaStream:
 
         return reply
 
-    @asyncio.coroutine
-    def send(self, stanza, timeout=None, *, cb=None):
+    async def send(self, stanza, timeout=None, *, cb=None):
         """
         Deprecated alias of :meth:`aioxmpp.Client.send`.
 

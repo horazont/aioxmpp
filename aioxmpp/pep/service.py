@@ -148,12 +148,11 @@ class PEPClient(service.Service):
     def _unclaim(self, node_namespace):
         self._pep_node_claims.pop(node_namespace)
 
-    @asyncio.coroutine
-    def available(self):
+    async def available(self):
         """
         Check whether we have a PEP identity associated with our account.
         """
-        disco_info = yield from self._disco_client.query_info(
+        disco_info = await self._disco_client.query_info(
             self.client.local_jid.bare()
         )
 
@@ -162,12 +161,11 @@ class PEPClient(service.Service):
                 return True
         return False
 
-    @asyncio.coroutine
-    def _check_for_pep(self):
+    async def _check_for_pep(self):
         # XXX: should this be done when the stream connects
         # and we use the cached result later on (i.e. disable
         # the PEP service if the server does not support PEP)
-        if not (yield from self.available()):
+        if not await self.available():
             raise RuntimeError("server does not support PEP")
 
     @service.depsignal(aioxmpp.PubSubClient, "on_item_published")
@@ -190,7 +188,7 @@ class PEPClient(service.Service):
 
         registered_node.on_item_publish(jid, node, item, message=message)
 
-    def publish(self, node, data, *, id_=None, access_model=None):
+    async def publish(self, node, data, *, id_=None, access_model=None):
         """
         Publish an item `data` in the PubSub node `node` on the
         PEP service associated with the user's JID.
@@ -242,11 +240,11 @@ class PEPClient(service.Service):
                 values=[access_model],
             ))
 
-        yield from self._check_for_pep()
-        return (yield from self._pubsub.publish(
+        await self._check_for_pep()
+        return await self._pubsub.publish(
             None, node, data, id_=id_,
             publish_options=publish_options
-        ))
+        )
 
 
 class RegisteredPEPNode:

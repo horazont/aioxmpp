@@ -39,23 +39,21 @@ from aioxmpp.e2etest import (
 class TestAdHocClient(TestCase):
     @require_feature(namespaces.xep0050_commands, multiple=True)
     @blocking
-    @asyncio.coroutine
-    def setUp(self, commands_providers):
+    async def setUp(self, commands_providers):
         services = [aioxmpp.AdHocClient]
 
         self.peers = commands_providers
 
-        self.client, = yield from asyncio.gather(
+        self.client, = await asyncio.gather(
             self.provisioner.get_connected_client(
                 services=services,
             ),
         )
         self.svc = self.client.summon(aioxmpp.AdHocClient)
 
-    @asyncio.coroutine
-    def _get_ping_peer(self):
+    async def _get_ping_peer(self):
         for peer in self.peers:
-            for item in (yield from self.svc.get_commands(peer)):
+            for item in await self.svc.get_commands(peer):
                 if item.node == "ping":
                     return peer
         self.assertTrue(
@@ -65,42 +63,36 @@ class TestAdHocClient(TestCase):
         )
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_get_list(self):
+    async def test_get_list(self):
         items = []
         for peer in self.peers:
-            items.extend((yield from self.svc.get_commands(
+            items.extend(await self.svc.get_commands(
                 peer
-            )))
+            ))
 
         self.assertTrue(items)
 
     @skip_with_quirk(Quirk.NO_ADHOC_PING)
     @blocking_timed
-    @asyncio.coroutine
-    def test_ping(self):
-        ping_peer = yield from self._get_ping_peer()
-        session = yield from self.svc.execute(ping_peer, "ping")
+    async def test_ping(self):
+        ping_peer = await self._get_ping_peer()
+        session = await self.svc.execute(ping_peer, "ping")
         self.assertTrue(session.response.notes)
-        yield from session.close()
+        await session.close()
 
     @skip_with_quirk(Quirk.NO_ADHOC_PING)
     @blocking_timed
-    @asyncio.coroutine
-    def test_ping_with_async_cm(self):
-        # TODO: port this to python 3.5+ once we require its
-        ping_peer = yield from self._get_ping_peer()
-        session = yield from self.svc.execute(ping_peer, "ping")
-        yield from session.__aenter__()
-        self.assertTrue(session.response.notes)
-        yield from session.__aexit__(None, None, None)
+    async def test_ping_with_async_cm(self):
+        ping_peer = await self._get_ping_peer()
+        session = await self.svc.execute(ping_peer, "ping")
+        async with session:
+            self.assertTrue(session.response.notes)
 
 
 class TestAdHocServer(TestCase):
     @blocking
-    @asyncio.coroutine
-    def setUp(self):
-        self.client, self.server = yield from asyncio.gather(
+    async def setUp(self):
+        self.client, self.server = await asyncio.gather(
             self.provisioner.get_connected_client(
                 services=[aioxmpp.adhoc.AdHocClient],
             ),
@@ -112,8 +104,7 @@ class TestAdHocServer(TestCase):
         self.client_svc = self.server.summon(aioxmpp.adhoc.AdHocClient)
         self.server_svc = self.server.summon(aioxmpp.adhoc.AdHocServer)
 
-    @asyncio.coroutine
-    def _trivial_handler(self, stanza):
+    async def _trivial_handler(self, stanza):
         return aioxmpp.adhoc.xso.Command(
             "simple",
             notes=[
@@ -125,17 +116,13 @@ class TestAdHocServer(TestCase):
         )
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_advertises_command_support(self):
-        self.assertTrue(
-            (yield from self.client_svc.supports_commands(
-                self.server.local_jid,
-            ))
-        )
+    async def test_advertises_command_support(self):
+        self.assertTrue(await self.client_svc.supports_commands(
+            self.server.local_jid,
+        ))
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_respond_to_command_listing(self):
+    async def test_respond_to_command_listing(self):
         self.server_svc.register_stateless_command(
             "simple",
             {
@@ -145,7 +132,7 @@ class TestAdHocServer(TestCase):
             self._trivial_handler,
         )
 
-        commands = yield from self.client_svc.get_commands(
+        commands = await self.client_svc.get_commands(
             self.server.local_jid
         )
         self.assertEqual(len(commands), 1)
@@ -161,8 +148,7 @@ class TestAdHocServer(TestCase):
         )
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_respond_to_command_info_query(self):
+    async def test_respond_to_command_info_query(self):
         self.server_svc.register_stateless_command(
             "simple",
             {
@@ -173,7 +159,7 @@ class TestAdHocServer(TestCase):
             features={"foo"},
         )
 
-        info = yield from self.client_svc.get_command_info(
+        info = await self.client_svc.get_command_info(
             self.server.local_jid,
             "simple",
         )
@@ -201,8 +187,7 @@ class TestAdHocServer(TestCase):
         )
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_execute_simple_command(self):
+    async def test_execute_simple_command(self):
         self.server_svc.register_stateless_command(
             "simple",
             {
@@ -212,7 +197,7 @@ class TestAdHocServer(TestCase):
             self._trivial_handler,
         )
 
-        session = yield from self.client_svc.execute(
+        session = await self.client_svc.execute(
             self.server.local_jid,
             "simple",
         )
@@ -224,13 +209,12 @@ class TestAdHocServer(TestCase):
         self.assertEqual(session.response.notes[0].body, "some info!")
         self.assertIsNone(session.first_payload)
 
-        yield from session.close()
+        await session.close()
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_properly_fail_for_unknown_command(self):
+    async def test_properly_fail_for_unknown_command(self):
         with self.assertRaises(aioxmpp.XMPPCancelError) as ctx:
-            session = yield from self.client_svc.execute(
+            session = await self.client_svc.execute(
                 self.server.local_jid,
                 "simple",
             )

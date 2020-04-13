@@ -71,14 +71,12 @@ class ListenPEP(Example):
 
         return client
 
-    @asyncio.coroutine
-    def run_example(self):
+    async def run_example(self):
         self.stop_event = self.make_sigint_event()
-        yield from super().run_example()
+        await super().run_example()
 
-    @asyncio.coroutine
-    def run_simple_example(self):
-        yield from self.stop_event.wait()
+    async def run_simple_example(self):
+        await self.stop_event.wait()
 
 
 if __name__ == "__main__":

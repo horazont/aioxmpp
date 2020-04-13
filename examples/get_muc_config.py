@@ -63,9 +63,8 @@ class ServerInfo(Example):
         client.summon(aioxmpp.MUCClient)
         return client
 
-    @asyncio.coroutine
-    def run_simple_example(self):
-        config = yield from self.client.summon(
+    async def run_simple_example(self):
+        config = await self.client.summon(
             aioxmpp.MUCClient
         ).get_room_config(
             self.muc_jid

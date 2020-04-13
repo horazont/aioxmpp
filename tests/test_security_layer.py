@@ -1616,8 +1616,7 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
 
         self.password_provider = unittest.mock.MagicMock()
 
-    @asyncio.coroutine
-    def _password_provider_wrapper(self, client_jid, nattempt):
+    async def _password_provider_wrapper(self, client_jid, nattempt):
         return self.password_provider(client_jid, nattempt)
 
     def _test_provider(self, provider,

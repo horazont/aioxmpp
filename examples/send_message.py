@@ -46,8 +46,7 @@ class SendMessage(Example):
             help="Message to send (default: Hello World!)",
         )
 
-    @asyncio.coroutine
-    def run_simple_example(self):
+    async def run_simple_example(self):
         # compose a message
         msg = aioxmpp.stanza.Message(
             to=self.args.recipient,
@@ -58,7 +57,7 @@ class SendMessage(Example):
         msg.body[None] = self.args.message
 
         print("sending message ...")
-        yield from self.client.send(msg)
+        await self.client.send(msg)
         print("message sent!")
 
 

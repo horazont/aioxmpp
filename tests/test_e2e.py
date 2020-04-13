@@ -41,19 +41,17 @@ class MadeUpIQPayload(aioxmpp.xso.XSO):
 
 class TestConnect(TestCase):
     @blocking_timed
-    @asyncio.coroutine
-    def test_provisioner_works_in_general(self):
-        connected = yield from self.provisioner.get_connected_client()
+    async def test_provisioner_works_in_general(self):
+        connected = await self.provisioner.get_connected_client()
         self.assertTrue(connected.running)
         self.assertTrue(connected.established)
 
 
 class TestMessaging(TestCase):
     @blocking_timed
-    @asyncio.coroutine
-    def test_message_from_a_to_b(self):
-        a = yield from self.provisioner.get_connected_client()
-        b = yield from self.provisioner.get_connected_client()
+    async def test_message_from_a_to_b(self):
+        a = await self.provisioner.get_connected_client()
+        b = await self.provisioner.get_connected_client()
 
         fut = asyncio.Future()
 
@@ -74,9 +72,9 @@ class TestMessaging(TestCase):
             msg_sent.body[aioxmpp.structs.LanguageTag.fromstr("en")] = \
                 "Hello World!"
 
-            yield from a.send(msg_sent)
+            await a.send(msg_sent)
 
-            msg_rcvd = yield from fut
+            msg_rcvd = await fut
 
         self.assertEqual(
             msg_rcvd.body[aioxmpp.structs.LanguageTag.fromstr("en")],
@@ -86,9 +84,8 @@ class TestMessaging(TestCase):
 
 class TestMisc(TestCase):
     @blocking_timed
-    @asyncio.coroutine
-    def test_receive_response_from_iq_to_bare_explicit_self(self):
-        c = yield from self.provisioner.get_connected_client()
+    async def test_receive_response_from_iq_to_bare_explicit_self(self):
+        c = await self.provisioner.get_connected_client()
 
         iq = aioxmpp.IQ(
             to=c.local_jid.bare(),
@@ -97,12 +94,11 @@ class TestMisc(TestCase):
         )
 
         with self.assertRaises(aioxmpp.errors.XMPPCancelError):
-            yield from c.send(iq)
+            await c.send(iq)
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_receive_response_from_iq_to_bare_self_using_None(self):
-        c = yield from self.provisioner.get_connected_client()
+    async def test_receive_response_from_iq_to_bare_self_using_None(self):
+        c = await self.provisioner.get_connected_client()
 
         iq = aioxmpp.IQ(
             to=None,
@@ -111,18 +107,16 @@ class TestMisc(TestCase):
         )
 
         with self.assertRaises(aioxmpp.errors.XMPPCancelError):
-            yield from c.send(iq)
+            await c.send(iq)
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_handle_malformed_iq_error_gracefully(self):
-        c = yield from self.provisioner.get_connected_client()
+    async def test_handle_malformed_iq_error_gracefully(self):
+        c = await self.provisioner.get_connected_client()
 
         if c.stream.sm_enabled:
             raise unittest.SkipTest("this test breaks with SM")
 
-        @asyncio.coroutine
-        def handler(iq):
+        async def handler(iq):
             # this is awful, but does the trick
             c.stream._xmlstream.data_received(
                 "<iq type='error' from='{}' to='{}' id='{}'/>".format(
@@ -145,12 +139,11 @@ class TestMisc(TestCase):
         )
 
         with self.assertRaises(aioxmpp.errors.ErroneousStanza):
-            yield from c.stream.send(iq)
+            await c.stream.send(iq)
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_handle_id_less_IQ_request_gracefully(self):
-        c = yield from self.provisioner.get_connected_client()
+    async def test_handle_id_less_IQ_request_gracefully(self):
+        c = await self.provisioner.get_connected_client()
 
         if c.stream.sm_enabled:
             raise unittest.SkipTest("this test breaks with SM")
@@ -170,12 +163,11 @@ class TestMisc(TestCase):
         )
 
         with self.assertRaises(aioxmpp.errors.XMPPCancelError):
-            yield from c.send(iq)
+            await c.send(iq)
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_exception_from_non_wellformed(self):
-        c = yield from self.provisioner.get_connected_client()
+    async def test_exception_from_non_wellformed(self):
+        c = await self.provisioner.get_connected_client()
 
         msg = aioxmpp.Message(
             to=c.local_jid,
@@ -184,8 +176,8 @@ class TestMisc(TestCase):
         msg.body[None] = "foo\u0000"
 
         with self.assertRaisesRegex(ValueError, "not allowed"):
-            yield from c.send(msg)
+            await c.send(msg)
 
         msg.body[None] = "foo"
 
-        yield from c.send(msg)
+        await c.send(msg)

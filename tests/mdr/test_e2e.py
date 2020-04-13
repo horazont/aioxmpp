@@ -36,9 +36,8 @@ LANG = aioxmpp.structs.LanguageTag.fromstr("en-gb")
 
 class TestMessaging(TestCase):
     @blocking_timed
-    @asyncio.coroutine
-    def setUp(self):
-        self.a, self.b = yield from asyncio.gather(
+    async def setUp(self):
+        self.a, self.b = await asyncio.gather(
             self.provisioner.get_connected_client(),
             self.provisioner.get_connected_client(),
         )
@@ -49,8 +48,7 @@ class TestMessaging(TestCase):
         )
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_send_with_attached_tracker(self):
+    async def test_send_with_attached_tracker(self):
         msg_delivered = asyncio.Event()
 
         def state_change_cb(new_state, *args):
@@ -72,9 +70,9 @@ class TestMessaging(TestCase):
 
         self.b_recv.register_callback(aioxmpp.MessageType.CHAT, None, cb)
 
-        yield from self.a.send(msg)
+        await self.a.send(msg)
 
-        msg_b = yield from msg_recvd
+        msg_b = await msg_recvd
         self.assertDictEqual(
             msg_b.body,
             {
@@ -86,6 +84,6 @@ class TestMessaging(TestCase):
         self.assertFalse(msg_delivered.is_set())
 
         response = aioxmpp.mdr.compose_receipt(msg_b)
-        yield from self.b.send(response)
+        await self.b.send(response)
 
-        yield from msg_delivered.wait()
+        await msg_delivered.wait()

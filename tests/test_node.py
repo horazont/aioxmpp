@@ -1678,8 +1678,7 @@ class Testconnect_xmlstream(unittest.TestCase):
 
 
 class TestClient(xmltestutils.XMLTestCase):
-    @asyncio.coroutine
-    def _connect_xmlstream(self, *args, **kwargs):
+    async def _connect_xmlstream(self, *args, **kwargs):
         self.connect_xmlstream_rec(*args, **kwargs)
         return None, self.xmlstream, self.features
 
@@ -2094,10 +2093,9 @@ class TestClient(xmltestutils.XMLTestCase):
         iq = stanza.IQ(structs.IQType.GET)
         iq.autoset_id()
 
-        @asyncio.coroutine
-        def stimulus():
-            yield from self.client.established_event.wait()
-            yield from self.client.enqueue(iq)
+        async def stimulus():
+            await self.client.established_event.wait()
+            await self.client.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -2149,10 +2147,9 @@ class TestClient(xmltestutils.XMLTestCase):
         iq = stanza.IQ(structs.IQType.GET)
         iq.autoset_id()
 
-        @asyncio.coroutine
-        def stimulus():
-            yield from self.client.established_event.wait()
-            yield from self.client.enqueue(iq)
+        async def stimulus():
+            await self.client.established_event.wait()
+            await self.client.enqueue(iq)
 
         self.assertFalse(self.client.suspended)
 
@@ -2224,10 +2221,9 @@ class TestClient(xmltestutils.XMLTestCase):
         iq = stanza.IQ(structs.IQType.GET)
         iq.autoset_id()
 
-        @asyncio.coroutine
-        def stimulus():
-            yield from self.client.established_event.wait()
-            yield from self.client.enqueue(iq)
+        async def stimulus():
+            await self.client.established_event.wait()
+            await self.client.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -2309,10 +2305,9 @@ class TestClient(xmltestutils.XMLTestCase):
         iq = stanza.IQ(structs.IQType.GET)
         iq.autoset_id()
 
-        @asyncio.coroutine
-        def stimulus():
-            yield from self.client.established_event.wait()
-            yield from self.client.enqueue(iq)
+        async def stimulus():
+            await self.client.established_event.wait()
+            await self.client.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -2380,10 +2375,9 @@ class TestClient(xmltestutils.XMLTestCase):
         iq = stanza.IQ(structs.IQType.GET)
         iq.autoset_id()
 
-        @asyncio.coroutine
-        def stimulus():
-            yield from self.client.established_event.wait()
-            yield from self.client.enqueue(iq)
+        async def stimulus():
+            await self.client.established_event.wait()
+            await self.client.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -3641,13 +3635,12 @@ class TestClient(xmltestutils.XMLTestCase):
         )
 
     def test_call_before_stream_established(self):
-        @asyncio.coroutine
-        def coro():
+        async def coro():
             self.assertTrue(self.client.established_event.is_set())
             iq = stanza.IQ(
                 type_=structs.IQType.SET,
             )
-            yield from self.client.send(iq)
+            await self.client.send(iq)
 
         self.client.before_stream_established.connect(coro)
 
@@ -3779,8 +3772,7 @@ class TestClient(xmltestutils.XMLTestCase):
 
 
 class TestPresenceManagedClient(xmltestutils.XMLTestCase):
-    @asyncio.coroutine
-    def _connect_xmlstream(self, *args, **kwargs):
+    async def _connect_xmlstream(self, *args, **kwargs):
         self.connect_xmlstream_rec(*args, **kwargs)
         return None, self.xmlstream, self.features
 

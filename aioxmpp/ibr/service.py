@@ -30,10 +30,7 @@ from . import xso
 logger = logging.getLogger(__name__)
 
 
-@asyncio.coroutine
-def get_registration_fields(xmlstream,
-                            timeout=60,
-                            ):
+async def get_registration_fields(xmlstream, timeout=60):
     """
     A query is sent to the server to obtain the fields that need to be
     filled to register with the server.
@@ -56,18 +53,16 @@ def get_registration_fields(xmlstream,
     )
     iq.autoset_id()
 
-    reply = yield from aioxmpp.protocol.send_and_wait_for(xmlstream,
-                                                          [iq],
-                                                          [aioxmpp.IQ],
-                                                          timeout=timeout)
+    reply = await aioxmpp.protocol.send_and_wait_for(
+        xmlstream,
+        [iq],
+        [aioxmpp.IQ],
+        timeout=timeout
+    )
     return reply.payload
 
 
-@asyncio.coroutine
-def register(xmlstream,
-             query_xso,
-             timeout=60,
-             ):
+async def register(xmlstream, query_xso, timeout=60):
     """
     Create a new account on the server.
 
@@ -89,10 +84,12 @@ def register(xmlstream,
     )
     iq.autoset_id()
 
-    yield from aioxmpp.protocol.send_and_wait_for(xmlstream,
-                                                  [iq],
-                                                  [aioxmpp.IQ],
-                                                  timeout=timeout)
+    await aioxmpp.protocol.send_and_wait_for(
+        xmlstream,
+        [iq],
+        [aioxmpp.IQ],
+        timeout=timeout
+    )
 
 
 def get_used_fields(payload):
@@ -128,8 +125,7 @@ class RegistrationService(Service):
 
     """
 
-    @asyncio.coroutine
-    def get_client_info(self):
+    async def get_client_info(self):
         """
         A query is sent to the server to obtain the client's data stored at the
         server.
@@ -142,12 +138,10 @@ class RegistrationService(Service):
             payload=xso.Query()
         )
 
-        reply = (yield from self.client.send(iq))
+        reply = await self.client.send(iq)
         return reply
 
-    @asyncio.coroutine
-    def change_pass(self,
-                    new_pass):
+    async def change_pass(self, new_pass):
         """
         Change the client password for 'new_pass'.
 
@@ -164,10 +158,9 @@ class RegistrationService(Service):
             payload=xso.Query(self.client.local_jid.localpart, new_pass)
         )
 
-        yield from self.client.send(iq)
+        await self.client.send(iq)
 
-    @asyncio.coroutine
-    def cancel_registration(self):
+    async def cancel_registration(self):
         """
         Cancels the currents client's account with the server.
 
@@ -184,4 +177,4 @@ class RegistrationService(Service):
         )
 
         iq.payload.remove = True
-        yield from self.client.send(iq)
+        await self.client.send(iq)

@@ -270,8 +270,7 @@ class PubSubClient(aioxmpp.service.Service):
         else:
             return msg
 
-    @asyncio.coroutine
-    def get_features(self, jid):
+    async def get_features(self, jid):
         """
         Return the features supported by a service.
 
@@ -290,7 +289,7 @@ class PubSubClient(aioxmpp.service.Service):
         not returned.
         """
 
-        response = yield from self._disco.query_info(jid)
+        response = await self._disco.query_info(jid)
         result = set()
         for feature in response.features:
             try:
@@ -299,10 +298,9 @@ class PubSubClient(aioxmpp.service.Service):
                 continue
         return result
 
-    @asyncio.coroutine
-    def subscribe(self, jid, node=None, *,
-                  subscription_jid=None,
-                  config=None):
+    async def subscribe(self, jid, node=None, *,
+                        subscription_jid=None,
+                        config=None):
         """
         Subscribe to a node.
 
@@ -350,13 +348,12 @@ class PubSubClient(aioxmpp.service.Service):
             )
             iq.payload.options.data = config
 
-        response = yield from self.client.send(iq)
+        response = await self.client.send(iq)
         return response
 
-    @asyncio.coroutine
-    def unsubscribe(self, jid, node=None, *,
-                    subscription_jid=None,
-                    subid=None):
+    async def unsubscribe(self, jid, node=None, *,
+                          subscription_jid=None,
+                          subid=None):
         """
         Unsubscribe from a node.
 
@@ -387,12 +384,11 @@ class PubSubClient(aioxmpp.service.Service):
             pubsub_xso.Unsubscribe(subscription_jid, node=node, subid=subid)
         )
 
-        yield from self.client.send(iq)
+        await self.client.send(iq)
 
-    @asyncio.coroutine
-    def get_subscription_config(self, jid, node=None, *,
-                                subscription_jid=None,
-                                subid=None):
+    async def get_subscription_config(self, jid, node=None, *,
+                                      subscription_jid=None,
+                                      subid=None):
         """
         Request the current configuration of a subscription.
 
@@ -429,13 +425,12 @@ class PubSubClient(aioxmpp.service.Service):
             subid=subid,
         )
 
-        response = yield from self.client.send(iq)
+        response = await self.client.send(iq)
         return response.options.data
 
-    @asyncio.coroutine
-    def set_subscription_config(self, jid, data, node=None, *,
-                                subscription_jid=None,
-                                subid=None):
+    async def set_subscription_config(self, jid, data, node=None, *,
+                                      subscription_jid=None,
+                                      subid=None):
         """
         Update the configuration of a subscription.
 
@@ -474,10 +469,9 @@ class PubSubClient(aioxmpp.service.Service):
         )
         iq.payload.options.data = data
 
-        yield from self.client.send(iq)
+        await self.client.send(iq)
 
-    @asyncio.coroutine
-    def get_default_config(self, jid, node=None):
+    async def get_default_config(self, jid, node=None):
         """
         Request the default configuration of a node.
 
@@ -500,11 +494,10 @@ class PubSubClient(aioxmpp.service.Service):
             pubsub_xso.Default(node=node)
         )
 
-        response = yield from self.client.send(iq)
+        response = await self.client.send(iq)
         return response.payload.data
 
-    @asyncio.coroutine
-    def get_node_config(self, jid, node=None):
+    async def get_node_config(self, jid, node=None):
         """
         Request the configuration of a node.
 
@@ -527,11 +520,10 @@ class PubSubClient(aioxmpp.service.Service):
             pubsub_xso.OwnerConfigure(node=node)
         )
 
-        response = yield from self.client.send(iq)
+        response = await self.client.send(iq)
         return response.payload.data
 
-    @asyncio.coroutine
-    def set_node_config(self, jid, config, node=None):
+    async def set_node_config(self, jid, config, node=None):
         """
         Update the configuration of a node.
 
@@ -556,10 +548,9 @@ class PubSubClient(aioxmpp.service.Service):
         )
         iq.payload.payload.data = config
 
-        yield from self.client.send(iq)
+        await self.client.send(iq)
 
-    @asyncio.coroutine
-    def get_items(self, jid, node, *, max_items=None):
+    async def get_items(self, jid, node, *, max_items=None):
         """
         Request the most recent items from a node.
 
@@ -586,10 +577,9 @@ class PubSubClient(aioxmpp.service.Service):
             pubsub_xso.Items(node, max_items=max_items)
         )
 
-        return (yield from self.client.send(iq))
+        return await self.client.send(iq)
 
-    @asyncio.coroutine
-    def get_items_by_id(self, jid, node, ids):
+    async def get_items_by_id(self, jid, node, ids):
         """
         Request specific items by their IDs from a node.
 
@@ -625,10 +615,9 @@ class PubSubClient(aioxmpp.service.Service):
         if not iq.payload.payload.items:
             raise ValueError("ids must not be empty")
 
-        return (yield from self.client.send(iq))
+        return await self.client.send(iq)
 
-    @asyncio.coroutine
-    def get_subscriptions(self, jid, node=None):
+    async def get_subscriptions(self, jid, node=None):
         """
         Return all subscriptions of the local entity to a node.
 
@@ -649,13 +638,12 @@ class PubSubClient(aioxmpp.service.Service):
             pubsub_xso.Subscriptions(node=node)
         )
 
-        response = yield from self.client.send(iq)
+        response = await self.client.send(iq)
         return response.payload
 
-    @asyncio.coroutine
-    def publish(self, jid, node, payload, *,
-                id_=None,
-                publish_options=None):
+    async def publish(self, jid, node, payload, *,
+                      id_=None,
+                      publish_options=None):
         """
         Publish an item to a node.
 
@@ -714,7 +702,7 @@ class PubSubClient(aioxmpp.service.Service):
         )
 
         if publish_options is not None:
-            features = yield from self.get_features(jid)
+            features = await self.get_features(jid)
             if pubsub_xso.Feature.PUBLISH_OPTIONS not in features:
                 raise RuntimeError(
                     "publish-options given, but not supported by server"
@@ -723,14 +711,13 @@ class PubSubClient(aioxmpp.service.Service):
             iq.payload.publish_options = pubsub_xso.PublishOptions()
             iq.payload.publish_options.data = publish_options
 
-        response = yield from self.client.send(iq)
+        response = await self.client.send(iq)
 
         if response is not None and response.payload.item is not None:
             return response.payload.item.id_ or id_
         return id_
 
-    @asyncio.coroutine
-    def notify(self, jid, node):
+    async def notify(self, jid, node):
         """
         Notify all subscribers of a node without publishing an item.
 
@@ -743,10 +730,9 @@ class PubSubClient(aioxmpp.service.Service):
         "Publish" to the `node` at `jid` without any item. This merely fans out
         a notification. The exact semantics can be checked in :xep:`60`.
         """
-        yield from self.publish(jid, node, None)
+        await self.publish(jid, node, None)
 
-    @asyncio.coroutine
-    def retract(self, jid, node, id_, *, notify=False):
+    async def retract(self, jid, node, id_, *, notify=False):
         """
         Retract a previously published item from a node.
 
@@ -779,10 +765,9 @@ class PubSubClient(aioxmpp.service.Service):
             retract
         )
 
-        yield from self.client.send(iq)
+        await self.client.send(iq)
 
-    @asyncio.coroutine
-    def create(self, jid, node=None):
+    async def create(self, jid, node=None):
         """
         Create a new node at a service.
 
@@ -809,15 +794,14 @@ class PubSubClient(aioxmpp.service.Service):
             payload=pubsub_xso.Request(create)
         )
 
-        response = yield from self.client.send(iq)
+        response = await self.client.send(iq)
 
         if response is not None and response.payload.node is not None:
             return response.payload.node
 
         return node
 
-    @asyncio.coroutine
-    def delete(self, jid, node, *, redirect_uri=None):
+    async def delete(self, jid, node, *, redirect_uri=None):
         """
         Delete an existing node.
 
@@ -846,10 +830,9 @@ class PubSubClient(aioxmpp.service.Service):
             )
         )
 
-        yield from self.client.send(iq)
+        await self.client.send(iq)
 
-    @asyncio.coroutine
-    def get_nodes(self, jid, node=None):
+    async def get_nodes(self, jid, node=None):
         """
         Request all nodes at a service or collection node.
 
@@ -874,7 +857,7 @@ class PubSubClient(aioxmpp.service.Service):
         returned.
         """
 
-        response = yield from self._disco.query_items(
+        response = await self._disco.query_items(
             jid,
             node=node,
         )
@@ -890,8 +873,7 @@ class PubSubClient(aioxmpp.service.Service):
 
         return result
 
-    @asyncio.coroutine
-    def get_node_affiliations(self, jid, node):
+    async def get_node_affiliations(self, jid, node):
         """
         Return the affiliations of other jids at a node.
 
@@ -915,10 +897,9 @@ class PubSubClient(aioxmpp.service.Service):
             )
         )
 
-        return (yield from self.client.send(iq))
+        return await self.client.send(iq)
 
-    @asyncio.coroutine
-    def get_node_subscriptions(self, jid, node):
+    async def get_node_subscriptions(self, jid, node):
         """
         Return the subscriptions of other jids with a node.
 
@@ -942,10 +923,9 @@ class PubSubClient(aioxmpp.service.Service):
             )
         )
 
-        return (yield from self.client.send(iq))
+        return await self.client.send(iq)
 
-    @asyncio.coroutine
-    def change_node_affiliations(self, jid, node, affiliations_to_set):
+    async def change_node_affiliations(self, jid, node, affiliations_to_set):
         """
         Update the affiliations at a node.
 
@@ -979,10 +959,9 @@ class PubSubClient(aioxmpp.service.Service):
             )
         )
 
-        yield from self.client.send(iq)
+        await self.client.send(iq)
 
-    @asyncio.coroutine
-    def change_node_subscriptions(self, jid, node, subscriptions_to_set):
+    async def change_node_subscriptions(self, jid, node, subscriptions_to_set):
         """
         Update the subscriptions at a node.
 
@@ -1017,10 +996,9 @@ class PubSubClient(aioxmpp.service.Service):
             )
         )
 
-        yield from self.client.send(iq)
+        await self.client.send(iq)
 
-    @asyncio.coroutine
-    def purge(self, jid, node):
+    async def purge(self, jid, node):
         """
         Delete all items from a node.
 
@@ -1041,4 +1019,4 @@ class PubSubClient(aioxmpp.service.Service):
             )
         )
 
-        yield from self.client.send(iq)
+        await self.client.send(iq)

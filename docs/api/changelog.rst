@@ -8,6 +8,10 @@ Changelog
 Version 0.12
 ============
 
+* Drop support for Python 3.4. This includes migrating to using ``async def``
+  instead of ``@asyncio.coroutine`` consistently. Future changes will include
+  using type annotations.
+
 Version 0.11
 ============
 

@@ -83,9 +83,8 @@ class TestAsyncDeque(unittest.TestCase):
         self.assertIn(1, self.q)
 
     def test_get(self):
-        @asyncio.coroutine
-        def putter():
-            yield from asyncio.sleep(0.001)
+        async def putter():
+            await asyncio.sleep(0.001)
             self.q.put_nowait(1)
 
         _, v = run_coroutine(asyncio.gather(
@@ -96,18 +95,16 @@ class TestAsyncDeque(unittest.TestCase):
         self.assertEqual(1, v)
 
     def test_one_producer_many_consumers(self):
-        @asyncio.coroutine
-        def putter():
+        async def putter():
             for i in range(20):
                 self.q.put_nowait(i)
-                yield from asyncio.sleep(0)
+                await asyncio.sleep(0)
 
-        @asyncio.coroutine
-        def getter():
+        async def getter():
             result = []
             for i in range(4):
-                result.append((yield from self.q.get()))
-                yield from asyncio.sleep(0)
+                result.append(await self.q.get())
+                await asyncio.sleep(0)
             return result
 
         _, vs1, vs2, vs3, vs4, vs5 = run_coroutine(asyncio.gather(
@@ -125,18 +122,16 @@ class TestAsyncDeque(unittest.TestCase):
         )
 
     def test_one_consumer_many_producers(self):
-        @asyncio.coroutine
-        def putter(n0):
+        async def putter(n0):
             for i in range(n0, n0 + 4):
                 self.q.put_nowait(i)
-                yield from asyncio.sleep(0)
+                await asyncio.sleep(0)
 
-        @asyncio.coroutine
-        def getter():
+        async def getter():
             result = []
             for i in range(20):
-                result.append((yield from self.q.get()))
-                yield from asyncio.sleep(0)
+                result.append(await self.q.get())
+                await asyncio.sleep(0)
             return result
 
         _, _, _, _, _, vs = run_coroutine(asyncio.gather(

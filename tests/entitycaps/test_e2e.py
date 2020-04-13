@@ -21,6 +21,7 @@
 ########################################################################
 import asyncio
 import base64
+import logging
 
 import aioxmpp.stream
 import aioxmpp.entitycaps as caps
@@ -35,9 +36,8 @@ from aioxmpp.e2etest import (
 
 class TestEntityCapabilities(TestCase):
     @blocking
-    @asyncio.coroutine
-    def setUp(self):
-        self.source, self.sink = yield from asyncio.gather(
+    async def setUp(self):
+        self.source, self.sink = await asyncio.gather(
             self.provisioner.get_connected_client(
                 services=[
                     aioxmpp.EntityCapsService,
@@ -55,8 +55,7 @@ class TestEntityCapabilities(TestCase):
         )
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_caps_are_sent_with_presence(self):
+    async def test_caps_are_sent_with_presence(self):
         disco_client = self.sink.summon(aioxmpp.DiscoClient)
         disco_server = self.source.summon(aioxmpp.DiscoServer)
 
@@ -76,9 +75,9 @@ class TestEntityCapabilities(TestCase):
             type_=aioxmpp.PresenceType.AVAILABLE,
             to=self.sink.local_jid,
         )
-        yield from self.source.send(presence)
+        await self.source.send(presence)
 
-        presence = yield from fut
+        presence = await fut
 
         self.assertIsNotNone(
             presence.xep0115_caps,
@@ -89,7 +88,7 @@ class TestEntityCapabilities(TestCase):
         )
         self.assertTrue(presence.xep0390_caps.digests)
 
-        info = yield from disco_client.query_info(
+        info = await disco_client.query_info(
             self.source.local_jid,
             node="{}#{}".format(
                 presence.xep0115_caps.node,
@@ -102,7 +101,7 @@ class TestEntityCapabilities(TestCase):
         )
 
         for algo, digest in presence.xep0390_caps.digests.items():
-            info = yield from disco_client.query_info(
+            info = await disco_client.query_info(
                 self.source.local_jid,
                 node="urn:xmpp:caps#{}.{}".format(
                     algo,
@@ -116,8 +115,7 @@ class TestEntityCapabilities(TestCase):
             )
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_caps115_are_cached(self):
+    async def test_caps115_are_cached(self):
         info = disco.xso.InfoQuery()
         info.features.add("http://feature.test/feature")
         info.features.add("http://feature.test/another-feature")
@@ -127,8 +125,7 @@ class TestEntityCapabilities(TestCase):
         disco_iq = None
         disco_called_again = False
 
-        @asyncio.coroutine
-        def fake_disco_handler(iq):
+        async def fake_disco_handler(iq):
             nonlocal disco_called_again, disco_iq
             if disco_iq is None:
                 disco_iq = iq
@@ -136,7 +133,7 @@ class TestEntityCapabilities(TestCase):
                 disco_called_again = True
             return info
 
-        self.source, self.sink = yield from asyncio.gather(
+        self.source, self.sink = await asyncio.gather(
             self.provisioner.get_connected_client(
                 services=[
                     aioxmpp.PresenceServer,
@@ -179,13 +176,13 @@ class TestEntityCapabilities(TestCase):
             "sha-1",
         )
 
-        yield from self.source.send(presence)
+        await self.source.send(presence)
 
-        yield from fut
+        await fut
 
         disco_client = self.sink.summon(aioxmpp.DiscoClient)
 
-        info_direct = yield from disco_client.query_info(
+        info_direct = await disco_client.query_info(
             self.source.local_jid,
         )
         self.assertEqual(info_direct.features, info.features)
@@ -200,8 +197,7 @@ class TestEntityCapabilities(TestCase):
         self.assertFalse(disco_called_again)
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_caps390_are_cached(self):
+    async def test_caps390_are_cached(self):
         info = disco.xso.InfoQuery()
         info.features.add("http://feature.test/feature")
         info.features.add("http://feature.test/another-feature")
@@ -215,8 +211,7 @@ class TestEntityCapabilities(TestCase):
         disco_iq = None
         disco_called_again = False
 
-        @asyncio.coroutine
-        def fake_disco_handler(iq):
+        async def fake_disco_handler(iq):
             nonlocal disco_called_again, disco_iq
             if disco_iq is None:
                 disco_iq = iq
@@ -224,7 +219,7 @@ class TestEntityCapabilities(TestCase):
                 disco_called_again = True
             return info
 
-        self.source, self.sink = yield from asyncio.gather(
+        self.source, self.sink = await asyncio.gather(
             self.provisioner.get_connected_client(
                 services=[
                     aioxmpp.PresenceServer,
@@ -264,13 +259,13 @@ class TestEntityCapabilities(TestCase):
         presence.xep0390_caps = caps.xso.Caps390()
         presence.xep0390_caps.digests["sha-256"] = info_hash
 
-        yield from self.source.send(presence)
+        await self.source.send(presence)
 
-        yield from fut
+        await fut
 
         disco_client = self.sink.summon(aioxmpp.DiscoClient)
 
-        info_direct = yield from disco_client.query_info(
+        info_direct = await disco_client.query_info(
             self.source.local_jid,
         )
         self.assertEqual(info_direct.features, info.features)

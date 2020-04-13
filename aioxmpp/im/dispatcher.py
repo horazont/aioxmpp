@@ -83,11 +83,10 @@ class IMDispatcher(aioxmpp.service.Service):
     @aioxmpp.service.depsignal(
         aioxmpp.node.Client,
         "before_stream_established")
-    @asyncio.coroutine
-    def enable_carbons(self, *args):
+    async def enable_carbons(self, *args):
         carbons = self.dependencies[aioxmpp.carbons.CarbonsClient]
         try:
-            yield from carbons.enable()
+            await carbons.enable()
         except (RuntimeError, aioxmpp.errors.XMPPError):
             self.logger.info(
                 "remote server does not support message carbons"

@@ -292,12 +292,11 @@ class PresenceServer(aioxmpp.service.Service):
             self._before_stream_established
         )
 
-    @asyncio.coroutine
-    def _before_stream_established(self):
+    async def _before_stream_established(self):
         if not self._state.available:
             return True
 
-        yield from self.client.send(self.make_stanza())
+        await self.client.send(self.make_stanza())
 
         return True
 

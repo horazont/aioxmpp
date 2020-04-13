@@ -148,7 +148,7 @@ class Example(metaclass=abc.ABCMeta):
                     if jid_sect not in self.config:
                         jid_sect = "global"
                     password = self.config.get(jid_sect, "password")
-                except (configparser.NoOptionError, 
+                except (configparser.NoOptionError,
                         configparser.NoSectionError):
                     logging.error(('When the local JID %s is set, password ' +
                                    'must be set as well.') % str(self.g_jid))
@@ -199,25 +199,15 @@ class Example(metaclass=abc.ABCMeta):
         )
         return event
 
-    @asyncio.coroutine
-    def run_simple_example(self):
+    async def run_simple_example(self):
         raise NotImplementedError(
             "run_simple_example must be overriden if run_example isn’t"
         )
 
-    @asyncio.coroutine
-    def run_example(self):
+    async def run_example(self):
         self.client = self.make_simple_client()
-        cm = self.client.connected()
-        aexit = cm.__aexit__
-        yield from cm.__aenter__()
-        try:
-            yield from self.run_simple_example()
-        except:
-            if not (yield from aexit(*sys.exc_info())):
-                raise
-        else:
-            yield from aexit(None, None, None)
+        async with self.client.connected():
+            await self.run_simple_example()
 
 
 def exec_example(example):

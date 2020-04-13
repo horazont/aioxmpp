@@ -62,11 +62,10 @@ class SHIMService(aioxmpp.service.Service):
             self._node
         )
 
-    @asyncio.coroutine
-    def _shutdown(self):
+    async def _shutdown(self):
         self._disco.unregister_feature(namespaces.xep0131_shim)
         self._disco.unmount_node(namespaces.xep0131_shim)
-        yield from super()._shutdown()
+        await super()._shutdown()
 
     def register_header(self, name):
         """

@@ -1303,8 +1303,7 @@ class TestDiscoClient(unittest.TestCase):
 
         ncall = 0
 
-        @asyncio.coroutine
-        def mock(*args, **kwargs):
+        async def mock(*args, **kwargs):
             nonlocal ncall
             ncall += 1
             if ncall == 1:
@@ -1629,8 +1628,7 @@ class TestDiscoClient(unittest.TestCase):
 
         ncall = 0
 
-        @asyncio.coroutine
-        def mock(*args, **kwargs):
+        async def mock(*args, **kwargs):
             nonlocal ncall
             ncall += 1
             if ncall == 1:

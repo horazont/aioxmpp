@@ -54,9 +54,8 @@ class PresenceInfo(Example):
         capabilities of peers.
         """
 
-    @asyncio.coroutine
-    def _show_info(self, full_jid):
-        info = yield from self.disco.query_info(full_jid)
+    async def _show_info(self, full_jid):
+        info = await self.disco.query_info(full_jid)
         print("{}:".format(full_jid))
         print("  features:")
         for feature in info.features:
@@ -97,12 +96,11 @@ class PresenceInfo(Example):
 
         return client
 
-    @asyncio.coroutine
-    def run_simple_example(self):
+    async def run_simple_example(self):
         for i in range(5, 0, -1):
             print("going to wait {} more seconds for further "
                   "presence".format(i))
-            yield from asyncio.sleep(1)
+            await asyncio.sleep(1)
 
 
 if __name__ == "__main__":

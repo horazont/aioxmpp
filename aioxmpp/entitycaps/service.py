@@ -130,8 +130,7 @@ class Cache:
 
         raise KeyError(key)
 
-    @asyncio.coroutine
-    def lookup(self, key):
+    async def lookup(self, key):
         """
         Look up the given `node` URL using the given `hash_` first in the
         database and then by waiting on the futures created with
@@ -153,7 +152,7 @@ class Cache:
         while True:
             fut = self._lookup_cache[key]
             try:
-                result = yield from fut
+                result = await fut
             except ValueError:
                 continue
             else:
@@ -361,15 +360,13 @@ class EntityCapsService(aioxmpp.service.Service):
             self.update_hash
         )
 
-    @asyncio.coroutine
-    def _shutdown(self):
+    async def _shutdown(self):
         for group in self.__current_keys.values():
             for key in group:
                 self.disco_server.unmount_node(key.node)
 
-    @asyncio.coroutine
-    def query_and_cache(self, jid, key, fut):
-        data = yield from self.disco_client.query_info(
+    async def query_and_cache(self, jid, key, fut):
+        data = await self.disco_client.query_info(
             jid,
             node=key.node,
             require_fresh=True,
@@ -387,11 +384,10 @@ class EntityCapsService(aioxmpp.service.Service):
 
         return data
 
-    @asyncio.coroutine
-    def lookup_info(self, jid, keys):
+    async def lookup_info(self, jid, keys):
         for key in keys:
             try:
-                info = yield from self.cache.lookup(key)
+                info = await self.cache.lookup(key)
             except KeyError:
                 continue
 
@@ -401,7 +397,7 @@ class EntityCapsService(aioxmpp.service.Service):
         first_key = keys[0]
         self.logger.debug("using key %s to query peer", first_key)
         fut = self.cache.create_query_future(first_key)
-        info = yield from self.query_and_cache(
+        info = await self.query_and_cache(
             jid, first_key, fut
         )
         self.logger.debug("%s maps to %r", key, info)

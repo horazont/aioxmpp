@@ -94,9 +94,9 @@ class BaseConnector(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    @asyncio.coroutine
-    def connect(self, loop, metadata, domain, host, port, negotiation_timeout,
-                base_logger=None):
+    async def connect(self, loop, metadata, domain, host, port,
+                      negotiation_timeout,
+                      base_logger=None):
         """
         Establish a :class:`.protocol.XMLStream` for `domain` with the given
         `host` at the given TCP `port`.
@@ -143,9 +143,8 @@ class STARTTLSConnector(BaseConnector):
     def dane_supported(self):
         return False
 
-    @asyncio.coroutine
-    def connect(self, loop, metadata, domain: str, host, port,
-                negotiation_timeout, base_logger=None):
+    async def connect(self, loop, metadata, domain: str, host, port,
+                      negotiation_timeout, base_logger=None):
         """
         .. seealso::
 
@@ -193,7 +192,7 @@ class STARTTLSConnector(BaseConnector):
             ]))
 
         try:
-            transport, _ = yield from ssl_transport.create_starttls_connection(
+            transport, _ = await ssl_transport.create_starttls_connection(
                 loop,
                 lambda: stream,
                 host=host,
@@ -208,19 +207,19 @@ class STARTTLSConnector(BaseConnector):
 
         stream.deadtime_hard_limit = timedelta(seconds=negotiation_timeout)
 
-        features = yield from features_future
+        features = await features_future
 
         try:
             features[nonza.StartTLSFeature]
         except KeyError:
             if not metadata.tls_required:
-                return transport, stream, (yield from features_future)
+                return transport, stream, await features_future
             logger.debug(
                 "attempting STARTTLS despite not announced since it is"
                 " required")
 
         try:
-            response = yield from protocol.send_and_wait_for(
+            response = await protocol.send_and_wait_for(
                 stream,
                 [
                     nonza.StartTLS(),
@@ -248,10 +247,10 @@ class STARTTLSConnector(BaseConnector):
                 )
 
                 raise errors.TLSUnavailable(message)
-            return transport, stream, (yield from features_future)
+            return transport, stream, await features_future
 
         verifier = metadata.certificate_verifier_factory()
-        yield from verifier.pre_handshake(
+        await verifier.pre_handshake(
             domain,
             host,
             port,
@@ -261,17 +260,17 @@ class STARTTLSConnector(BaseConnector):
         ssl_context = metadata.ssl_context_factory()
         verifier.setup_context(ssl_context, transport)
 
-        yield from stream.starttls(
+        await stream.starttls(
             ssl_context=ssl_context,
             post_handshake_callback=verifier.post_handshake,
         )
 
-        features_future = yield from protocol.reset_stream_and_get_features(
+        features = await protocol.reset_stream_and_get_features(
             stream,
             timeout=negotiation_timeout,
         )
 
-        return transport, stream, features_future
+        return transport, stream, features
 
 
 class XMPPOverTLSConnector(BaseConnector):
@@ -310,9 +309,8 @@ class XMPPOverTLSConnector(BaseConnector):
             return ssl_context
         return context_factory
 
-    @asyncio.coroutine
-    def connect(self, loop, metadata, domain, host, port,
-                negotiation_timeout, base_logger=None):
+    async def connect(self, loop, metadata, domain, host, port,
+                      negotiation_timeout, base_logger=None):
         """
         .. seealso::
 
@@ -353,7 +351,7 @@ class XMPPOverTLSConnector(BaseConnector):
             ]))
 
         verifier = metadata.certificate_verifier_factory()
-        yield from verifier.pre_handshake(
+        await verifier.pre_handshake(
             domain,
             host,
             port,
@@ -364,7 +362,7 @@ class XMPPOverTLSConnector(BaseConnector):
                                                         verifier)
 
         try:
-            transport, _ = yield from ssl_transport.create_starttls_connection(
+            transport, _ = await ssl_transport.create_starttls_connection(
                 loop,
                 lambda: stream,
                 host=host,
@@ -381,4 +379,4 @@ class XMPPOverTLSConnector(BaseConnector):
 
         stream.deadtime_hard_limit = timedelta(seconds=negotiation_timeout)
 
-        return transport, stream, (yield from features_future)
+        return transport, stream, await features_future

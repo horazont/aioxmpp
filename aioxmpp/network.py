@@ -142,12 +142,11 @@ def set_resolver(resolver):
     _state.overridden_resolver = True
 
 
-@asyncio.coroutine
-def repeated_query(qname, rdtype,
-                   nattempts=None,
-                   resolver=None,
-                   require_ad=False,
-                   executor=None):
+async def repeated_query(qname, rdtype,
+                         nattempts=None,
+                         resolver=None,
+                         require_ad=False,
+                         executor=None):
     """
     Repeatedly fire a DNS query until either the number of allowed attempts
     (`nattempts`) is excedeed or a non-error result is returned (NXDOMAIN is
@@ -242,7 +241,7 @@ def repeated_query(qname, rdtype,
     for i in range(nattempts):
         resolver.set_flags(dns.flags.RD | dns.flags.AD)
         try:
-            answer = yield from loop.run_in_executor(
+            answer = await loop.run_in_executor(
                 executor,
                 functools.partial(
                     resolver.query,
@@ -267,7 +266,7 @@ def repeated_query(qname, rdtype,
                 continue
             resolver.set_flags(dns.flags.RD | dns.flags.AD | dns.flags.CD)
             try:
-                yield from loop.run_in_executor(
+                await loop.run_in_executor(
                     executor,
                     functools.partial(
                         resolver.query,
@@ -291,12 +290,8 @@ def repeated_query(qname, rdtype,
     return answer
 
 
-@asyncio.coroutine
-def lookup_srv(
-        domain: bytes,
-        service: str,
-        transport: str = "tcp",
-        **kwargs):
+async def lookup_srv(domain: bytes, service: str, transport: str = "tcp",
+                     **kwargs):
     """
     Query the DNS for SRV records describing how the given `service` over the
     given `transport` is implemented for the given `domain`. `domain` must be
@@ -321,7 +316,7 @@ def lookup_srv(
         b"_" + transport.encode("ascii"),
         domain])
 
-    answer = yield from repeated_query(
+    answer = await repeated_query(
         record,
         dns.rdatatype.SRV,
         **kwargs)
@@ -351,8 +346,8 @@ def lookup_srv(
     return items
 
 
-@asyncio.coroutine
-def lookup_tlsa(hostname, port, transport="tcp", require_ad=True, **kwargs):
+async def lookup_tlsa(hostname, port, transport="tcp", require_ad=True,
+                      **kwargs):
     """
     Query the DNS for TLSA records describing the certificates and/or keys to
     expect when contacting `hostname` at the given `port` over the given
@@ -372,7 +367,7 @@ def lookup_tlsa(hostname, port, transport="tcp", require_ad=True, **kwargs):
         hostname
     ])
 
-    answer = yield from repeated_query(
+    answer = await repeated_query(
         record,
         dns.rdatatype.TLSA,
         require_ad=require_ad,
@@ -428,11 +423,10 @@ def group_and_order_srv_records(all_records, rng=None):
                     break
 
 
-@asyncio.coroutine
-def find_xmpp_host_addr(loop, domain, attempts=3):
+async def find_xmpp_host_addr(loop, domain, attempts=3):
     domain = domain.encode("IDNA")
 
-    items = lookup_srv(
+    items = await lookup_srv(
         service="xmpp-client",
         domain=domain,
         nattempts=attempts
@@ -444,11 +438,10 @@ def find_xmpp_host_addr(loop, domain, attempts=3):
     return [(0, 0, (domain, 5222))]
 
 
-@asyncio.coroutine
-def find_xmpp_host_tlsa(loop, domain, attempts=3, require_ad=True):
+async def find_xmpp_host_tlsa(loop, domain, attempts=3, require_ad=True):
     domain = domain.encode("IDNA")
 
-    items = yield from lookup_tlsa(
+    items = await lookup_tlsa(
         domain=domain,
         port=5222,
         nattempts=attempts,

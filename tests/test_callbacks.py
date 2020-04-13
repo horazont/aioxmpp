@@ -700,9 +700,8 @@ class TestAdHocSignal(unittest.TestCase):
 
         mock = CoroutineMock()
 
-        @asyncio.coroutine
-        def coro(*args, **kwargs):
-            yield from mock(*args, **kwargs)
+        async def coro(*args, **kwargs):
+            await mock(*args, **kwargs)
 
         signal.connect(coro, AdHocSignal.SPAWN_WITH_LOOP(None))
         signal.fire("a", 1, b="c")
@@ -723,9 +722,8 @@ class TestAdHocSignal(unittest.TestCase):
 
         mock = CoroutineMock()
 
-        @asyncio.coroutine
-        def coro(*args, **kwargs):
-            yield from mock(*args, **kwargs)
+        async def coro(*args, **kwargs):
+            await mock(*args, **kwargs)
 
         signal.connect(coro, AdHocSignal.SPAWN_WITH_LOOP(None))
         signal.fire("a", 1, b="c")
@@ -1137,8 +1135,7 @@ class TestSyncAdHocSignal(unittest.TestCase):
         calls = []
 
         def make_coro(i):
-            @asyncio.coroutine
-            def coro():
+            async def coro():
                 nonlocal calls
                 calls.append(i)
             return coro

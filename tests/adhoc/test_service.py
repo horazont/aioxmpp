@@ -688,7 +688,8 @@ class TestClientSession(unittest.TestCase):
         )
 
     def test_aenter_starts(self):
-        with unittest.mock.patch.object(self.session, "start") as start:
+        with unittest.mock.patch.object(self.session, "start",
+                                        new=CoroutineMock()) as start:
             result = run_coroutine(self.session.__aenter__())
             start.assert_called_once_with()
         self.assertEqual(result, self.session)
@@ -704,7 +705,8 @@ class TestClientSession(unittest.TestCase):
         self.assertEqual(result, self.session)
 
     def test_aexit_closes(self):
-        with unittest.mock.patch.object(self.session, "close") as close:
+        with unittest.mock.patch.object(self.session, "close",
+                                        new=CoroutineMock()) as close:
             result = run_coroutine(self.session.__aexit__(
                 unittest.mock.sentinel.type_,
                 unittest.mock.sentinel.value,

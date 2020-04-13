@@ -68,8 +68,7 @@ class AdHocClient(aioxmpp.service.Service):
 
     ORDER_AFTER = [aioxmpp.disco.DiscoClient]
 
-    @asyncio.coroutine
-    def get_commands(self, peer_jid):
+    async def get_commands(self, peer_jid):
         """
         Return the list of commands offered by the peer.
 
@@ -85,14 +84,13 @@ class AdHocClient(aioxmpp.service.Service):
         """
 
         disco = self.dependencies[aioxmpp.disco.DiscoClient]
-        response = yield from disco.query_items(
+        response = await disco.query_items(
             peer_jid,
             node=namespaces.xep0050_commands,
         )
         return response.items
 
-    @asyncio.coroutine
-    def get_command_info(self, peer_jid, command_name):
+    async def get_command_info(self, peer_jid, command_name):
         """
         Obtain information about a command.
 
@@ -115,14 +113,13 @@ class AdHocClient(aioxmpp.service.Service):
         """
 
         disco = self.dependencies[aioxmpp.disco.DiscoClient]
-        response = yield from disco.query_info(
+        response = await disco.query_info(
             peer_jid,
             node=command_name,
         )
         return response
 
-    @asyncio.coroutine
-    def supports_commands(self, peer_jid):
+    async def supports_commands(self, peer_jid):
         """
         Detect whether a peer supports :xep:`50` Ad-Hoc commands.
 
@@ -137,14 +134,13 @@ class AdHocClient(aioxmpp.service.Service):
         """
 
         disco = self.dependencies[aioxmpp.disco.DiscoClient]
-        response = yield from disco.query_info(
+        response = await disco.query_info(
             peer_jid,
         )
 
         return namespaces.xep0050_commands in response.features
 
-    @asyncio.coroutine
-    def execute(self, peer_jid, command_name):
+    async def execute(self, peer_jid, command_name):
         """
         Start execution of a command with a peer.
 
@@ -167,7 +163,7 @@ class AdHocClient(aioxmpp.service.Service):
             peer_jid,
             command_name,
         )
-        yield from session.start()
+        await session.start()
         return session
 
 
@@ -257,8 +253,7 @@ class AdHocServer(aioxmpp.service.Service, aioxmpp.disco.Node):
 
     @aioxmpp.service.iq_handler(aioxmpp.IQType.SET,
                                 adhoc_xso.Command)
-    @asyncio.coroutine
-    def _handle_command(self, stanza):
+    async def _handle_command(self, stanza):
         try:
             info = self._commands[stanza.payload.node]
         except KeyError:
@@ -274,7 +269,7 @@ class AdHocServer(aioxmpp.service.Service, aioxmpp.disco.Node):
                 aioxmpp.errors.ErrorCondition.FORBIDDEN,
             )
 
-        return (yield from info.handler(stanza))
+        return await info.handler(stanza)
 
     def iter_items(self, stanza):
         local_jid = self.client.local_jid
@@ -476,8 +471,7 @@ class ClientSession:
         return {adhoc_xso.ActionType.EXECUTE,
                 adhoc_xso.ActionType.CANCEL}
 
-    @asyncio.coroutine
-    def start(self):
+    async def start(self):
         """
         Initiate the session by starting to execute the command with the peer.
 
@@ -499,16 +493,15 @@ class ClientSession:
             payload=adhoc_xso.Command(self._command_name),
         )
 
-        self._response = yield from self._stream.send_iq_and_wait_for_reply(
+        self._response = await self._stream.send_iq_and_wait_for_reply(
             request,
         )
 
         return self._response.first_payload
 
-    @asyncio.coroutine
-    def proceed(self, *,
-                action=adhoc_xso.ActionType.EXECUTE,
-                payload=None):
+    async def proceed(self, *,
+                      action=adhoc_xso.ActionType.EXECUTE,
+                      payload=None):
         """
         Proceed command execution to the next stage.
 
@@ -554,25 +547,23 @@ class ClientSession:
         )
 
         try:
-            self._response = \
-                yield from self._stream.send_iq_and_wait_for_reply(
-                    request,
-                )
+            self._response = await self._stream.send_iq_and_wait_for_reply(
+                request,
+            )
         except (aioxmpp.errors.XMPPModifyError,
                 aioxmpp.errors.XMPPCancelError) as exc:
             if isinstance(exc.application_defined_condition,
                           (adhoc_xso.BadSessionID,
                            adhoc_xso.SessionExpired)):
-                yield from self.close()
+                await self.close()
                 raise SessionError(exc.text)
             if isinstance(exc, aioxmpp.errors.XMPPCancelError):
-                yield from self.close()
+                await self.close()
             raise
 
         return self._response.first_payload
 
-    @asyncio.coroutine
-    def close(self):
+    async def close(self):
         if self._response is None:
             return
 
@@ -588,7 +579,7 @@ class ClientSession:
             )
 
             try:
-                yield from self._stream.send_iq_and_wait_for_reply(
+                await self._stream.send_iq_and_wait_for_reply(
                     request,
                 )
             except aioxmpp.errors.StanzaError as exc:
@@ -601,12 +592,10 @@ class ClientSession:
 
         self._response = None
 
-    @asyncio.coroutine
-    def __aenter__(self):
+    async def __aenter__(self):
         if self._response is None:
-            yield from self.start()
+            await self.start()
         return self
 
-    @asyncio.coroutine
-    def __aexit__(self, exc_type, exc_value, exc_traceback):
-        yield from self.close()
+    async def __aexit__(self, exc_type, exc_value, exc_traceback):
+        await self.close()
