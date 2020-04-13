@@ -395,6 +395,13 @@ class E2ETestPlugin(Plugin):
             default=None,
             help="A file to write a transcript to"
         )
+        options.add_option(
+            "--e2etest-only",
+            dest="aioxmpp_e2e_only",
+            action="store_true",
+            default=False,
+            help="If set, only E2E tests will be executed."
+        )
 
     def configure(self, options, conf):
         self.enabled = True
@@ -413,9 +420,13 @@ class E2ETestPlugin(Plugin):
             logger = logging.getLogger("aioxmpp.e2etest.provision")
             logger.addHandler(handler)
 
+        self.__only_e2etest = options.aioxmpp_e2e_only
+
     @blocking
     async def beforeTest(self, test):
         global provisioner
+        if self.__only_e2etest and not isinstance(test.test, TestCase):
+            raise unittest.SkipTest("not an e2etest")
         if provisioner is not None:
             await provisioner.setup()
 

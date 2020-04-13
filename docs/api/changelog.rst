@@ -12,6 +12,11 @@ Version 0.12
   instead of ``@asyncio.coroutine`` consistently. Future changes will include
   using type annotations.
 
+* Add ``--e2etest-only`` flag to the e2etest nose plugin. This flag will skip
+  any test case not derived from :class:`aioxmpp.e2etest.TestCase`. The use
+  case for this is to use the aioxmpp test suite to test other servers in their
+  CI.
+
 Version 0.11
 ============
 
