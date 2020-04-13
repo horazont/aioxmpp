@@ -34,53 +34,45 @@ from aioxmpp.e2etest import (
 
 class TestPing(TestCase):
     @blocking
-    @asyncio.coroutine
-    def setUp(self):
-        self.source, self.unimplemented, self.implemented = \
-            yield from asyncio.gather(
-                self.provisioner.get_connected_client(
-                    services=[aioxmpp.ping.PingService],
-                ),
-                self.provisioner.get_connected_client(
-                    services=[aioxmpp.DiscoClient],
-                ),
-                self.provisioner.get_connected_client(
-                    services=[aioxmpp.ping.PingService],
-                ),
-            )
+    async def setUp(self):
+        self.source, self.unimplemented, self.implemented = await asyncio.gather(
+            self.provisioner.get_connected_client(
+                services=[aioxmpp.ping.PingService],
+            ),
+            self.provisioner.get_connected_client(
+                services=[aioxmpp.DiscoClient],
+            ),
+            self.provisioner.get_connected_client(
+                services=[aioxmpp.ping.PingService],
+            ),
+        )
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_ping_raises_error_condition(self):
+    async def test_ping_raises_error_condition(self):
         ping_svc = self.source.summon(aioxmpp.ping.PingService)
 
         with self.assertRaisesRegexp(aioxmpp.XMPPCancelError,
                                      "service-unavailable"):
-            yield from ping_svc.ping(self.unimplemented.local_jid)
+            await ping_svc.ping(self.unimplemented.local_jid)
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_ping_server(self):
+    async def test_ping_server(self):
         ping_svc = self.source.summon(aioxmpp.ping.PingService)
 
-        yield from ping_svc.ping(self.unimplemented.local_jid.replace(
+        await ping_svc.ping(self.unimplemented.local_jid.replace(
             localpart=None,
             resource=None,
         ))
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_ping_works_with_peer_with_ping_implementation(self):
+    async def test_ping_works_with_peer_with_ping_implementation(self):
         ping_svc = self.source.summon(aioxmpp.ping.PingService)
 
-        self.assertIsNone(
-            (yield from ping_svc.ping(self.implemented.local_jid))
-        )
+        self.assertIsNone(await ping_svc.ping(self.implemented.local_jid))
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_ping_service_exports_feature(self):
-        info = yield from self.unimplemented.summon(
+    async def test_ping_service_exports_feature(self):
+        info = await self.unimplemented.summon(
             aioxmpp.DiscoClient
         ).query_info(
             self.source.local_jid,
@@ -92,14 +84,13 @@ class TestPing(TestCase):
         )
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_ping_service_replies_to_ping(self):
+    async def test_ping_service_replies_to_ping(self):
         req = aioxmpp.IQ(
             type_=aioxmpp.IQType.GET,
             to=self.source.local_jid,
             payload=aioxmpp.ping.Ping(),
         )
 
-        resp = yield from self.unimplemented.send(req)
+        resp = await self.unimplemented.send(req)
 
         self.assertIsInstance(resp, aioxmpp.ping.Ping)

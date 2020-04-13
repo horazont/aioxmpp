@@ -1610,8 +1610,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         )
         return token, tracker
 
-    @asyncio.coroutine
-    def set_nick(self, new_nick):
+    async def set_nick(self, new_nick):
         """
         Change the nick name of the occupant.
 
@@ -1634,12 +1633,11 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             type_=aioxmpp.PresenceType.AVAILABLE,
             to=self._mucjid.replace(resource=new_nick),
         )
-        yield from self._service.client.send(
+        await self._service.client.send(
             stanza
         )
 
-    @asyncio.coroutine
-    def kick(self, member, reason=None):
+    async def kick(self, member, reason=None):
         """
         Kick an occupant from the MUC.
 
@@ -1656,14 +1654,13 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             :meth:`.AbstractConversation.kick` for the full interface
             specification.
         """
-        yield from self.muc_set_role(
+        await self.muc_set_role(
             member.nick,
             "none",
             reason=reason
         )
 
-    @asyncio.coroutine
-    def muc_set_role(self, nick, role, *, reason=None):
+    async def muc_set_role(self, nick, role, *, reason=None):
         """
         Change the role of an occupant.
 
@@ -1706,10 +1703,9 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             ]
         )
 
-        yield from self.service.client.send(iq)
+        await self.service.client.send(iq)
 
-    @asyncio.coroutine
-    def ban(self, member, reason=None, *, request_kick=True):
+    async def ban(self, member, reason=None, *, request_kick=True):
         """
         Ban an occupant from re-joining the MUC.
 
@@ -1735,26 +1731,25 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                 "cannot ban members whose direct JID is not "
                 "known")
 
-        yield from self.muc_set_affiliation(
+        await self.muc_set_affiliation(
             member.direct_jid,
             "outcast",
             reason=reason
         )
 
-    @asyncio.coroutine
-    def muc_set_affiliation(self, jid, affiliation, *, reason=None):
+    async def muc_set_affiliation(self, jid, affiliation, *, reason=None):
         """
         Convenience wrapper around :meth:`.MUCClient.set_affiliation`. See
         there for details, and consider its `mucjid` argument to be set to
         :attr:`mucjid`.
         """
-        return (yield from self.service.set_affiliation(
+        return await self.service.set_affiliation(
             self._mucjid,
             jid, affiliation,
-            reason=reason))
+            reason=reason
+        )
 
-    @asyncio.coroutine
-    def set_topic(self, new_topic):
+    async def set_topic(self, new_topic):
         """
         Change the (possibly publicly) visible topic of the conversation.
 
@@ -1772,10 +1767,9 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         )
         msg.subject.update(new_topic)
 
-        yield from self.service.client.send(msg)
+        await self.service.client.send(msg)
 
-    @asyncio.coroutine
-    def leave(self):
+    async def leave(self):
         """
         Leave the MUC.
         """
@@ -1791,12 +1785,11 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
             to=self._mucjid
         )
-        yield from self.service.client.send(presence)
+        await self.service.client.send(presence)
 
-        yield from fut
+        await fut
 
-    @asyncio.coroutine
-    def muc_request_voice(self):
+    async def muc_request_voice(self):
         """
         Request voice (participant role) in the room and wait for the request
         to be sent.
@@ -1836,12 +1829,11 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
         msg.xep0004_data.append(data)
 
-        yield from self.service.client.send(msg)
+        await self.service.client.send(msg)
 
-    @asyncio.coroutine
-    def invite(self, address, text=None, *,
-               mode=aioxmpp.im.InviteMode.DIRECT,
-               allow_upgrade=False):
+    async def invite(self, address, text=None, *,
+                     mode=aioxmpp.im.InviteMode.DIRECT,
+                     allow_upgrade=False):
         if mode == aioxmpp.im.InviteMode.DIRECT:
             msg = aioxmpp.Message(
                 type_=aioxmpp.MessageType.NORMAL,
@@ -2252,8 +2244,7 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
         except KeyError:
             return self._pending_mucs[mucjid][0]
 
-    @asyncio.coroutine
-    def _shutdown(self):
+    async def _shutdown(self):
         for muc, fut, *_ in self._pending_mucs.values():
             muc._disconnect()
             fut.set_exception(ConnectionError())
@@ -2379,8 +2370,7 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
 
         return room, fut
 
-    @asyncio.coroutine
-    def set_affiliation(self, mucjid, jid, affiliation, *, reason=None):
+    async def set_affiliation(self, mucjid, jid, affiliation, *, reason=None):
         """
         Change the affiliation of an entity with a MUC.
 
@@ -2433,10 +2423,9 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
             ]
         )
 
-        yield from self.client.send(iq)
+        await self.client.send(iq)
 
-    @asyncio.coroutine
-    def get_room_config(self, mucjid):
+    async def get_room_config(self, mucjid):
         """
         Query and return the room configuration form for the given MUC.
 
@@ -2462,10 +2451,9 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
             payload=muc_xso.OwnerQuery(),
         )
 
-        return (yield from self.client.send(iq)).form
+        return (await self.client.send(iq)).form
 
-    @asyncio.coroutine
-    def set_room_config(self, mucjid, data):
+    async def set_room_config(self, mucjid, data):
         """
         Set the room configuration using a :xep:`4` data form.
 
@@ -2497,4 +2485,4 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
             payload=muc_xso.OwnerQuery(form=data),
         )
 
-        yield from self.client.send(iq)
+        await self.client.send(iq)

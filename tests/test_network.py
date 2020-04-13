@@ -202,8 +202,7 @@ class Testrepeated_query(unittest.TestCase):
         self.base = base
         self.run_in_executor = unittest.mock.Mock()
 
-        @asyncio.coroutine
-        def run_in_executor(executor, func, *args):
+        async def run_in_executor(executor, func, *args):
             self.run_in_executor(executor, func, *args)
             return func(*args)
 
@@ -1368,6 +1367,7 @@ class Testgroup_and_order_srv_records(unittest.TestCase):
 class Testfind_xmpp_host_addr(unittest.TestCase):
     def test_returns_items_if_available(self):
         base = unittest.mock.Mock()
+        base.lookup_srv = CoroutineMock()
 
         nattempts = object()
         items = object()
@@ -1400,6 +1400,7 @@ class Testfind_xmpp_host_addr(unittest.TestCase):
 
     def test_creates_fake_srv_if_no_srvs_available(self):
         base = unittest.mock.Mock()
+        base.lookup_srv = CoroutineMock()
 
         nattempts = object()
 
@@ -1436,6 +1437,7 @@ class Testfind_xmpp_host_addr(unittest.TestCase):
 
     def test_propagates_OSError_from_lookup_srv(self):
         base = unittest.mock.Mock()
+        base.lookup_srv = CoroutineMock()
 
         nattempts = object()
 
@@ -1453,6 +1455,7 @@ class Testfind_xmpp_host_addr(unittest.TestCase):
 
     def test_propagates_ValueError_from_lookup_srv(self):
         base = unittest.mock.Mock()
+        base.lookup_srv = CoroutineMock()
 
         nattempts = object()
 

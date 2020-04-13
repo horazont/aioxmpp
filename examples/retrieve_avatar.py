@@ -68,24 +68,22 @@ class Avatar(Example):
         self.avatar = client.summon(aioxmpp.avatar.AvatarService)
         return client
 
-    @asyncio.coroutine
-    def run_simple_example(self):
-        metadata = yield from self.avatar.get_avatar_metadata(
+    async def run_simple_example(self):
+        metadata = await self.avatar.get_avatar_metadata(
             self.remote_jid
         )
 
         for metadatum in metadata:
             if metadatum.can_get_image_bytes_via_xmpp:
-                image = yield from metadatum.get_image_bytes()
+                image = await metadatum.get_image_bytes()
                 with open(self.output_file, "wb") as avatar_image:
                     avatar_image.write(image)
                 return
 
         print("retrieving avatar failed: no avatar available via xmpp")
 
-    @asyncio.coroutine
-    def run_example(self):
-        yield from super().run_example()
+    async def run_example(self):
+        await super().run_example()
 
 
 if __name__ == "__main__":

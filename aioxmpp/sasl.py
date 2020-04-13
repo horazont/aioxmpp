@@ -51,9 +51,8 @@ class SASLXMPPInterface(aiosasl.SASLInterface):
         self.xmlstream = xmlstream
         self.timeout = None
 
-    @asyncio.coroutine
-    def _send_sasl_node_and_wait_for(self, node):
-        node = yield from protocol.send_and_wait_for(
+    async def _send_sasl_node_and_wait_for(self, node):
+        node = await protocol.send_and_wait_for(
             self.xmlstream,
             [node],
             [
@@ -78,24 +77,21 @@ class SASLXMPPInterface(aiosasl.SASLInterface):
 
         return state, payload
 
-    @asyncio.coroutine
-    def initiate(self, mechanism, payload=None):
+    async def initiate(self, mechanism, payload=None):
         with self.xmlstream.mute():
-            return (yield from self._send_sasl_node_and_wait_for(
+            return await self._send_sasl_node_and_wait_for(
                 nonza.SASLAuth(mechanism=mechanism,
-                               payload=payload)))
+                               payload=payload))
 
-    @asyncio.coroutine
-    def respond(self, payload):
+    async def respond(self, payload):
         with self.xmlstream.mute():
-            return (yield from self._send_sasl_node_and_wait_for(
+            return await self._send_sasl_node_and_wait_for(
                 nonza.SASLResponse(payload=payload)
-            ))
+            )
 
-    @asyncio.coroutine
-    def abort(self):
+    async def abort(self):
         try:
-            next_state, payload = yield from self._send_sasl_node_and_wait_for(
+            next_state, payload = await self._send_sasl_node_and_wait_for(
                 nonza.SASLAbort()
             )
         except aiosasl.SASLFailure as err:

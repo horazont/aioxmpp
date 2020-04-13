@@ -237,10 +237,9 @@ def make_connected_client():
 class CoroutineMock(unittest.mock.Mock):
     delay = 0
 
-    @asyncio.coroutine
-    def __call__(self, *args, **kwargs):
+    async def __call__(self, *args, **kwargs):
         result = super().__call__(*args, **kwargs)
-        yield from asyncio.sleep(self.delay)
+        await asyncio.sleep(self.delay)
         return result
 
 
@@ -260,8 +259,7 @@ class SSLWrapperMock:
         self._loop = loop
         self._protocol = protocol
 
-    @asyncio.coroutine
-    def starttls(self, ssl_context=None, post_handshake_callback=None):
+    async def starttls(self, ssl_context=None, post_handshake_callback=None):
         """
         Override the STARTTLS sequence. Instead of actually starting a TLS
         transport on the existing socket, only make sure that the test expects
@@ -441,8 +439,7 @@ class TransportMock(InteractivityMock,
     def _execute_single(self, do):
         do(self, self._protocol)
 
-    @asyncio.coroutine
-    def run_test(self, actions, stimulus=None, partial=False):
+    async def run_test(self, actions, stimulus=None, partial=False):
         self._done = asyncio.Future()
         self._actions = actions
         if not self._connection_made:
@@ -454,7 +451,7 @@ class TransportMock(InteractivityMock,
                 self._execute_response(stimulus)
 
         while not self._queue.empty() or self._actions:
-            done, pending = yield from asyncio.wait(
+            done, pending = await asyncio.wait(
                 [
                     self._queue.get(),
                     self._done
@@ -470,15 +467,15 @@ class TransportMock(InteractivityMock,
                 value_future = next(iter(done))
                 action, *args = value_future.result()
                 if action == "write":
-                    yield from self._write(*args)
+                    await self._write(*args)
                 elif action == "write_eof":
-                    yield from self._write_eof(*args)
+                    await self._write_eof(*args)
                 elif action == "close":
-                    yield from self._close(*args)
+                    await self._close(*args)
                 elif action == "abort":
-                    yield from self._abort(*args)
+                    await self._abort(*args)
                 elif action == "starttls":
-                    yield from self._starttls(*args)
+                    await self._starttls(*args)
                 else:
                     assert False
 
@@ -491,12 +488,10 @@ class TransportMock(InteractivityMock,
     def can_write_eof(self):
         return True
 
-    @asyncio.coroutine
-    def _write_eof(self):
+    async def _write_eof(self):
         self._basic("write_eof", self.WriteEof)
 
-    @asyncio.coroutine
-    def _write(self, data):
+    async def _write(self, data):
         self._tester.assertTrue(
             self._actions,
             "unexpected write (no actions left)"+self._previously()
@@ -520,16 +515,13 @@ class TransportMock(InteractivityMock,
         else:
             self._actions[0] = head.replace(data=expected_data)
 
-    @asyncio.coroutine
-    def _abort(self):
+    async def _abort(self):
         self._basic("abort", self.Abort)
 
-    @asyncio.coroutine
-    def _close(self):
+    async def _close(self):
         self._basic("close", self.Close)
 
-    @asyncio.coroutine
-    def _starttls(self, ssl_context, post_handshake_callback, fut):
+    async def _starttls(self, ssl_context, post_handshake_callback, fut):
         self._tester.assertTrue(
             self._actions,
             self._format_unexpected_action("starttls", "no actions left"),
@@ -553,7 +545,7 @@ class TransportMock(InteractivityMock,
 
         if post_handshake_callback:
             try:
-                yield from post_handshake_callback(self)
+                await post_handshake_callback(self)
             except Exception as exc:
                 fut.set_exception(exc)
             else:
@@ -578,8 +570,7 @@ class TransportMock(InteractivityMock,
     def can_starttls(self):
         return self._with_starttls
 
-    @asyncio.coroutine
-    def starttls(self, ssl_context=None, post_handshake_callback=None):
+    async def starttls(self, ssl_context=None, post_handshake_callback=None):
         if not self._with_starttls:
             raise RuntimeError("STARTTLS not supported")
 
@@ -587,7 +578,7 @@ class TransportMock(InteractivityMock,
         self._queue.put_nowait(
             ("starttls", ssl_context, post_handshake_callback, fut)
         )
-        yield from fut
+        await fut
 
 
 class XMLStreamMock(InteractivityMock):
@@ -657,16 +648,14 @@ class XMLStreamMock(InteractivityMock):
     def _execute_single(self, do):
         do(self)
 
-    @asyncio.coroutine
-    def run_test(self, actions,
-                 stimulus=None):
+    async def run_test(self, actions, stimulus=None):
         self._done = asyncio.Future()
         self._actions = actions
 
         self._execute_response(stimulus)
 
         while not self._queue.empty() or self._actions:
-            done, pending = yield from asyncio.wait(
+            done, pending = await asyncio.wait(
                 [
                     self._queue.get(),
                     self._done
@@ -683,27 +672,26 @@ class XMLStreamMock(InteractivityMock):
                 value_future = next(iter(done))
                 action, *args = value_future.result()
                 if action == "send":
-                    yield from self._send_xso(*args)
+                    await self._send_xso(*args)
                 elif action == "reset":
-                    yield from self._reset(*args)
+                    await self._reset(*args)
                 elif action == "close":
-                    yield from self._close(*args)
+                    await self._close(*args)
                 elif action == "starttls":
-                    yield from self._starttls(*args)
+                    await self._starttls(*args)
                 elif action == "abort":
-                    yield from self._abort(*args)
+                    await self._abort(*args)
                 elif action == "mute":
-                    yield from self._mute(*args)
+                    await self._mute(*args)
                 elif action == "unmute":
-                    yield from self._unmute(*args)
+                    await self._unmute(*args)
                 else:
                     assert False
 
             if self._done not in pending:
                 break
 
-    @asyncio.coroutine
-    def _send_xso(self, obj):
+    async def _send_xso(self, obj):
         self._tester.assertTrue(
             self._actions,
             self._format_unexpected_action(
@@ -727,28 +715,23 @@ class XMLStreamMock(InteractivityMock):
         self._actions.pop(0)
         self._execute_response(head.response)
 
-    @asyncio.coroutine
-    def _reset(self):
+    async def _reset(self):
         self._basic("reset", self.Reset)
 
-    @asyncio.coroutine
-    def _mute(self):
+    async def _mute(self):
         self._basic("mute", self.Mute)
 
-    @asyncio.coroutine
-    def _unmute(self):
+    async def _unmute(self):
         self._basic("unmute", self.Unmute)
 
-    @asyncio.coroutine
-    def _abort(self):
+    async def _abort(self):
         self._basic("abort", self.Abort)
         self._exception = ConnectionError("not connected")
         for fut in self._error_futures:
             if not fut.done():
                 fut.set_exception(self._exception)
 
-    @asyncio.coroutine
-    def _close(self):
+    async def _close(self):
         self._basic("close", self.Close)
         self._exception = ConnectionError("not connected")
         self.on_closing(None)
@@ -756,8 +739,7 @@ class XMLStreamMock(InteractivityMock):
             if not fut.done():
                 fut.set_exception(self._exception)
 
-    @asyncio.coroutine
-    def _starttls(self, ssl_context, post_handshake_callback, fut):
+    async def _starttls(self, ssl_context, post_handshake_callback, fut):
         self._tester.assertTrue(
             self._actions,
             self._format_unexpected_action("starttls", "no actions left"),
@@ -781,7 +763,7 @@ class XMLStreamMock(InteractivityMock):
 
         if post_handshake_callback:
             try:
-                yield from post_handshake_callback(self.transport)
+                await post_handshake_callback(self.transport)
             except Exception as exc:
                 fut.set_exception(exc)
             else:
@@ -811,8 +793,7 @@ class XMLStreamMock(InteractivityMock):
             raise self._exception
         self._queue.put_nowait(("close",))
 
-    @asyncio.coroutine
-    def starttls(self, ssl_context, post_handshake_callback=None):
+    async def starttls(self, ssl_context, post_handshake_callback=None):
         if self._exception:
             raise self._exception
 
@@ -820,15 +801,14 @@ class XMLStreamMock(InteractivityMock):
         self._queue.put_nowait(
             ("starttls", ssl_context, post_handshake_callback, fut)
         )
-        yield from fut
+        await fut
 
-    @asyncio.coroutine
-    def close_and_wait(self):
+    async def close_and_wait(self):
         fut = asyncio.Future()
         self.on_closing.connect(fut, self.on_closing.AUTO_FUTURE)
         self.close()
         try:
-            yield from fut
+            await fut
         except Exception:
             pass
 

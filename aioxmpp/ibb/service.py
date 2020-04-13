@@ -140,11 +140,10 @@ class IBBTransport(asyncio.Transport):
             "sid": self._sid,
         }.get(key, default)
 
-    @asyncio.coroutine
-    def _write_task_main(self):
+    async def _write_task_main(self):
         e = None
         while True:
-            yield from self._can_write.wait()
+            await self._can_write.wait()
 
             if self._write_buffer:
                 data = self._write_buffer[:self._block_size]
@@ -172,13 +171,13 @@ class IBBTransport(asyncio.Transport):
                     )
 
                 try:
-                    yield from self._service.client.send(
+                    await self._service.client.send(
                         stanza
                     )
                 except errors.XMPPWaitError:
                     # wait and try again unless max retries have been reached
                     if self._retries < self._service.max_retries:
-                        yield from asyncio.sleep(self._wait_time)
+                        await asyncio.sleep(self._wait_time)
                         self._wait_time *= self._service.wait_backoff_factor
                         self._retries += 1
                         continue
@@ -219,9 +218,7 @@ class IBBTransport(asyncio.Transport):
         )
 
         try:
-            yield from self._service.client.send(
-                stanza
-            )
+            await self._service.client.send(stanza)
         except errors.StanzaError as _e:
             if e is None:
                 e = _e
@@ -415,10 +412,9 @@ class IBBService(service.Service):
         fut.add_done_callback(on_done)
         return fut
 
-    @asyncio.coroutine
-    def open_session(self, protocol_factory, peer_jid, *,
-                     stanza_type=ibb_xso.IBBStanzaType.IQ,
-                     block_size=4096, sid=None):
+    async def open_session(self, protocol_factory, peer_jid, *,
+                           stanza_type=ibb_xso.IBBStanzaType.IQ,
+                           block_size=4096, sid=None):
         """
         Establish an in-band bytestream session with `peer_jid` and
         return the transport and protocol.
@@ -450,7 +446,7 @@ class IBBService(service.Service):
         open_.block_size = block_size
 
         # XXX: retry on XMPPModifyError with RESOURCE_CONSTRAINT
-        yield from self.client.send(
+        await self.client.send(
             aioxmpp.IQ(
                 aioxmpp.IQType.SET,
                 to=peer_jid,
@@ -473,8 +469,7 @@ class IBBService(service.Service):
     @service.iq_handler(
         aioxmpp.IQType.SET,
         ibb_xso.Open)
-    @asyncio.coroutine
-    def _handle_open_request(self, iq):
+    async def _handle_open_request(self, iq):
         peer_jid = iq.from_
         sid = iq.payload.sid
         block_size = iq.payload.block_size
@@ -524,8 +519,7 @@ class IBBService(service.Service):
     @service.iq_handler(
         aioxmpp.IQType.SET,
         ibb_xso.Close)
-    @asyncio.coroutine
-    def _handle_close_request(self, iq):
+    async def _handle_close_request(self, iq):
         peer_jid = iq.from_
         sid = iq.payload.sid
 
@@ -541,8 +535,7 @@ class IBBService(service.Service):
     @service.iq_handler(
         aioxmpp.IQType.SET,
         ibb_xso.Data)
-    @asyncio.coroutine
-    def _handle_data(self, iq):
+    async def _handle_data(self, iq):
         peer_jid = iq.from_
         sid = iq.payload.sid
 

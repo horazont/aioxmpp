@@ -112,31 +112,28 @@ class BookmarkClient(service.Service):
         self._lock = asyncio.Lock()
 
     @service.depsignal(aioxmpp.Client, "on_stream_established", defer=True)
-    @asyncio.coroutine
-    def _stream_established(self):
-        yield from self.sync()
+    async def _stream_established(self):
+        await self.sync()
 
-    @asyncio.coroutine
-    def _get_bookmarks(self):
+    async def _get_bookmarks(self):
         """
         Get the stored bookmarks from the server.
 
         :returns: a list of bookmarks
         """
-        res = yield from self._private_xml.get_private_xml(
+        res = await self._private_xml.get_private_xml(
             bookmark_xso.Storage()
         )
 
         return res.registered_payload.bookmarks
 
-    @asyncio.coroutine
-    def _set_bookmarks(self, bookmarks):
+    async def _set_bookmarks(self, bookmarks):
         """
         Set the bookmarks stored on the server.
         """
         storage = bookmark_xso.Storage()
         storage.bookmarks[:] = bookmarks
-        yield from self._private_xml.set_private_xml(storage)
+        await self._private_xml.set_private_xml(storage)
 
     def _diff_emit_update(self, new_bookmarks):
         """
@@ -264,21 +261,19 @@ class BookmarkClient(service.Service):
 
         self._bookmark_cache = new_bookmarks
 
-    @asyncio.coroutine
-    def get_bookmarks(self):
+    async def get_bookmarks(self):
         """
         Get the stored bookmarks from the server. Causes signals to be
         fired to reflect the changes.
 
         :returns: a list of bookmarks
         """
-        with (yield from self._lock):
-            bookmarks = yield from self._get_bookmarks()
+        async with self._lock:
+            bookmarks = await self._get_bookmarks()
             self._diff_emit_update(bookmarks)
             return bookmarks
 
-    @asyncio.coroutine
-    def set_bookmarks(self, bookmarks):
+    async def set_bookmarks(self, bookmarks):
         """
         Store the sequence of bookmarks `bookmarks`.
 
@@ -293,12 +288,11 @@ class BookmarkClient(service.Service):
                   the bookmarklist at large, e.g. by syncing the
                   remote store with local data).
         """
-        with (yield from self._lock):
-            yield from self._set_bookmarks(bookmarks)
+        async with self._lock:
+            await self._set_bookmarks(bookmarks)
             self._diff_emit_update(bookmarks)
 
-    @asyncio.coroutine
-    def sync(self):
+    async def sync(self):
         """
         Sync the bookmarks between the local representation and the
         server.
@@ -306,10 +300,9 @@ class BookmarkClient(service.Service):
         This must be called periodically to assure that the signals
         are fired.
         """
-        yield from self.get_bookmarks()
+        await self.get_bookmarks()
 
-    @asyncio.coroutine
-    def add_bookmark(self, new_bookmark, *, max_retries=3):
+    async def add_bookmark(self, new_bookmark, *, max_retries=3):
         """
         Add a bookmark and check whether it was successfully added to the
         bookmark list. Already existant bookmarks are not added twice.
@@ -329,24 +322,24 @@ class BookmarkClient(service.Service):
         is raised if the bookmark could not be added successfully after
         `max_retries`.
         """
-        with (yield from self._lock):
-            bookmarks = yield from self._get_bookmarks()
+        async with self._lock:
+            bookmarks = await self._get_bookmarks()
 
             try:
                 modified_bookmarks = list(bookmarks)
                 if new_bookmark not in bookmarks:
                     modified_bookmarks.append(new_bookmark)
-                yield from self._set_bookmarks(modified_bookmarks)
+                await self._set_bookmarks(modified_bookmarks)
 
                 retries = 0
-                bookmarks = yield from self._get_bookmarks()
+                bookmarks = await self._get_bookmarks()
                 while retries < max_retries:
                     if new_bookmark in bookmarks:
                         break
                     modified_bookmarks = list(bookmarks)
                     modified_bookmarks.append(new_bookmark)
-                    yield from self._set_bookmarks(modified_bookmarks)
-                    bookmarks = yield from self._get_bookmarks()
+                    await self._set_bookmarks(modified_bookmarks)
+                    bookmarks = await self._get_bookmarks()
                     retries += 1
 
                 if new_bookmark not in bookmarks:
@@ -355,8 +348,7 @@ class BookmarkClient(service.Service):
             finally:
                 self._diff_emit_update(bookmarks)
 
-    @asyncio.coroutine
-    def discard_bookmark(self, bookmark_to_remove, *, max_retries=3):
+    async def discard_bookmark(self, bookmark_to_remove, *, max_retries=3):
         """
         Remove a bookmark and check it has been removed.
 
@@ -382,8 +374,8 @@ class BookmarkClient(service.Service):
         :class:`RuntimeError` is raised if the bookmark could not be
         removed successfully after `max_retries`.
         """
-        with (yield from self._lock):
-            bookmarks = yield from self._get_bookmarks()
+        async with self._lock:
+            bookmarks = await self._get_bookmarks()
             occurences = bookmarks.count(bookmark_to_remove)
 
             try:
@@ -392,18 +384,18 @@ class BookmarkClient(service.Service):
 
                 modified_bookmarks = list(bookmarks)
                 modified_bookmarks.remove(bookmark_to_remove)
-                yield from self._set_bookmarks(modified_bookmarks)
+                await self._set_bookmarks(modified_bookmarks)
 
                 retries = 0
-                bookmarks = yield from self._get_bookmarks()
+                bookmarks = await self._get_bookmarks()
                 new_occurences = bookmarks.count(bookmark_to_remove)
                 while retries < max_retries:
                     if new_occurences < occurences:
                         break
                     modified_bookmarks = list(bookmarks)
                     modified_bookmarks.remove(bookmark_to_remove)
-                    yield from self._set_bookmarks(modified_bookmarks)
-                    bookmarks = yield from self._get_bookmarks()
+                    await self._set_bookmarks(modified_bookmarks)
+                    bookmarks = await self._get_bookmarks()
                     new_occurences = bookmarks.count(bookmark_to_remove)
                     retries += 1
 
@@ -412,8 +404,7 @@ class BookmarkClient(service.Service):
             finally:
                 self._diff_emit_update(bookmarks)
 
-    @asyncio.coroutine
-    def update_bookmark(self, old, new, *, max_retries=3):
+    async def update_bookmark(self, old, new, *, max_retries=3):
         """
         Update a bookmark and check it was successful.
 
@@ -454,23 +445,23 @@ class BookmarkClient(service.Service):
                 modified_bookmarks.append(new)
             return modified_bookmarks
 
-        with (yield from self._lock):
-            bookmarks = yield from self._get_bookmarks()
+        async with self._lock:
+            bookmarks = await self._get_bookmarks()
 
             try:
-                yield from self._set_bookmarks(
+                await self._set_bookmarks(
                     replace_bookmark(bookmarks, old, new)
                 )
 
                 retries = 0
-                bookmarks = yield from self._get_bookmarks()
+                bookmarks = await self._get_bookmarks()
                 while retries < max_retries:
                     if new in bookmarks:
                         break
-                    yield from self._set_bookmarks(
+                    await self._set_bookmarks(
                         replace_bookmark(bookmarks, old, new)
                     )
-                    bookmarks = yield from self._get_bookmarks()
+                    bookmarks = await self._get_bookmarks()
                     retries += 1
 
                 if new not in bookmarks:

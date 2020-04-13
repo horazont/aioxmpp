@@ -48,16 +48,15 @@ class PubSubItems(Example):
             nargs="?",
         )
 
-    @asyncio.coroutine
-    def run_simple_example(self):
+    async def run_simple_example(self):
         pubsub = self.client.summon(aioxmpp.PubSubClient)
         try:
             if self.args.target_node is None:
-                items = yield from pubsub.get_nodes(
+                items = await pubsub.get_nodes(
                     self.args.target_entity
                 )
             else:
-                items = yield from pubsub.get_items(
+                items = await pubsub.get_items(
                     self.args.target_entity,
                     node=self.args.target_node,
                 )

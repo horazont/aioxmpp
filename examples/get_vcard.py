@@ -64,20 +64,18 @@ class VCard(Example):
         self.vcard = client.summon(aioxmpp.vcard.VCardService)
         return client
 
-    @asyncio.coroutine
-    def run_simple_example(self):
-        vcard = yield from self.vcard.get_vcard(
+    async def run_simple_example(self):
+        vcard = await self.vcard.get_vcard(
             self.remote_jid
         )
-
 
         es = lxml.etree.tostring(vcard.elements, pretty_print=True,
                                  encoding="utf-8")
         print(es.decode("utf-8"))
 
-    @asyncio.coroutine
-    def run_example(self):
-        yield from super().run_example()
+    async def run_example(self):
+        await super().run_example()
+
 
 if __name__ == "__main__":
     exec_example(VCard())

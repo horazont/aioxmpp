@@ -71,14 +71,12 @@ class ListPresence(Example):
 
         return client
 
-    @asyncio.coroutine
-    def run_simple_example(self):
+    async def run_simple_example(self):
         print("collecting presences... ")
-        self.presences = yield from self.collector.done_future
+        self.presences = await self.collector.done_future
 
-    @asyncio.coroutine
-    def run_example(self):
-        yield from super().run_example()
+    async def run_example(self):
+        await super().run_example()
 
         print("found presences:")
         for i, pres in enumerate(self.presences):

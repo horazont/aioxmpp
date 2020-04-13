@@ -61,25 +61,25 @@ class TestOwnerUseCases(TestCase):
         }
     )
     @blocking
-    def setUp(self, pubsub_jid, supported_features):
+    async def setUp(self, pubsub_jid, supported_features):
         logging.info("using pubsub service %s, which provides %r",
                      pubsub_jid, supported_features)
 
         self.peer = pubsub_jid
         self.peer_features = supported_features
 
-        self.owner = yield from self.provisioner.get_connected_client()
+        self.owner = await self.provisioner.get_connected_client()
         self.pubsub = self.owner.summon(aioxmpp.PubSubClient)
 
-        self.other = yield from self.provisioner.get_connected_client()
+        self.other = await self.provisioner.get_connected_client()
 
         self.node = str(uuid.uuid4())
 
-        yield from self.pubsub.create(self.peer, self.node)
+        await self.pubsub.create(self.peer, self.node)
 
     @blocking
-    def tearDown(self):
-        yield from self.pubsub.delete(self.peer, self.node)
+    async def tearDown(self):
+        await self.pubsub.delete(self.peer, self.node)
 
     def _require_features(self, features):
         features = set(features)
@@ -92,29 +92,29 @@ class TestOwnerUseCases(TestCase):
             )
 
     @blocking_timed
-    def test_publish_and_purge(self):
+    async def test_publish_and_purge(self):
         self._require_features({
             namespaces.xep0060_features.PURGE_NODES.value
         })
 
         payload = Payload()
 
-        id_ = yield from self.pubsub.publish(
+        id_ = await self.pubsub.publish(
             self.peer,
             self.node,
             payload,
         )
-        items = yield from self.pubsub.get_items(
+        items = await self.pubsub.get_items(
             self.peer,
             self.node,
         )
 
         self.assertEqual(len(items.payload.items), 1)
-        yield from self.pubsub.purge(self.peer, self.node)
+        await self.pubsub.purge(self.peer, self.node)
 
         # using get items instead of get_items_by_id to work around ejabberd
         # #2288
-        items = yield from self.pubsub.get_items(
+        items = await self.pubsub.get_items(
             self.peer,
             self.node,
         )
@@ -122,9 +122,9 @@ class TestOwnerUseCases(TestCase):
 
     @blocking_timed
     @skip_with_quirk(Quirk.PUBSUB_GET_MULTIPLE_ITEMS_BY_ID_BROKEN)
-    def test_publish_multiple_and_get_by_id(self):
+    async def test_publish_multiple_and_get_by_id(self):
         # configure the node for multiple items
-        config = yield from self.pubsub.get_node_config(
+        config = await self.pubsub.get_node_config(
             self.peer,
             self.node,
         )
@@ -136,7 +136,7 @@ class TestOwnerUseCases(TestCase):
 
         if max_items < 2:
             form.max_items.value = "10"
-            yield from self.pubsub.set_node_config(
+            await self.pubsub.set_node_config(
                 self.peer,
                 form.render_reply(),
                 self.node,
@@ -148,22 +148,22 @@ class TestOwnerUseCases(TestCase):
         payload2 = Payload()
         payload2.data = "bar"
 
-        id1 = yield from self.pubsub.publish(
+        id1 = await self.pubsub.publish(
             self.peer,
             self.node,
             payload1,
         )
-        id2 = yield from self.pubsub.publish(
+        id2 = await self.pubsub.publish(
             self.peer,
             self.node,
             payload2,
         )
-        items = yield from self.pubsub.get_items_by_id(
+        items = await self.pubsub.get_items_by_id(
             self.peer,
             self.node,
             [id1, id2]
         )
-        yield from self.pubsub.get_items(
+        await self.pubsub.get_items(
             self.peer,
             self.node,
         )

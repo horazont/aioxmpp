@@ -264,11 +264,13 @@ class LazyTask(asyncio.Future):
     if hasattr(asyncio.Future, "__await__"):
         def __await__(self):
             self.__start_task()
-            return super().__await__()
+            if hasattr(self.__task, "__await__"):
+                return self.__task.__await__()
+            else:
+                return super().__await__()
 
 
-@asyncio.coroutine
-def gather_reraise_multi(*fut_or_coros, message="gather_reraise_multi"):
+async def gather_reraise_multi(*fut_or_coros, message="gather_reraise_multi"):
     """
     Wrap all the arguments `fut_or_coros` in futures with
     :func:`asyncio.ensure_future` and wait until all of them are finish or
@@ -307,7 +309,7 @@ def gather_reraise_multi(*fut_or_coros, message="gather_reraise_multi"):
     if not todo:
         return []
 
-    yield from asyncio.wait(todo)
+    await asyncio.wait(todo)
     results = []
     exceptions = []
     for fut in todo:

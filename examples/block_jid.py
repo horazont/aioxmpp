@@ -82,12 +82,11 @@ class BlockJID(Example):
         self.blocking = client.summon(aioxmpp.BlockingClient)
         return client
 
-    @asyncio.coroutine
-    def run_simple_example(self):
+    async def run_simple_example(self):
         # we are polite and ask the server whether it actually supports the
         # XEP-0191 block list protocol
         disco = self.client.summon(aioxmpp.DiscoClient)
-        server_info = yield from disco.query_info(
+        server_info = await disco.query_info(
             self.client.local_jid.replace(
                 resource=None,
                 localpart=None,
@@ -102,12 +101,12 @@ class BlockJID(Example):
         # requests.
 
         if self.args.jids_to_block:
-            yield from self.blocking.block_jids(self.args.jids_to_block)
+            await self.blocking.block_jids(self.args.jids_to_block)
         else:
             print("nothing to block")
 
         if self.args.jids_to_unblock:
-            yield from self.blocking.unblock_jids(self.args.jids_to_unblock)
+            await self.blocking.unblock_jids(self.args.jids_to_unblock)
         else:
             print("nothing to unblock")
 

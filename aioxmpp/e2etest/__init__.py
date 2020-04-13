@@ -309,9 +309,8 @@ def blocking_with_timeout(timeout):
     def decorator(f):
         @blocking
         @functools.wraps(f)
-        @asyncio.coroutine
-        def wrapper(*args, **kwargs):
-            yield from asyncio.wait_for(f(*args, **kwargs), timeout)
+        async def wrapper(*args, **kwargs):
+            return await asyncio.wait_for(f(*args, **kwargs), timeout)
         return wrapper
     return decorator
 
@@ -336,16 +335,14 @@ def blocking_timed(f):
     """
     @blocking
     @functools.wraps(f)
-    @asyncio.coroutine
-    def wrapper(*args, **kwargs):
+    async def wrapper(*args, **kwargs):
         global timeout
-        yield from asyncio.wait_for(f(*args, **kwargs), timeout)
+        await asyncio.wait_for(f(*args, **kwargs), timeout)
     return wrapper
 
 
 @blocking
-@asyncio.coroutine
-def setup_package():
+async def setup_package():
     global provisioner, config, timeout
     if config is None:
         # AioxmppPlugin is not used -> skip all e2e tests
@@ -366,7 +363,7 @@ def setup_package():
     section = config[provisioner_name]
     provisioner = cls_()
     provisioner.configure(section)
-    yield from provisioner.initialise()
+    await provisioner.initialise()
 
 
 def teardown_package():
@@ -417,18 +414,16 @@ class E2ETestPlugin(Plugin):
             logger.addHandler(handler)
 
     @blocking
-    @asyncio.coroutine
-    def beforeTest(self, test):
+    async def beforeTest(self, test):
         global provisioner
         if provisioner is not None:
-            yield from provisioner.setup()
+            await provisioner.setup()
 
     @blocking
-    @asyncio.coroutine
-    def afterTest(self, test):
+    async def afterTest(self, test):
         global provisioner
         if provisioner is not None:
-            yield from provisioner.teardown()
+            await provisioner.teardown()
 
 
 class TestCase(unittest.TestCase):

@@ -148,8 +148,7 @@ class OrderedStateMachine:
                              "({} > {})".format(new_state, self._state))
         self._state = new_state
 
-    @asyncio.coroutine
-    def wait_for(self, new_state):
+    async def wait_for(self, new_state):
         """
         Wait for an exact state `new_state` to be reached by the state
         machine.
@@ -167,10 +166,9 @@ class OrderedStateMachine:
 
         fut = asyncio.Future(loop=self.loop)
         self._exact_waiters.append((new_state, fut))
-        yield from fut
+        await fut
 
-    @asyncio.coroutine
-    def wait_for_at_least(self, new_state):
+    async def wait_for_at_least(self, new_state):
         """
         Wait for a state to be entered which is greater than or equal to
         `new_state` and return.
@@ -180,4 +178,4 @@ class OrderedStateMachine:
 
         fut = asyncio.Future(loop=self.loop)
         self._least_waiters.append((new_state, fut))
-        yield from fut
+        await fut

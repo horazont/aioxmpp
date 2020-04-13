@@ -83,10 +83,9 @@ class SoftwareVersions(Example):
 
         self.timeout = self.args.timeout
 
-    @asyncio.coroutine
-    def run_example(self):
+    async def run_example(self):
         self.stop_event = self.make_sigint_event()
-        yield from super().run_example()
+        await super().run_example()
 
     def format_version(self, version_xso):
         return "name={!r} version={!r} os={!r}".format(
@@ -95,8 +94,7 @@ class SoftwareVersions(Example):
             version_xso.os,
         )
 
-    @asyncio.coroutine
-    def run_simple_example(self):
+    async def run_simple_example(self):
         tasks = []
         stream = self.client.stream
         for jid in self.jids:
@@ -116,7 +114,7 @@ class SoftwareVersions(Example):
 
         cancel_fut = asyncio.ensure_future(self.stop_event.wait())
 
-        yield from asyncio.wait(
+        await asyncio.wait(
             [
                 gather_task,
                 cancel_fut,

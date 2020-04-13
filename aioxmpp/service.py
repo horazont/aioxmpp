@@ -778,8 +778,7 @@ class Service(metaclass=Meta):
         """
         return self.__dependencies
 
-    @asyncio.coroutine
-    def _shutdown(self):
+    async def _shutdown(self):
         """
         Actual implementation of the shut down process.
 
@@ -788,8 +787,7 @@ class Service(metaclass=Meta):
         instead of :meth:`shutdown`.
         """
 
-    @asyncio.coroutine
-    def shutdown(self):
+    async def shutdown(self):
         """
         Close the service and wait for it to completely shut down.
 
@@ -804,7 +802,7 @@ class Service(metaclass=Meta):
            override the :meth:`_shutdown` method.
 
         """
-        yield from self._shutdown()
+        await self._shutdown()
         self.__context.close()
         self.__client = None
 

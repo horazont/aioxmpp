@@ -167,8 +167,7 @@ class VersionServer(aioxmpp.service.Service):
 
     @aioxmpp.service.iq_handler(aioxmpp.IQType.GET,
                                 version_xso.Query)
-    @asyncio.coroutine
-    def handle_query(self, iq: aioxmpp.IQ) -> version_xso.Query:
+    async def handle_query(self, iq: aioxmpp.IQ) -> version_xso.Query:
         if self._name is None:
             raise aioxmpp.errors.XMPPCancelError(
                 aioxmpp.errors.ErrorCondition.SERVICE_UNAVAILABLE,
@@ -181,9 +180,8 @@ class VersionServer(aioxmpp.service.Service):
         return result
 
 
-@asyncio.coroutine
-def query_version(stream: aioxmpp.stream.StanzaStream,
-                  target: aioxmpp.JID) -> version_xso.Query:
+async def query_version(stream: aioxmpp.stream.StanzaStream,
+                        target: aioxmpp.JID) -> version_xso.Query:
     """
     Query the software version of an entity.
 
@@ -203,10 +201,8 @@ def query_version(stream: aioxmpp.stream.StanzaStream,
     case, all attributes are :data:`None`.
     """
 
-    return (yield from stream.send(
-        aioxmpp.IQ(
-            type_=aioxmpp.IQType.GET,
-            to=target,
-            payload=version_xso.Query(),
-        )
+    return await stream.send(aioxmpp.IQ(
+        type_=aioxmpp.IQType.GET,
+        to=target,
+        payload=version_xso.Query(),
     ))

@@ -441,8 +441,7 @@ class DiscoServer(service.Service, Node):
     @aioxmpp.service.iq_handler(
         aioxmpp.structs.IQType.GET,
         disco_xso.InfoQuery)
-    @asyncio.coroutine
-    def handle_info_request(self, iq):
+    async def handle_info_request(self, iq):
         request = iq.payload
 
         try:
@@ -465,8 +464,7 @@ class DiscoServer(service.Service, Node):
     @aioxmpp.service.iq_handler(
         aioxmpp.structs.IQType.GET,
         disco_xso.ItemsQuery)
-    @asyncio.coroutine
-    def handle_items_request(self, iq):
+    async def handle_items_request(self, iq):
         request = iq.payload
 
         try:
@@ -629,21 +627,17 @@ class DiscoClient(service.Service):
         self._info_pending.clear()
         self._items_pending.clear()
 
-    @asyncio.coroutine
-    def send_and_decode_info_query(self, jid, node):
+    async def send_and_decode_info_query(self, jid, node):
         request_iq = stanza.IQ(to=jid, type_=structs.IQType.GET)
         request_iq.payload = disco_xso.InfoQuery(node=node)
 
-        response = yield from self.client.send(
-            request_iq
-        )
+        response = await self.client.send(request_iq)
 
         return response
 
-    @asyncio.coroutine
-    def query_info(self, jid, *,
-                   node=None, require_fresh=False, timeout=None,
-                   no_cache=False):
+    async def query_info(self, jid, *,
+                         node=None, require_fresh=False, timeout=None,
+                         no_cache=False):
         """
         Query the features and identities of the specified entity.
 
@@ -705,7 +699,7 @@ class DiscoClient(service.Service):
                 pass
             else:
                 try:
-                    return (yield from request)
+                    return await request
                 except asyncio.CancelledError:
                     pass
 
@@ -725,13 +719,13 @@ class DiscoClient(service.Service):
         try:
             if timeout is not None:
                 try:
-                    result = yield from asyncio.wait_for(
+                    result = await asyncio.wait_for(
                         request,
                         timeout=timeout)
                 except asyncio.TimeoutError:
                     raise TimeoutError()
             else:
-                result = yield from request
+                result = await request
         except:  # NOQA
             if request.done():
                 try:
@@ -745,9 +739,8 @@ class DiscoClient(service.Service):
 
         return result
 
-    @asyncio.coroutine
-    def query_items(self, jid, *,
-                    node=None, require_fresh=False, timeout=None):
+    async def query_items(self, jid, *,
+                          node=None, require_fresh=False, timeout=None):
         """
         Query the items of the specified entity.
 
@@ -774,7 +767,7 @@ class DiscoClient(service.Service):
                 pass
             else:
                 try:
-                    return (yield from request)
+                    return await request
                 except asyncio.CancelledError:
                     pass
 
@@ -789,13 +782,13 @@ class DiscoClient(service.Service):
         try:
             if timeout is not None:
                 try:
-                    result = yield from asyncio.wait_for(
+                    result = await asyncio.wait_for(
                         request,
                         timeout=timeout)
                 except asyncio.TimeoutError:
                     raise TimeoutError()
             else:
-                result = yield from request
+                result = await request
         except:  # NOQA
             if request.done():
                 try:

@@ -49,12 +49,10 @@ class PingService(aioxmpp.service.Service):
     )
 
     @aioxmpp.service.iq_handler(aioxmpp.structs.IQType.GET, ping_xso.Ping)
-    @asyncio.coroutine
-    def handle_ping(self, request):
+    async def handle_ping(self, request):
         return ping_xso.Ping()
 
-    @asyncio.coroutine
-    def ping(self, peer):
+    async def ping(self, peer):
         """
         Wrapper around :func:`aioxmpp.ping.ping`.
 
@@ -83,11 +81,10 @@ class PingService(aioxmpp.service.Service):
 
             Converted to a shim wrapper.
         """
-        return (yield from ping(self.client, peer))
+        return await ping(self.client, peer)
 
 
-@asyncio.coroutine
-def ping(client, peer):
+async def ping(client, peer):
     """
     Ping a peer.
 
@@ -121,4 +118,4 @@ def ping(client, peer):
         payload=ping_xso.Ping()
     )
 
-    yield from client.send(iq)
+    await client.send(iq)

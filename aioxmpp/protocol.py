@@ -564,8 +564,7 @@ class XMLStream(asyncio.Protocol):
             self._close_transport()
         self._smachine.state = State.CLOSING
 
-    @asyncio.coroutine
-    def close_and_wait(self):
+    async def close_and_wait(self):
         """
         Close the XML stream and the underlying transport and wait for for the
         XML stream to be properly terminated.
@@ -576,7 +575,7 @@ class XMLStream(asyncio.Protocol):
         The other remarks about :meth:`close` hold.
         """
         self.close()
-        yield from self._smachine.wait_for_at_least(
+        await self._smachine.wait_for_at_least(
             State.CLOSING_STREAM_FOOTER_RECEIVED
         )
 
@@ -695,8 +694,7 @@ class XMLStream(asyncio.Protocol):
         return (hasattr(self._transport, "can_starttls") and
                 self._transport.can_starttls())
 
-    @asyncio.coroutine
-    def starttls(self, ssl_context, post_handshake_callback=None):
+    async def starttls(self, ssl_context, post_handshake_callback=None):
         """
         Start TLS on the transport and wait for it to complete.
 
@@ -717,8 +715,7 @@ class XMLStream(asyncio.Protocol):
         if not self.can_starttls():
             raise RuntimeError("starttls not available on transport")
 
-        yield from self._transport.starttls(ssl_context,
-                                            post_handshake_callback)
+        await self._transport.starttls(ssl_context, post_handshake_callback)
         self._reset_state()
 
     def error_future(self):
@@ -816,10 +813,9 @@ class XMLStream(asyncio.Protocol):
         self._monitor.deadtime_hard_limit = value
 
 
-@asyncio.coroutine
-def send_and_wait_for(xmlstream, send, wait_for,
-                      timeout=None,
-                      cb=None):
+async def send_and_wait_for(xmlstream, send, wait_for,
+                            timeout=None,
+                            cb=None):
     fut = asyncio.Future()
     wait_for = list(wait_for)
 
@@ -845,7 +841,7 @@ def send_and_wait_for(xmlstream, send, wait_for,
         for to_send in send:
             xmlstream.send_xso(to_send)
 
-        done, pending = yield from asyncio.wait(
+        done, pending = await asyncio.wait(
             [
                 fut,
                 failure_future,
@@ -866,8 +862,7 @@ def send_and_wait_for(xmlstream, send, wait_for,
         raise TimeoutError()
 
 
-@asyncio.coroutine
-def reset_stream_and_get_features(xmlstream, timeout=None):
+async def reset_stream_and_get_features(xmlstream, timeout=None):
     fut = asyncio.Future()
 
     def cleanup():
@@ -887,7 +882,7 @@ def reset_stream_and_get_features(xmlstream, timeout=None):
     try:
         xmlstream.reset()
 
-        done, pending = yield from asyncio.wait(
+        done, pending = await asyncio.wait(
             [
                 fut,
                 failure_future,

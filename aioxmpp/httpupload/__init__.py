@@ -72,12 +72,11 @@ from ..stanza import IQ
 from .xso import Request
 
 
-@asyncio.coroutine
-def request_slot(client,
-                 service: JID,
-                 filename: str,
-                 size: int,
-                 content_type: str):
+async def request_slot(client,
+                       service: JID,
+                       filename: str,
+                       size: int,
+                       content_type: str):
     """
     Request an HTTP upload slot.
 
@@ -102,8 +101,8 @@ def request_slot(client,
     """
 
     payload = Request(filename, size, content_type)
-    return (yield from client.send(IQ(
+    return await client.send(IQ(
         type_=IQType.GET,
         to=service,
         payload=payload
-    )))
+    ))

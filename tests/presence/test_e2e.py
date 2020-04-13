@@ -32,16 +32,14 @@ from aioxmpp.e2etest import (
 
 class TestPresence(TestCase):
     @blocking
-    @asyncio.coroutine
-    def setUp(self):
-        self.a, self.b = yield from asyncio.gather(
+    async def setUp(self):
+        self.a, self.b = await asyncio.gather(
             self.provisioner.get_connected_client(),
             self.provisioner.get_connected_client(),
         )
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_events_on_presence(self):
+    async def test_events_on_presence(self):
         pres = aioxmpp.Presence(
             to=self.b.local_jid.bare(),
             type_=aioxmpp.PresenceType.AVAILABLE,
@@ -73,14 +71,14 @@ class TestPresence(TestCase):
         svc.on_available.connect(on_available)
         svc.on_changed.connect(on_changed)
 
-        yield from self.a.send(pres)
+        await self.a.send(pres)
 
-        stanza = yield from bare_fut
+        stanza = await bare_fut
         self.assertIsInstance(stanza, aioxmpp.Presence)
         self.assertEqual(stanza.type_, aioxmpp.PresenceType.AVAILABLE)
         self.assertEqual(stanza.from_, self.a.local_jid)
 
-        full_jid, stanza = yield from avail_fut
+        full_jid, stanza = await avail_fut
         self.assertIsInstance(stanza, aioxmpp.Presence)
         self.assertEqual(stanza.type_, aioxmpp.PresenceType.AVAILABLE)
         self.assertEqual(stanza.from_, self.a.local_jid)
@@ -89,9 +87,9 @@ class TestPresence(TestCase):
         self.assertFalse(changed_fut.done())
 
         pres.show = aioxmpp.PresenceShow.DND
-        yield from self.a.send(pres)
+        await self.a.send(pres)
 
-        full_jid, stanza = yield from changed_fut
+        full_jid, stanza = await changed_fut
         self.assertIsInstance(stanza, aioxmpp.Presence)
         self.assertEqual(stanza.type_, aioxmpp.PresenceType.AVAILABLE)
         self.assertEqual(stanza.show, aioxmpp.PresenceShow.DND)
@@ -99,8 +97,7 @@ class TestPresence(TestCase):
         self.assertEqual(full_jid, stanza.from_)
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_presence_bookkeeping(self):
+    async def test_presence_bookkeeping(self):
         pres = aioxmpp.Presence(
             to=self.b.local_jid.bare(),
             type_=aioxmpp.PresenceType.AVAILABLE,
@@ -120,9 +117,9 @@ class TestPresence(TestCase):
 
         svc.on_bare_available.connect(on_bare_available)
 
-        yield from self.a.send(pres)
+        await self.a.send(pres)
 
-        yield from bare_fut
+        await bare_fut
 
         most_available = svc.get_most_available_stanza(
             self.a.local_jid.bare()

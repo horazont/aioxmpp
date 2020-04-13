@@ -115,12 +115,10 @@ class Conversation(AbstractConversation):
         self.on_message(msg, self.me, MessageSource.STREAM)
         return self._client.enqueue(msg)
 
-    @asyncio.coroutine
-    def send_message_tracked(self, msg):
+    async def send_message_tracked(self, msg):
         raise self._not_implemented_error("message tracking")
 
-    @asyncio.coroutine
-    def leave(self):
+    async def leave(self):
         self._service._conversation_left(self)
 
 

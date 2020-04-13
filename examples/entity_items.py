@@ -46,11 +46,10 @@ class EntityItems(Example):
             nargs="?",
         )
 
-    @asyncio.coroutine
-    def run_simple_example(self):
+    async def run_simple_example(self):
         disco = self.client.summon(aioxmpp.DiscoClient)
         try:
-            items = yield from disco.query_items(
+            items = await disco.query_items(
                 self.args.target_entity,
                 node=self.args.target_node,
                 timeout=10

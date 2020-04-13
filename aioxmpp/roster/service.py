@@ -470,14 +470,13 @@ class RosterClient(aioxmpp.service.Service):
     @aioxmpp.service.iq_handler(
         aioxmpp.structs.IQType.SET,
         roster_xso.Query)
-    @asyncio.coroutine
-    def handle_roster_push(self, iq):
+    async def handle_roster_push(self, iq):
         if iq.from_ and iq.from_ != self.client.local_jid.bare():
             raise errors.XMPPAuthError(errors.ErrorCondition.FORBIDDEN)
 
         request = iq.payload
 
-        with (yield from self.__roster_lock):
+        async with self.__roster_lock:
             for item in request.items:
                 if item.subscription == "remove":
                     try:
@@ -527,12 +526,11 @@ class RosterClient(aioxmpp.service.Service):
                 del self.groups[group]
                 self.on_group_removed(group)
 
-    @asyncio.coroutine
-    def _request_initial_roster(self):
+    async def _request_initial_roster(self):
         iq = stanza.IQ(type_=structs.IQType.GET)
         iq.payload = roster_xso.Query()
 
-        with (yield from self.__roster_lock):
+        async with self.__roster_lock:
             logger.debug("requesting initial roster")
             if self.client.stream_features.has_feature(
                     roster_xso.RosterVersioningFeature):
@@ -540,7 +538,7 @@ class RosterClient(aioxmpp.service.Service):
                              self.version)
                 iq.payload.ver = self.version
 
-            response = yield from self.client.send(
+            response = await self.client.send(
                 iq,
                 timeout=self.client.negotiation_timeout.total_seconds()
             )
@@ -608,8 +606,7 @@ class RosterClient(aioxmpp.service.Service):
             for group in item.groups:
                 self.groups.setdefault(group, set()).add(item)
 
-    @asyncio.coroutine
-    def set_entry(self, jid, *,
+    async def set_entry(self, jid, *,
                   name=_Sentinel,
                   add_to_groups=frozenset(),
                   remove_from_groups=frozenset(),
@@ -657,7 +654,7 @@ class RosterClient(aioxmpp.service.Service):
                 for group_name in post_groups
             ])
 
-        yield from self.client.send(
+        await self.client.send(
             stanza.IQ(
                 structs.IQType.SET,
                 payload=roster_xso.Query(items=[
@@ -667,8 +664,7 @@ class RosterClient(aioxmpp.service.Service):
             timeout=timeout
         )
 
-    @asyncio.coroutine
-    def remove_entry(self, jid, *, timeout=None):
+    async def remove_entry(self, jid, *, timeout=None):
         """
         Request removal of the roster entry identified by the given bare
         `jid`. If the entry currently has any subscription state, the server
@@ -681,7 +677,7 @@ class RosterClient(aioxmpp.service.Service):
         server replies with an error and also any kind of connection error if
         the connection gets fatally terminated while waiting for a response.
         """
-        yield from self.client.send(
+        await self.client.send(
             stanza.IQ(
                 structs.IQType.SET,
                 payload=roster_xso.Query(items=[
