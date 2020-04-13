@@ -109,6 +109,8 @@ Provisioners
 
 .. autoclass:: AnyProvisioner()
 
+.. autoclass:: StaticPasswordProvisioner()
+
 .. currentmodule:: aioxmpp.e2etest
 
 .. autoclass:: Quirk

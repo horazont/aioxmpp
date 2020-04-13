@@ -17,6 +17,8 @@ Version 0.12
   case for this is to use the aioxmpp test suite to test other servers in their
   CI.
 
+* :class:`aioxmpp.e2etest.provision.StaticPasswordProvisioner`
+
 Version 0.11
 ============
 
