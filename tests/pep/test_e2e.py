@@ -29,7 +29,7 @@ import aioxmpp.pubsub.xso as pubsub_xso
 from aioxmpp.e2etest import (
     blocking,
     blocking_timed,
-    require_identity,
+    require_pep,
     TestCase
 )
 
@@ -44,9 +44,9 @@ EXAMPLE_TEXT = "Though this be madness, yet there is method in't"
 
 
 class TestPEP(TestCase):
-    @require_identity("pubsub", "pep")
+    @require_pep
     @blocking
-    async def setUp(self, _):
+    async def setUp(self):
         self.client = await self.provisioner.get_connected_client(
             services=[
                 aioxmpp.PresenceServer,
@@ -159,6 +159,7 @@ class ExampleService(aioxmpp.service.Service):
 
 class Test_register_pep_node_Descriptor(TestCase):
 
+    @require_pep
     @blocking
     async def setUp(self):
         self.client = await self.provisioner.get_connected_client(
