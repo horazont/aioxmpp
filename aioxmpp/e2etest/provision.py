@@ -480,6 +480,13 @@ class Provisioner(metaclass=abc.ABCMeta):
         return any(ident.category == "pubsub" and ident.type_ == "pep"
                    for ident in self._account_info.identities)
 
+    @property
+    def account_info(self):
+        """
+        :class:`aioxmpp.disco.xso.InfoQuery` result from the account JID.
+        """
+        return self._account_info
+
     @abc.abstractmethod
     def configure(self, section):
         """

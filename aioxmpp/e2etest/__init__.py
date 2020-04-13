@@ -82,6 +82,8 @@ The following decorators can be used on test methods (including ``setUp`` and
 
 .. autodecorator:: require_feature_subset
 
+.. autodecorator:: require_account_feature
+
 .. autodecorator:: skip_with_quirk
 
 General decorators
@@ -262,6 +264,25 @@ def require_pep(f):
 
         return f(*args, **kwargs)
     return wrapper
+
+
+def require_account_feature(feature):
+    def decorator(f):
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            global provisioner
+            if feature not in provisioner.account_info.features:
+                raise unittest.SkipTest(
+                    "required feature {!r} not offered on the account "
+                    "(offered features are {})".format(
+                        feature,
+                        provisioner.account_info.features,
+                    )
+                )
+
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
 def skip_with_quirk(quirk):
