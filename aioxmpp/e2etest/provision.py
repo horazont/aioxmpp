@@ -81,6 +81,8 @@ class Quirk(enum.Enum):
         "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#broken-muc"
     PUBSUB_GET_MULTIPLE_ITEMS_BY_ID_BROKEN = \
         "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#broken-pubsub-get-multiple-by-id"  # NOQA: E501
+    NO_PRIVATE_XML = \
+        "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#no-xep-0049"
 
 
 def fix_quirk_str(s):
