@@ -105,9 +105,9 @@ Provisioners
 
 .. autoclass:: Provisioner
 
-.. autoclass:: AnonymousProvisioner
+.. autoclass:: AnonymousProvisioner()
 
-.. autoclass:: AnyProvisioner
+.. autoclass:: AnyProvisioner()
 
 .. currentmodule:: aioxmpp.e2etest
 
