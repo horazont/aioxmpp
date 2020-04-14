@@ -31,12 +31,15 @@ from aioxmpp.utils import etree
 from aioxmpp.e2etest import (
     blocking,
     blocking_timed,
+    skip_with_quirk,
+    Quirk,
     TestCase,
 )
 
 
 class TestPrivateXMLStorage(TestCase):
 
+    @skip_with_quirk(Quirk.NO_PRIVATE_XML)
     @blocking
     async def setUp(self):
         self.client, = await asyncio.gather(

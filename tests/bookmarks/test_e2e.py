@@ -25,11 +25,14 @@ import aioxmpp.bookmarks
 
 from aioxmpp.e2etest import (
     blocking_timed,
+    skip_with_quirk,
+    Quirk,
     TestCase,
 )
 
 
 class TestBookmarks(TestCase):
+    @skip_with_quirk(Quirk.NO_PRIVATE_XML)
     @blocking_timed
     async def setUp(self):
         self.client = await self.provisioner.get_connected_client(

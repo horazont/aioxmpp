@@ -28,6 +28,7 @@ import fnmatch
 import json
 import logging
 import random
+import unittest
 
 import aioxmpp
 import aioxmpp.disco
@@ -81,6 +82,8 @@ class Quirk(enum.Enum):
         "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#broken-muc"
     PUBSUB_GET_MULTIPLE_ITEMS_BY_ID_BROKEN = \
         "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#broken-pubsub-get-multiple-by-id"  # NOQA: E501
+    NO_PRIVATE_XML = \
+        "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#no-xep-0049"
 
 
 def fix_quirk_str(s):
@@ -710,3 +713,98 @@ class AnyProvisioner(_AutoConfiguredProvisioner):
             override_peer=override_peer,
             logger=logger,
         )
+
+
+class StaticPasswordProvisioner(_AutoConfiguredProvisioner):
+    """
+    This provisioner expects a list of username/password pairs to authenticate
+    against the tested server.
+
+    This is for use with servers which support neither SASL ANONYMOUS nor
+    a ``mod_auth_any`` equivalent.
+
+    The configuration of this provisioner is slightly unwieldly since we do
+    not want to add a dependency to a more sane configuration file format. Here
+    is an example on how to configure a provisioner with two accounts:
+
+    .. code-block:: ini
+
+        [aioxmpp.e2etest.provision.StaticPasswordProvisioner]
+        host=localhost
+        accounts=[("user1", "password1"), ("user2", "password2")]
+        skip_on_too_few_accounts=false
+
+    All accounts need to have exactly the same privileges on the server. The
+    first account will be used to auto-discover any features offered by the
+    test environment.
+
+    If `skip_on_too_few_accounts` is set to true (the default is false), tests
+    will be skipped if the provisioner runs out of accounts instead of failing.
+    """
+
+    def _load_accounts(self, cfg):
+        result = []
+        for username, password in ast.literal_eval(cfg):
+            result.append((
+                aioxmpp.JID(localpart=username, domain=self._domain.domain,
+                            resource=None),
+                aioxmpp.make_security_layer(password, **self.__tls_config)
+            ))
+        return result
+
+    def configure(self, section):
+        super().configure(section)
+        self.__host = section.get("host")
+        self._domain = aioxmpp.JID.fromstr(section.get(
+            "domain",
+            self.__host
+        ))
+        self.__port = section.getint("port")
+        self.__tls_config = configure_tls_config(section)
+        self.__accounts = self._load_accounts(section.get("accounts"))
+        if len(self.__accounts) == 0:
+            raise RuntimeError(
+                "at least one account needs to be configured in the "
+                "StaticPasswordProvisioner section"
+            )
+
+        self.__nused_accounts = 0
+        self._quirks = configure_quirks(section)
+        self.__username_rng = random.Random()
+        self.__skip_on_too_few_accounts = section.getboolean(
+            "skip_on_too_few_accounts",
+            fallback=False,
+        )
+
+    async def _make_client(self, logger):
+        override_peer = []
+        if self.__port is not None:
+            override_peer.append(
+                (self.__host, self.__port,
+                 aioxmpp.connector.STARTTLSConnector())
+            )
+
+        next_account = self.__nused_accounts
+        try:
+            address, security_layer = self.__accounts[next_account]
+        except IndexError:
+            err = (
+                "not enough accounts; needed at least one more account "
+                "after already using {} accounts".format(next_account)
+            )
+            if self.__skip_on_too_few_accounts:
+                raise unittest.SkipTest(err)
+            raise RuntimeError(err)
+
+        self.__nused_accounts += 1
+
+        return aioxmpp.PresenceManagedClient(
+            address,
+            security_layer,
+            override_peer=override_peer,
+            logger=logger,
+        )
+
+    async def teardown(self):
+        await super().teardown()
+        self.__nused_accounts = 0
