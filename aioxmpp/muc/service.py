@@ -1288,8 +1288,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                     reason,
                 )
             )
-        elif (existing.presence_state != info.presence_state or
-                existing.presence_status != info.presence_status):
+        else:
             to_emit.append((self.on_presence_changed,
                             (existing, None, stanza),
                             {}))

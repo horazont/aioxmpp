@@ -1008,14 +1008,6 @@ class TestRoom(unittest.TestCase):
             )
             self.base.mock_calls.clear()
 
-            self.jmuc._inbound_muc_user_presence(presence)
-
-            self.assertSequenceEqual(
-                self.base.mock_calls,
-                [
-                ]
-            )
-
     def test__inbound_muc_user_presence_ignored_from_bare_jid(self):
         presence = aioxmpp.stanza.Presence(
             type_=aioxmpp.structs.PresenceType.AVAILABLE,
@@ -1729,24 +1721,105 @@ class TestRoom(unittest.TestCase):
                 TEST_MUC_JID.replace(resource="oldhag"),
             )
 
-            presence = aioxmpp.stanza.Presence(
-                type_=aioxmpp.structs.PresenceType.AVAILABLE,
-                from_=TEST_MUC_JID.replace(resource="oldhag")
-            )
-            presence.xep0045_muc_user = muc_xso.UserExt(
-                items=[
-                    muc_xso.UserItem(affiliation="member",
-                                     role="participant"),
+    def test__inbound_muc_user_presence_emits_always(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="firstwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant")
+            ]
+        )
+
+        original_Occupant = muc_service.Occupant
+        with unittest.mock.patch("aioxmpp.muc.service.Occupant") as Occupant:
+            first = original_Occupant.from_presence(presence, False)
+            Occupant.from_presence.return_value = first
+
+            self.jmuc._inbound_muc_user_presence(presence)
+
+            Occupant.from_presence.assert_called_with(presence, False)
+
+            self.assertSequenceEqual(
+                self.base.mock_calls,
+                [
+                    unittest.mock.call.on_join(first)
                 ]
             )
+            self.base.mock_calls.clear()
 
-            third = original_Occupant.from_presence(presence, False)
-            Occupant.from_presence.return_value = third
+            second = original_Occupant.from_presence(presence, False)
+            Occupant.from_presence.return_value = second
             self.jmuc._inbound_muc_user_presence(presence)
 
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
+                    unittest.mock.call.on_presence_changed(
+                        first,
+                        None,
+                        presence,
+                    )
+                ]
+            )
+
+            self.assertEqual(
+                first.presence_state,
+                aioxmpp.structs.PresenceState.from_stanza(presence)
+            )
+            self.assertDictEqual(
+                first.presence_status,
+                presence.status
+            )
+
+    def test__inbound_muc_self_presence_emits_always(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        original_Occupant = muc_service.Occupant
+        with unittest.mock.patch("aioxmpp.muc.service.Occupant") as Occupant:
+            first = original_Occupant.from_presence(presence, True)
+            Occupant.from_presence.return_value = first
+
+            self.jmuc._inbound_muc_user_presence(presence)
+
+            Occupant.from_presence.assert_called_with(presence, True)
+
+            self.assertSequenceEqual(
+                self.base.mock_calls,
+                [
+                    unittest.mock.call.on_muc_enter(
+                        presence, first,
+                        muc_status_codes={110},
+                    ),
+                    unittest.mock.call.on_enter(),
+                ]
+            )
+            self.base.mock_calls.clear()
+
+            second = original_Occupant.from_presence(presence, True)
+            Occupant.from_presence.return_value = second
+            self.jmuc._inbound_muc_user_presence(presence)
+
+            self.assertSequenceEqual(
+                self.base.mock_calls,
+                [
+                    unittest.mock.call.on_presence_changed(
+                        first,
+                        None,
+                        presence,
+                    )
                 ]
             )
             self.base.mock_calls.clear()
@@ -1811,29 +1884,6 @@ class TestRoom(unittest.TestCase):
                 first.conversation_jid,
                 TEST_MUC_JID.replace(resource="oldhag"),
             )
-
-            presence = aioxmpp.stanza.Presence(
-                type_=aioxmpp.structs.PresenceType.AVAILABLE,
-                from_=TEST_MUC_JID.replace(resource="oldhag")
-            )
-            presence.xep0045_muc_user = muc_xso.UserExt(
-                items=[
-                    muc_xso.UserItem(affiliation="member",
-                                     role="participant"),
-                ]
-            )
-            presence.xep0045_muc_user.status_codes.add(110)
-
-            third = original_Occupant.from_presence(presence, True)
-            Occupant.from_presence.return_value = third
-            self.jmuc._inbound_muc_user_presence(presence)
-
-            self.assertSequenceEqual(
-                self.base.mock_calls,
-                [
-                ]
-            )
-            self.base.mock_calls.clear()
 
     def test__inbound_muc_user_presence_emits_on_various_changes(self):
         presence = aioxmpp.stanza.Presence(
@@ -4751,38 +4801,6 @@ class TestRoom(unittest.TestCase):
         presence = aioxmpp.stanza.Presence(
             type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="thirdwitch")
-        )
-        presence.xep0045_muc_user = muc_xso.UserExt(
-            items=[
-                muc_xso.UserItem(affiliation="member",
-                                 role="participant"),
-            ],
-            status_codes={110},
-        )
-        self.jmuc._inbound_muc_user_presence(presence)
-
-        self.assertEqual(
-            self.monitor.ping_address,
-            presence.from_,
-        )
-
-    def test_self_presence_updates__monitor_ping_address_always(self):
-        presence = aioxmpp.stanza.Presence(
-            type_=aioxmpp.structs.PresenceType.AVAILABLE,
-            from_=TEST_MUC_JID.replace(resource="thirdwitch")
-        )
-        presence.xep0045_muc_user = muc_xso.UserExt(
-            items=[
-                muc_xso.UserItem(affiliation="member",
-                                 role="participant"),
-            ],
-            status_codes={110},
-        )
-        self.jmuc._inbound_muc_user_presence(presence)
-
-        presence = aioxmpp.stanza.Presence(
-            type_=aioxmpp.structs.PresenceType.AVAILABLE,
-            from_=TEST_MUC_JID.replace(resource="fnord")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
             items=[
