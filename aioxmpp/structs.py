@@ -1383,7 +1383,7 @@ def jid_escape(s):
     """
 
     # we first escape all backslashes which need to be escaped
-    for cp in ESCAPABLE_CODEPOINTS + "\\":
+    for cp in "\\" + ESCAPABLE_CODEPOINTS:
         seq = "\\{:02x}".format(ord(cp))
         s = s.replace(seq, "\\5c{:02x}".format(ord(cp)))
 

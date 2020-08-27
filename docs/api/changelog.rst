@@ -19,6 +19,9 @@ Version 0.12
 
 * :class:`aioxmpp.e2etest.provision.StaticPasswordProvisioner`
 
+* Fix :func:`aioxmpp.jid_escape` double escaping sequences in some
+  circumstances.
+
 Version 0.11
 ============
 
