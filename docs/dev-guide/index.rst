@@ -121,7 +121,7 @@ which can be ``0`` for Public Key pinning and ``1`` for Certificate pinning.
 There is also the ``no_verify`` option, which, if set to true, will disable
 certificate verification altogether. This does not much harm if you are testing
 against localhost anyways and saves the configuration nuisance for certificate
-pinning. ``no_verfiy`` takes precedence over ``pin_store`` and ``pin_type``.
+pinning. ``no_verify`` takes precedence over ``pin_store`` and ``pin_type``.
 
 
 Writing end-to-end tests
