@@ -331,9 +331,6 @@ class TestXMLStream(unittest.TestCase):
                      with_starttls=False,
                      monitor_mock=True,
                      **kwargs):
-        if features_future is None:
-            features_future = asyncio.Future()
-
         with contextlib.ExitStack() as stack:
             if monitor_mock:
                 AlivenessMonitor = stack.enter_context(
@@ -904,7 +901,7 @@ class TestXMLStream(unittest.TestCase):
         self.assertIsNone(p._processor.remote_to)
         self.assertIsNone(p._processor.remote_id)
 
-    def test_features_future(self):
+    def test_features_future_via_argument(self):
         fut = asyncio.Future()
         t, p = self._make_stream(to=TEST_PEER, features_future=fut)
 
@@ -923,6 +920,105 @@ class TestXMLStream(unittest.TestCase):
 
         self.assertTrue(fut.done())
         self.assertIsInstance(fut.result(), nonza.StreamFeatures)
+
+    def test_features_future_is_cancellation_safe(self):
+        fut = asyncio.Future()
+        t, p = self._make_stream(to=TEST_PEER, features_future=fut)
+        fut.cancel()
+        err = p.error_future()
+
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                            TransportMock.Receive(self._make_peer_features()),
+                        ]),
+                ],
+            ),
+        )
+
+        self.assertTrue(err.done())
+        self.assertNotIsInstance(err.exception(), errors.StreamError)
+
+    def test_features_future(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        fut = p.features_future()
+
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                            TransportMock.Receive(self._make_peer_features()),
+                        ]),
+                ]
+            )
+        )
+
+        self.assertTrue(fut.done())
+        self.assertIsInstance(fut.result(), nonza.StreamFeatures)
+
+    def test_second_features_future(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        fut = p.features_future()
+        fut2 = p.features_future()
+
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                            TransportMock.Receive(self._make_peer_features()),
+                        ]),
+                ],
+            )
+        )
+
+        self.assertTrue(fut.done())
+        self.assertIsInstance(fut.result(), nonza.StreamFeatures)
+        self.assertTrue(fut2.done())
+        self.assertIs(fut2.result(), fut.result())
+
+    def test_receive_more_stream_features_via_more_futures(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        fut = p.features_future()
+
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                            TransportMock.Receive(self._make_peer_features()),
+                        ]),
+                ],
+                partial=True,
+            )
+        )
+
+        fut2 = p.features_future()
+
+        self.assertTrue(fut.done())
+        self.assertIsInstance(fut.result(), nonza.StreamFeatures)
+
+        run_coroutine(
+            t.run_test(
+                [],
+                stimulus=TransportMock.Receive(self._make_peer_features()),
+            )
+        )
+
+        self.assertTrue(fut2.done())
+        self.assertIsInstance(fut2.result(), nonza.StreamFeatures)
+        self.assertIsNot(fut2.result(), fut.result())
 
     def test_transport_attribute(self):
         t, p = self._make_stream(to=TEST_PEER)
@@ -1297,6 +1393,36 @@ class TestXMLStream(unittest.TestCase):
         t, p = self._make_stream(to=TEST_PEER)
 
         fut = p.error_future()
+
+        run_coroutine(t.run_test([
+            TransportMock.Write(
+                STREAM_HEADER,
+                response=[
+                    TransportMock.Receive(
+                        self._make_peer_header(version=(1, 0)) +
+                        self._make_stream_error("policy-violation") +
+                        self._make_eos()),
+                    TransportMock.ReceiveEof()
+                ]),
+            TransportMock.Write(b"</stream:stream>"),
+            TransportMock.WriteEof(),
+            TransportMock.Close()
+        ]))
+
+        self.assertTrue(fut.done())
+
+        exc = fut.exception()
+
+        self.assertIsInstance(exc, errors.StreamError)
+        self.assertEqual(
+            errors.StreamErrorCondition.POLICY_VIOLATION,
+            exc.condition
+        )
+
+    def test_fail_triggers_features_futures(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        fut = p.features_future()
 
         run_coroutine(t.run_test([
             TransportMock.Write(
@@ -2101,9 +2227,41 @@ class TestXMLStream(unittest.TestCase):
         self.assertIsNotNone(fut.exception())
         self.assertIn("timeout", str(fut.exception()))
 
-    def test_timeout_propagates_to_features_future(self):
+    def test_timeout_propagates_to_features_future_via_argument(self):
         fut = asyncio.Future()
         t, p = self._make_stream(to=TEST_PEER, features_future=fut)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        self.assertFalse(fut.done())
+
+        p._deadtime_hard_limit_triggered()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Abort(),
+            ]
+        ))
+
+        self.assertTrue(fut.done())
+
+        self.assertIsInstance(fut.exception(), ConnectionError)
+        self.assertIn("timeout", str(fut.exception()))
+
+    def test_timeout_propagates_to_features_future(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        fut = p.features_future()
 
         run_coroutine(t.run_test(
             [
@@ -2482,22 +2640,6 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
 
         self.assertIs(result, features)
 
-    def test_receive_exactly_one(self):
-        features = nonza.StreamFeatures()
-
-        with self.assertRaisesRegex(AssertionError,
-                                     "no handler registered for"):
-            self._run_test(
-                [
-                    XMLStreamMock.Reset(
-                        response=[
-                            XMLStreamMock.Receive(features),
-                            XMLStreamMock.Receive(features),
-                        ]
-                    )
-                ]
-            )
-
     def test_timeout(self):
         features = nonza.StreamFeatures()
 
@@ -2508,13 +2650,6 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
                 ],
                 timeout=0.1
             )
-
-        with self.assertRaisesRegex(AssertionError,
-                                     "no handler registered for"):
-            run_coroutine(self.xmlstream.run_test(
-                [],
-                stimulus=XMLStreamMock.Receive(features)
-            ))
 
     def test_clean_up_if_sending_fails(self):
         features = nonza.StreamFeatures()

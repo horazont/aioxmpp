@@ -584,6 +584,13 @@ class TransportMock(InteractivityMock,
 class XMLStreamMock(InteractivityMock):
     class Receive(collections.namedtuple("Receive", ["obj"])):
         def do(self, xmlstream):
+            if isinstance(self.obj, nonza.StreamFeatures):
+                for fut in xmlstream._features_futures:
+                    if fut.done():
+                        continue
+                    fut.set_result(self.obj)
+                return
+
             clsmap = xmlstream.stanza_parser.get_class_map()
             cls = type(self.obj)
             xmlstream._tester.assertIn(
@@ -644,6 +651,7 @@ class XMLStreamMock(InteractivityMock):
         self.stanza_parser = xso.XSOParser()
         self.can_starttls_value = False
         self._error_futures = []
+        self._features_futures = []
 
     def _execute_single(self, do):
         do(self)
@@ -826,6 +834,11 @@ class XMLStreamMock(InteractivityMock):
     def error_future(self):
         fut = asyncio.Future()
         self._error_futures.append(fut)
+        return fut
+
+    def features_future(self):
+        fut = self.error_future()
+        self._features_futures.append(fut)
         return fut
 
 

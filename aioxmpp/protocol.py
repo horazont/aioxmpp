@@ -190,23 +190,39 @@ class XMLStream(asyncio.Protocol):
     XML stream implementation. This is an streaming :class:`asyncio.Protocol`
     which translates the received bytes into XSOs.
 
-    `to` must be a domain :class:`~aioxmpp.JID` which identifies the
-    domain to which the stream shall connect.
+    :param to: Domain of the server the stream connects to.
+    :type to: :class:`~aioxmpp.JID`
+    :param features_future: Use :meth:`features_future` instead.
+    :type features_future: :class:`asyncio.Future`
+    :param sorted_attributes: Sort attributes deterministically on output
+        (debug option; not part of the public interface)
+    :type sorted_attributes: :class:`bool`
+    :param base_logger: Parent logger for this stream
+    :type base_logger: :class:`logging.Logger`
 
-    `features_future` must be a :class:`asyncio.Future` instance; the XML
-    stream will set the first :class:`~aioxmpp.nonza.StreamFeatures` node
-    it receives as the result of the future. The future will also receive any
-    pre-stream-features exception.
+    `to` must identify the remote server to connect to. This is used as the
+    ``to`` attribute on the stream header.
 
-    `sorted_attributes` is mainly for unittesting purposes; this is an argument
-    to the :class:`~aioxmpp.xml.XMPPXMLGenerator` and slows down the XML
-    serialization, but produces deterministic results, which is important for
-    testing. Generally, it is preferred to leave this argument at its default.
+    `features_future` may be a future. The XML stream will set the first
+    :class:`~aioxmpp.nonza.StreamFeatures` node it receives as the result of
+    the future. The future will also receive any pre-stream-features
+    exception.
+
+    `sorted_attributes` is a testing/debugging option to enable sorted output
+    of the XML attributes emitted on the stream. See
+    :class:`~aioxmpp.xml.XMPPXMLGenerator` for details. Do not use outside of
+    unit testing code, as it has a negative performance impact.
 
     `base_logger` may be a :class:`logging.Logger` instance to use. The XML
     stream will create a child called ``XMLStream`` at that logger and use that
     child for logging purposes. This eases debugging and allows for
     connection-specific loggers.
+
+    .. deprecated:: 0.12
+
+        Using `features_future` as positional or keyword argument is
+        deprecated and will be removed in version 1.0. Use
+        :meth:`features_future` to obtain a future instead.
 
     Receiving XSOs:
 
@@ -249,6 +265,12 @@ class XMLStream(asyncio.Protocol):
     Controlling debug output:
 
     .. automethod:: mute
+
+    Waiting for stream state changes:
+
+    .. automethod:: error_future
+
+    .. automethod:: features_future
 
     Monitoring stream aliveness:
 
@@ -302,7 +324,7 @@ class XMLStream(asyncio.Protocol):
     shutdown_timeout = 15
 
     def __init__(self, to,
-                 features_future,
+                 features_future=None,
                  sorted_attributes=False,
                  base_logger=logging.getLogger("aioxmpp"),
                  loop=None):
@@ -310,10 +332,13 @@ class XMLStream(asyncio.Protocol):
         self._sorted_attributes = sorted_attributes
         self._logger = base_logger.getChild("XMLStream")
         self._transport = None
-        self._features_future = features_future
         self._exception = None
         self._loop = loop or asyncio.get_event_loop()
+        self._features_futures = []
         self._error_futures = []
+        if features_future is not None:
+            self._features_futures.append(features_future)
+            self._error_futures.append(features_future)
         self._smachine = statemachine.OrderedStateMachine(State.READY)
         self._transport_closing = False
         self._monitor = utils.AlivenessMonitor(self._loop)
@@ -371,8 +396,6 @@ class XMLStream(asyncio.Protocol):
             if not fut.done():
                 fut.set_exception(exc)
         self._error_futures.clear()
-        if self._features_future:
-            self._features_future.set_exception(exc)
 
         if task.cancelled():
             return
@@ -439,9 +462,15 @@ class XMLStream(asyncio.Protocol):
         self._smachine.state = State.CLOSING_STREAM_FOOTER_RECEIVED
 
     def _rx_stream_features(self, features):
-        self.stanza_parser.remove_class(nonza.StreamFeatures)
-        self._features_future.set_result(features)
-        self._features_future = None
+        for fut in self._features_futures:
+            if fut.done():
+                continue
+            fut.set_result(features)
+            try:
+                self._error_futures.remove(fut)
+            except ValueError:
+                pass
+        self._features_futures.clear()
 
     def _rx_feed(self, blob):
         try:
@@ -729,6 +758,18 @@ class XMLStream(asyncio.Protocol):
         self._error_futures.append(fut)
         return fut
 
+    def features_future(self):
+        """
+        Return a future which will recieve the next XML stream features (as
+        return value) or the next XML stream error (as exception), whichever
+        happens first.
+
+        It is safe to cancel this future at any time.
+        """
+        fut = self.error_future()
+        self._features_futures.append(fut)
+        return fut
+
     @property
     def transport(self):
         """
@@ -863,47 +904,17 @@ async def send_and_wait_for(xmlstream, send, wait_for,
 
 
 async def reset_stream_and_get_features(xmlstream, timeout=None):
-    fut = asyncio.Future()
-
-    def cleanup():
-        xmlstream.stanza_parser.remove_class(nonza.StreamFeatures)
-
-    def receive(obj):
-        nonlocal fut
-        fut.set_result(obj)
-        cleanup()
-
     failure_future = xmlstream.error_future()
-
-    xmlstream.stanza_parser.add_class(
-        nonza.StreamFeatures,
-        receive)
-
-    try:
-        xmlstream.reset()
-
-        done, pending = await asyncio.wait(
-            [
-                fut,
-                failure_future,
-            ],
-            timeout=timeout,
-            return_when=asyncio.FIRST_COMPLETED,
-            loop=xmlstream._loop)
-
-        for other_fut in pending:
-            other_fut.cancel()
-
-        if fut in done:
-            return fut.result()
-
-        if failure_future in done:
-            failure_future.result()
-
-        raise TimeoutError()
-    except:  # NOQA
-        cleanup()
-        raise
+    xmlstream.reset()
+    fut = xmlstream.features_future()
+    if timeout is not None:
+        try:
+            result = await asyncio.wait_for(fut, timeout=timeout)
+        except asyncio.TimeoutError:
+            raise TimeoutError from None
+    else:
+        result = await xmlstream.features_future()
+    return result
 
 
 def send_stream_error_and_close(
