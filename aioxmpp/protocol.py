@@ -261,6 +261,10 @@ class XMLStream(asyncio.Protocol):
 
     .. automethod:: mute
 
+    Waiting for stream state changes:
+
+    .. automethod:: error_future
+
     Monitoring stream aliveness:
 
     .. autoattribute:: deadtime_soft_limit
