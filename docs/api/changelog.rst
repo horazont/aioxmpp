@@ -3,7 +3,7 @@
 Changelog
 #########
 
-.. _api-cahngelog-0.11:
+.. _api-changelog-0.12:
 
 Version 0.12
 ============
@@ -21,6 +21,8 @@ Version 0.12
 
 * Fix :func:`aioxmpp.jid_escape` double escaping sequences in some
   circumstances.
+
+.. _api-changelog-0.11:
 
 Version 0.11
 ============
