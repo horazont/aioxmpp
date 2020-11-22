@@ -651,6 +651,19 @@ class TestXMLStreamMock(XMLTestCase):
                 stimulus=XMLStreamMock.Receive(obj)
             ))
 
+    def test_receive_stream_features_into_future(self):
+        fut = self.xmlstream.features_future()
+        obj = nonza.StreamFeatures()
+
+        run_coroutine(self.xmlstream.run_test(
+            [
+            ],
+            stimulus=XMLStreamMock.Receive(obj)
+        ))
+
+        self.assertTrue(fut.done())
+        self.assertIs(fut.result(), obj)
+
     def test_no_termination_on_missing_action(self):
         obj = self.Cls()
 
@@ -883,6 +896,7 @@ class TestXMLStreamMock(XMLTestCase):
         fun.return_value = None
 
         ec_future = asyncio.ensure_future(self.xmlstream.error_future())
+        features_future = self.xmlstream.features_future()
 
         self.xmlstream.on_closing.connect(fun)
 
@@ -894,6 +908,8 @@ class TestXMLStreamMock(XMLTestCase):
 
         self.assertTrue(ec_future.done())
         self.assertIs(exc, ec_future.exception())
+        self.assertTrue(features_future.done())
+        self.assertIs(exc, features_future.exception())
 
         fun.assert_called_once_with(exc)
 
@@ -928,6 +944,7 @@ class TestXMLStreamMock(XMLTestCase):
 
     def test_abort(self):
         fut = self.xmlstream.error_future()
+        ffut = self.xmlstream.features_future()
 
         obj = self.Cls()
 
@@ -945,6 +962,12 @@ class TestXMLStreamMock(XMLTestCase):
         self.assertTrue(fut.done())
         self.assertIsInstance(
             fut.exception(),
+            ConnectionError
+        )
+
+        self.assertTrue(ffut.done())
+        self.assertIsInstance(
+            ffut.exception(),
             ConnectionError
         )
 
