@@ -190,18 +190,29 @@ class XMLStream(asyncio.Protocol):
     XML stream implementation. This is an streaming :class:`asyncio.Protocol`
     which translates the received bytes into XSOs.
 
-    `to` must be a domain :class:`~aioxmpp.JID` which identifies the
-    domain to which the stream shall connect.
+    :param to: Domain of the server the stream connects to.
+    :type to: :class:`~aioxmpp.JID`
+    :param features_future: Future which will receive the first stream
+        features received by the peer.
+    :type features_future: :class:`asyncio.Future`
+    :param sorted_attributes: Sort attributes deterministically on output
+        (debug option; not part of the public interface)
+    :type sorted_attributes: :class:`bool`
+    :param base_logger: Parent logger for this stream
+    :type base_logger: :class:`logging.Logger`
 
-    `features_future` must be a :class:`asyncio.Future` instance; the XML
-    stream will set the first :class:`~aioxmpp.nonza.StreamFeatures` node
-    it receives as the result of the future. The future will also receive any
-    pre-stream-features exception.
+    `to` must identify the remote server to connect to. This is used as the
+    ``to`` attribute on the stream header.
 
-    `sorted_attributes` is mainly for unittesting purposes; this is an argument
-    to the :class:`~aioxmpp.xml.XMPPXMLGenerator` and slows down the XML
-    serialization, but produces deterministic results, which is important for
-    testing. Generally, it is preferred to leave this argument at its default.
+    `features_future` must be a future. The XML stream will set the first
+    :class:`~aioxmpp.nonza.StreamFeatures` node it receives as the result of
+    the future. The future will also receive any pre-stream-features
+    exception.
+
+    `sorted_attributes` is a testing/debugging option to enable sorted output
+    of the XML attributes emitted on the stream. See
+    :class:`~aioxmpp.xml.XMPPXMLGenerator` for details. Do not use outside of
+    unit testing code, as it has a negative performance impact.
 
     `base_logger` may be a :class:`logging.Logger` instance to use. The XML
     stream will create a child called ``XMLStream`` at that logger and use that
