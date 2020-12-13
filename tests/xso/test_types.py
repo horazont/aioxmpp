@@ -1537,7 +1537,7 @@ class TestEnumCDataType(unittest.TestCase):
 
         with self.assertRaisesRegex(
                 ValueError,
-                r"10 is not a valid SomeEnum"):
+                r"10 is not a valid .*SomeEnum"):
             e.parse(10)
 
     def test_format_works_with_unknown(self):
@@ -1965,7 +1965,7 @@ class TestEnumElementType(unittest.TestCase):
 
         with self.assertRaisesRegex(
                 ValueError,
-                r"10 is not a valid SomeEnum"):
+                r"10 is not a valid .*SomeEnum"):
             e.unpack(10)
 
     def test_format_works_with_unknown(self):
