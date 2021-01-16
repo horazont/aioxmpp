@@ -22,6 +22,8 @@ Version 0.12
 * Fix :func:`aioxmpp.jid_escape` double escaping sequences in some
   circumstances.
 
+* Support for Python 3.9.
+
 .. _api-changelog-0.11:
 
 Version 0.11
