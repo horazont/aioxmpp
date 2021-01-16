@@ -152,9 +152,8 @@ class Upload(Example):
                     self.file_type,
                 ))
 
-    @asyncio.coroutine
-    def _check_for_upload_service(self, disco, jid):
-        info = yield from disco.query_info(jid)
+    async def _check_for_upload_service(self, disco, jid):
+        info = await disco.query_info(jid)
         if namespaces.xep0363_http_upload in info.features:
             return jid
 
@@ -181,11 +180,10 @@ class Upload(Example):
 
         return True
 
-    @asyncio.coroutine
-    def run_simple_example(self):
+    async def run_simple_example(self):
         if not self.service_addr:
             disco = self.client.summon(aioxmpp.DiscoClient)
-            items = yield from disco.query_items(
+            items = await disco.query_items(
                 self.client.local_jid.replace(localpart=None, resource=None),
                 timeout=10
             )
@@ -199,7 +197,7 @@ class Upload(Example):
 
             jids = list(filter(
                 None,
-                (yield from asyncio.gather(*lookups))
+                await asyncio.gather(*lookups)
             ))
 
             if not jids:
@@ -211,7 +209,7 @@ class Upload(Example):
 
         print("using {}".format(self.service_addr), file=sys.stderr)
 
-        slot = yield from self.client.send(
+        slot = await self.client.send(
             aioxmpp.IQ(
                 to=self.service_addr,
                 type_=aioxmpp.IQType.GET,
@@ -223,7 +221,7 @@ class Upload(Example):
             )
         )
 
-        if not (yield from self.upload(slot.put.url, slot.put.headers)):
+        if not await self.upload(slot.put.url, slot.put.headers):
             return
 
         print(slot.get.url)

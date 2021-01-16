@@ -29,10 +29,9 @@ import aioxmpp.tasks as tasks
 from aioxmpp.testutils import CoroutineMock
 
 
-@asyncio.coroutine
-def _infinite_loop():
+async def _infinite_loop():
     while True:
-        yield from asyncio.sleep(1)
+        await asyncio.sleep(1)
 
 
 class TestTaskPool(unittest.TestCase):

@@ -48,8 +48,7 @@ class TestRunCoroutine(unittest.TestCase):
     def test_result(self):
         obj = object()
 
-        @asyncio.coroutine
-        def test():
+        async def test():
             return obj
 
         self.assertIs(
@@ -58,17 +57,15 @@ class TestRunCoroutine(unittest.TestCase):
         )
 
     def test_exception(self):
-        @asyncio.coroutine
-        def test():
+        async def test():
             raise ValueError()
 
         with self.assertRaises(ValueError):
             run_coroutine(test())
 
     def test_timeout(self):
-        @asyncio.coroutine
-        def test():
-            yield from asyncio.sleep(1)
+        async def test():
+            await asyncio.sleep(1)
 
         with self.assertRaises(asyncio.TimeoutError):
             run_coroutine(test(), timeout=0.01)
@@ -524,14 +521,12 @@ class TestTransportMock(unittest.TestCase):
         self.protocol.connection_made = connection_made
 
         ssl_context = unittest.mock.Mock()
-        post_handshake_callback = unittest.mock.Mock()
-        post_handshake_callback.return_value = []
+        post_handshake_callback = CoroutineMock()
+        post_handshake_callback.return_value = None
 
-        @asyncio.coroutine
-        def late_starttls():
-            yield from fut
-            yield from self.t.starttls(ssl_context,
-                                       post_handshake_callback)
+        async def late_starttls():
+            await fut
+            await self.t.starttls(ssl_context, post_handshake_callback)
 
         run_coroutine_with_peer(
             late_starttls(),
@@ -559,10 +554,9 @@ class TestTransportMock(unittest.TestCase):
 
         ssl_context = unittest.mock.Mock()
 
-        @asyncio.coroutine
-        def late_starttls():
-            yield from fut
-            yield from self.t.starttls(ssl_context)
+        async def late_starttls():
+            await fut
+            await self.t.starttls(ssl_context)
 
         run_coroutine_with_peer(
             late_starttls(),
@@ -656,6 +650,19 @@ class TestXMLStreamMock(XMLTestCase):
                 ],
                 stimulus=XMLStreamMock.Receive(obj)
             ))
+
+    def test_receive_stream_features_into_future(self):
+        fut = self.xmlstream.features_future()
+        obj = nonza.StreamFeatures()
+
+        run_coroutine(self.xmlstream.run_test(
+            [
+            ],
+            stimulus=XMLStreamMock.Receive(obj)
+        ))
+
+        self.assertTrue(fut.done())
+        self.assertIs(fut.result(), obj)
 
     def test_no_termination_on_missing_action(self):
         obj = self.Cls()
@@ -784,7 +791,8 @@ class TestXMLStreamMock(XMLTestCase):
 
     def test_starttls(self):
         ssl_context = unittest.mock.MagicMock()
-        post_handshake_callback = unittest.mock.MagicMock()
+        post_handshake_callback = CoroutineMock()
+        post_handshake_callback.return_value = None
 
         self.xmlstream.transport = object()
 
@@ -888,6 +896,7 @@ class TestXMLStreamMock(XMLTestCase):
         fun.return_value = None
 
         ec_future = asyncio.ensure_future(self.xmlstream.error_future())
+        features_future = self.xmlstream.features_future()
 
         self.xmlstream.on_closing.connect(fun)
 
@@ -899,6 +908,8 @@ class TestXMLStreamMock(XMLTestCase):
 
         self.assertTrue(ec_future.done())
         self.assertIs(exc, ec_future.exception())
+        self.assertTrue(features_future.done())
+        self.assertIs(exc, features_future.exception())
 
         fun.assert_called_once_with(exc)
 
@@ -933,6 +944,7 @@ class TestXMLStreamMock(XMLTestCase):
 
     def test_abort(self):
         fut = self.xmlstream.error_future()
+        ffut = self.xmlstream.features_future()
 
         obj = self.Cls()
 
@@ -950,6 +962,12 @@ class TestXMLStreamMock(XMLTestCase):
         self.assertTrue(fut.done())
         self.assertIsInstance(
             fut.exception(),
+            ConnectionError
+        )
+
+        self.assertTrue(ffut.done())
+        self.assertIsInstance(
+            ffut.exception(),
             ConnectionError
         )
 

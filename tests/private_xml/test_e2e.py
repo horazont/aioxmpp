@@ -31,16 +31,18 @@ from aioxmpp.utils import etree
 from aioxmpp.e2etest import (
     blocking,
     blocking_timed,
+    skip_with_quirk,
+    Quirk,
     TestCase,
 )
 
 
 class TestPrivateXMLStorage(TestCase):
 
+    @skip_with_quirk(Quirk.NO_PRIVATE_XML)
     @blocking
-    @asyncio.coroutine
-    def setUp(self):
-        self.client, = yield from asyncio.gather(
+    async def setUp(self):
+        self.client, = await asyncio.gather(
             self.provisioner.get_connected_client(
                 services=[
                     private_xml.PrivateXMLService
@@ -49,8 +51,7 @@ class TestPrivateXMLStorage(TestCase):
         )
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_store_and_retrieve_xml_unregistered(self):
+    async def test_store_and_retrieve_xml_unregistered(self):
         tree = etree.fromstring(
             '<example xmlns="urn:example:unregistered">'
             '<payload xmlns="urn:example:unregistered">'
@@ -67,7 +68,7 @@ class TestPrivateXMLStorage(TestCase):
             payload=query,
         )
 
-        yield from self.client.send(iq)
+        await self.client.send(iq)
 
         query.unregistered_payload[0].clear()
 
@@ -76,7 +77,7 @@ class TestPrivateXMLStorage(TestCase):
             payload=query,
         )
 
-        retrieved = yield from self.client.send(iq)
+        retrieved = await self.client.send(iq)
 
         self.assertEqual(len(retrieved.unregistered_payload), 1)
         self.assertEqual(
@@ -94,8 +95,7 @@ class TestPrivateXMLStorage(TestCase):
         )
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_store_and_retrieve_xml_registered(self):
+    async def test_store_and_retrieve_xml_registered(self):
         p = self.client.summon(private_xml.PrivateXMLService)
 
         @private_xml.Query.as_payload_class
@@ -106,8 +106,8 @@ class TestPrivateXMLStorage(TestCase):
             def __init__(self, text=""):
                 self.data = text
 
-        yield from p.set_private_xml(Example("foobar"))
-        retrieved = yield from p.get_private_xml(Example())
+        await p.set_private_xml(Example("foobar"))
+        retrieved = await p.get_private_xml(Example())
 
         self.assertEqual(len(retrieved.unregistered_payload), 0)
         self.assertTrue(isinstance(retrieved.registered_payload, Example))

@@ -1,5 +1,8 @@
 #!/bin/bash -x
 set -euo pipefail
+if [ "x${WITH_BUILD_DEP:-no}" = 'xyes' ]; then
+    sudo apt-get build-dep prosody
+fi
 pip install hererocks
 hererocks lua_install -r^ --lua=5.1
 luarocks install luaexpat

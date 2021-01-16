@@ -39,8 +39,7 @@ class PrivateXMLService(service.Service):
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
 
-    @asyncio.coroutine
-    def get_private_xml(self, query_xso):
+    async def get_private_xml(self, query_xso):
         """
         Get the private XML data for the element `query_xso` from the
         server.
@@ -57,10 +56,9 @@ class PrivateXMLService(service.Service):
             type_=aioxmpp.IQType.GET,
             payload=private_xml_xso.Query(query_xso)
         )
-        return (yield from self.client.send(iq))
+        return await self.client.send(iq)
 
-    @asyncio.coroutine
-    def set_private_xml(self, xso):
+    async def set_private_xml(self, xso):
         """
         Store the serialization of `xso` on the server as the private XML
         data for the namespace of `xso`.
@@ -71,4 +69,4 @@ class PrivateXMLService(service.Service):
             type_=aioxmpp.IQType.SET,
             payload=private_xml_xso.Query(xso)
         )
-        yield from self.client.send(iq)
+        await self.client.send(iq)

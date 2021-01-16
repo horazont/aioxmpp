@@ -43,7 +43,7 @@ class CarbonsSniffer(Example):
         return "; ".join(parts)
 
     def _message_filter(self, message):
-        if     (message.from_ != self.client.local_jid.bare() and
+        if (message.from_ != self.client.local_jid.bare() and
                 message.from_ is not None):
             return
 
@@ -57,21 +57,18 @@ class CarbonsSniffer(Example):
                 message.xep0280_received.stanza
             )))
 
-
-    @asyncio.coroutine
-    def run_example(self):
+    async def run_example(self):
         self.stop_event = self.make_sigint_event()
-        yield from super().run_example()
+        await super().run_example()
 
-    @asyncio.coroutine
-    def run_simple_example(self):
+    async def run_simple_example(self):
         filterchain = self.client.stream.app_inbound_message_filter
         with filterchain.context_register(self._message_filter):
             print("enabling carbons")
-            yield from self.carbons.enable()
+            await self.carbons.enable()
             print("carbons enabled! sniffing ... (hit Ctrl+C to stop)")
 
-            yield from self.stop_event.wait()
+            await self.stop_event.wait()
 
 
 if __name__ == "__main__":

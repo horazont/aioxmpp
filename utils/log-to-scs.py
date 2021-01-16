@@ -202,9 +202,13 @@ def generate(actions, out, characters=[], remove_clients=[]):
     result_actions = []
 
     def bind_client(client_id, jid):
+        try:
+            name = client_names.pop(0)
+        except IndexError:
+            name = client_id
         clients[client_id] = {
             "id": client_id,
-            "name": client_names.pop(0),
+            "name": name,
             "jid": jid,
         }
         result_actions.append(

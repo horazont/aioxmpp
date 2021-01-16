@@ -601,8 +601,7 @@ class SyncAdHocSignal(AbstractAdHocSignal):
         """
         return SignalConnectionContext(self, coro)
 
-    @asyncio.coroutine
-    def fire(self, *args, **kwargs):
+    async def fire(self, *args, **kwargs):
         """
         Emit the signal, calling all coroutines in-line with the given
         arguments and in the order they were registered.
@@ -613,7 +612,7 @@ class SyncAdHocSignal(AbstractAdHocSignal):
         itself can be called, too.
         """
         for token, coro in list(self._connections.items()):
-            keep = yield from coro(*args, **kwargs)
+            keep = await coro(*args, **kwargs)
             if not keep:
                 del self._connections[token]
 

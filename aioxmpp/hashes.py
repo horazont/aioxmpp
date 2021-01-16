@@ -367,14 +367,12 @@ class HashService(service.Service):
         for feature in SUPPORTED_HASH_FEATURES:
             self._disco_server.register_feature(feature)
 
-    @asyncio.coroutine
-    def _shutdown(self):
+    async def _shutdown(self):
         for feature in SUPPORTED_HASH_FEATURES:
             self._disco_server.unregister_feature(feature)
-        yield from super()._shutdown()
+        await super()._shutdown()
 
-    @asyncio.coroutine
-    def select_common_hashes(self, other_entity):
+    async def select_common_hashes(self, other_entity):
         """
         Return the list of algos supported by us and `other_entity`. The
         algorithms are represented by their :xep:`300` URNs
@@ -393,7 +391,7 @@ class HashService(service.Service):
         function features are detected, even if `urn:xmpp:hashes:2` is
         not listed as a feature.
         """
-        disco_info = yield from self._disco_client.query_info(other_entity)
+        disco_info = await self._disco_client.query_info(other_entity)
         intersection = disco_info.features & SUPPORTED_HASH_FEATURES
         if (not intersection and
                 namespaces.xep0300_hashes2 not in disco_info.features):

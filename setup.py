@@ -42,14 +42,14 @@ install_requires = [
     'aiosasl>=0.3',  # need 0.2+ for LGPLv3
     'aioopenssl>=0.1',
     'babel~=2.3',
-    'dnspython~=1.0',
+    'dnspython>=1.0,<3.0',
     lxml_constraint,
-    'multidict<5,>=2.0',
+    'multidict<6,>=2.0',
     'sortedcollections>=0.5',
     'pyOpenSSL',
     'pyasn1',
     'pyasn1_modules',
-    'tzlocal~=1.2',
+    'tzlocal>=1.2,<3',
 ]
 
 if tuple(map(int, setuptools.__version__.split(".")[:3])) < (6, 0, 0):
@@ -69,7 +69,7 @@ setup(
     author_email="jonas@wielicki.name",
     license="LGPLv3+",
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "Operating System :: POSIX",
         "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
@@ -78,6 +78,7 @@ setup(
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
         "Topic :: Communications :: Chat",
         "Topic :: Internet :: XMPP",
     ],

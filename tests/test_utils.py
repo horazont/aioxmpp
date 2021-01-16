@@ -137,18 +137,16 @@ class Testbackground_task(unittest.TestCase):
         self.assertFalse(result)
         async_().cancel.assert_called_with()
 
-    @asyncio.coroutine
-    def _long_wrapper(self):
+    async def _long_wrapper(self):
         with self.cm:
-            yield from asyncio.sleep(0.1)
+            await asyncio.sleep(0.1)
 
     def test_logs_nothing_when_coroutine_terminates_normally(self):
         run_coroutine(self._long_wrapper())
         self.assertFalse(self.logger.mock_calls)
 
     def test_logs_error_when_coroutine_raises(self):
-        @asyncio.coroutine
-        def failing():
+        async def failing():
             raise ValueError()
 
         self.cm = utils.background_task(failing(), self.logger)
@@ -161,9 +159,8 @@ class Testbackground_task(unittest.TestCase):
         )
 
     def test_logs_debug_when_coroutine_cancelled(self):
-        @asyncio.coroutine
-        def too_long():
-            yield from asyncio.sleep(10)
+        async def too_long():
+            await asyncio.sleep(10)
 
         self.cm = utils.background_task(too_long(), self.logger)
         run_coroutine(self._long_wrapper())
@@ -174,8 +171,7 @@ class Testbackground_task(unittest.TestCase):
         )
 
     def test_logs_info_when_coroutine_returns_value(self):
-        @asyncio.coroutine
-        def something():
+        async def something():
             return unittest.mock.sentinel.result
 
         self.cm = utils.background_task(something(), self.logger)
@@ -315,9 +311,8 @@ class TestLazyTask(unittest.TestCase):
     def test_yield_from_able(self):
         self.coro.return_value = unittest.mock.sentinel.result
 
-        @asyncio.coroutine
-        def user(fut):
-            return (yield from fut)
+        async def user(fut):
+            return await fut
 
         fut = utils.LazyTask(self.coro)
 
@@ -410,8 +405,7 @@ class Testgather_reraise_multi(unittest.TestCase):
         )
 
     def test_with_one_successful_task(self):
-        @asyncio.coroutine
-        def foo():
+        async def foo():
             return True
 
         self.assertEqual(
@@ -420,8 +414,7 @@ class Testgather_reraise_multi(unittest.TestCase):
         )
 
     def test_with_one_failing_task(self):
-        @asyncio.coroutine
-        def foo():
+        async def foo():
             raise RuntimeError
 
         try:
@@ -433,12 +426,10 @@ class Testgather_reraise_multi(unittest.TestCase):
 
 
     def test_with_two_successful_tasks(self):
-        @asyncio.coroutine
-        def foo():
+        async def foo():
             return True
 
-        @asyncio.coroutine
-        def bar():
+        async def bar():
             return False
 
         self.assertEqual(
@@ -447,12 +438,10 @@ class Testgather_reraise_multi(unittest.TestCase):
         )
 
     def test_with_two_tasks_one_failing(self):
-        @asyncio.coroutine
-        def foo():
+        async def foo():
             raise RuntimeError
 
-        @asyncio.coroutine
-        def bar():
+        async def bar():
             return False
 
         try:
@@ -463,12 +452,10 @@ class Testgather_reraise_multi(unittest.TestCase):
             self.fail()
 
     def test_with_two_tasks_both_failing(self):
-        @asyncio.coroutine
-        def foo():
+        async def foo():
             raise RuntimeError
 
-        @asyncio.coroutine
-        def bar():
+        async def bar():
             raise Exception
 
         try:

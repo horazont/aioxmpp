@@ -58,8 +58,7 @@ class Avatar(Example):
         self.avatar = client.summon(aioxmpp.avatar.AvatarService)
         return client
 
-    @asyncio.coroutine
-    def run_simple_example(self):
+    async def run_simple_example(self):
         if self.avatar_file is not None:
             with open(self.avatar_file, "rb") as f:
                 image_data = f.read()
@@ -67,14 +66,13 @@ class Avatar(Example):
             avatar_set = aioxmpp.avatar.AvatarSet()
             avatar_set.add_avatar_image("image/png", image_bytes=image_data)
 
-            yield from self.avatar.publish_avatar_set(avatar_set)
+            await self.avatar.publish_avatar_set(avatar_set)
 
         elif self.wipe_avatar:
-            yield from self.avatar.disable_avatar()
+            await self.avatar.disable_avatar()
 
-    @asyncio.coroutine
-    def run_example(self):
-        yield from super().run_example()
+    async def run_example(self):
+        await super().run_example()
 
 
 if __name__ == "__main__":

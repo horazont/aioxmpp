@@ -231,9 +231,8 @@ class TestIBBService(unittest.TestCase):
         )
         run_coroutine(self.s._handle_open_request(iq))
 
-        @asyncio.coroutine
-        def await_s_fut():
-            return (yield from s_fut)
+        async def await_s_fut():
+            return await s_fut
 
         handle, proto = run_coroutine(await_s_fut())
         self.assertEqual(
@@ -342,8 +341,7 @@ class TestIBBService_OpenConnection(unittest.TestCase):
 
     def test_send(self):
         arguments = []
-        @asyncio.coroutine
-        def patched_send(stanza):
+        async def patched_send(stanza):
             fut.set_result(None)
             arguments.append(stanza)
 
@@ -633,8 +631,7 @@ class TestIBBService_OpenConnectionMessage(unittest.TestCase):
         for i in range(5):
             fut = asyncio.Future()
 
-            @asyncio.coroutine
-            def patched_send(stanza):
+            async def patched_send(stanza):
                 fut.set_result(None)
                 patched_send.argument = stanza
 

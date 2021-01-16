@@ -251,8 +251,7 @@ class CertificateVerifier(metaclass=abc.ABCMeta):
     This baseclass provides a bit of boilerplate.
     """
 
-    @asyncio.coroutine
-    def pre_handshake(self, metadata, domain, host, port):
+    async def pre_handshake(self, metadata, domain, host, port):
         pass
 
     def setup_context(self, ctx, transport):
@@ -264,8 +263,7 @@ class CertificateVerifier(metaclass=abc.ABCMeta):
         return returncode
 
     @abc.abstractmethod
-    @asyncio.coroutine
-    def post_handshake(self, transport):
+    async def post_handshake(self, transport):
         pass
 
 
@@ -277,8 +275,7 @@ class _NullVerifier(CertificateVerifier):
     def verify_callback(self, *args):
         return True
 
-    @asyncio.coroutine
-    def post_handshake(self, transport):
+    async def post_handshake(self, transport):
         pass
 
 
@@ -314,8 +311,7 @@ class PKIXCertificateVerifier(CertificateVerifier):
         super().setup_context(ctx, transport)
         ctx.set_default_verify_paths()
 
-    @asyncio.coroutine
-    def post_handshake(self, transport):
+    async def post_handshake(self, transport):
         pass
 
 
@@ -459,11 +455,10 @@ class HookablePKIXCertificateVerifier(CertificateVerifier):
 
         return result is not False
 
-    @asyncio.coroutine
-    def post_handshake(self, transport):
+    async def post_handshake(self, transport):
         if self.deferred:
             if self._post_handshake_deferred_failure is not None:
-                result = yield from self._post_handshake_deferred_failure(self)
+                result = await self._post_handshake_deferred_failure(self)
             else:
                 result = False
 
@@ -471,7 +466,7 @@ class HookablePKIXCertificateVerifier(CertificateVerifier):
                 raise errors.TLSFailure("certificate verification failed")
         else:
             if self._post_handshake_success is not None:
-                yield from self._post_handshake_success()
+                await self._post_handshake_success()
 
 
 class AbstractPinStore(metaclass=abc.ABCMeta):
@@ -710,8 +705,7 @@ class ErrorRecordingVerifier(CertificateVerifier):
         self._record_verify_info(x509, errno, depth)
         return True
 
-    @asyncio.coroutine
-    def post_handshake(self, transport):
+    async def post_handshake(self, transport):
         if self._errors:
             raise errors.TLSFailure(
                 "Peer certificate verification failure: {}".format(
@@ -817,8 +811,7 @@ class SASLProvider:
         "encryption-required",
     }
 
-    @asyncio.coroutine
-    def _execute(self, intf, mechanism, token):
+    async def _execute(self, intf, mechanism, token):
         """
         Execute a SASL authentication process.
 
@@ -844,7 +837,7 @@ class SASLProvider:
         """
         sm = aiosasl.SASLStateMachine(intf)
         try:
-            yield from mechanism.authenticate(sm, token)
+            await mechanism.authenticate(sm, token)
             return True
         except aiosasl.SASLFailure as err:
             if err.opaque_error in self.AUTHENTICATION_FAILURES:
@@ -856,12 +849,7 @@ class SASLProvider:
             raise
 
     @abc.abstractmethod
-    @asyncio.coroutine
-    def execute(self,
-                client_jid,
-                features,
-                xmlstream,
-                tls_transport):
+    async def execute(self, client_jid, features, xmlstream, tls_transport):
         """
         Perform SASL negotiation.
 
@@ -932,26 +920,19 @@ class PasswordSASLProvider(SASLProvider):
         self._password_provider = password_provider
         self._max_auth_attempts = max_auth_attempts
 
-    @asyncio.coroutine
-    def execute(self,
-                client_jid,
-                features,
-                xmlstream,
-                tls_transport):
+    async def execute(self, client_jid, features, xmlstream, tls_transport):
         client_jid = client_jid.bare()
 
         password_signalled_abort = False
         nattempt = 0
         cached_credentials = None
 
-        @asyncio.coroutine
-        def credential_provider():
+        async def credential_provider():
             nonlocal password_signalled_abort, nattempt, cached_credentials
             if cached_credentials is not None:
                 return client_jid.localpart, cached_credentials
 
-            password = yield from self._password_provider(
-                client_jid, nattempt)
+            password = await self._password_provider(client_jid, nattempt)
             if password is None:
                 password_signalled_abort = True
                 raise aiosasl.AuthenticationFailure(
@@ -978,7 +959,7 @@ class PasswordSASLProvider(SASLProvider):
             last_auth_error = None
             for nattempt in range(self._max_auth_attempts):
                 try:
-                    mechanism_worked = yield from self._execute(
+                    mechanism_worked = await self._execute(
                         intf, mechanism, token)
                 except (ValueError, aiosasl.AuthenticationFailure) as err:
                     if password_signalled_abort:
@@ -1034,8 +1015,7 @@ class AnonymousSASLProvider(SASLProvider):
         super().__init__()
         self._token = token
 
-    @asyncio.coroutine
-    def execute(self, client_jid, features, xmlstream, tls_transport):
+    async def execute(self, client_jid, features, xmlstream, tls_transport):
         mechanism_class, token = self._find_supported(
             features,
             [aiosasl.ANONYMOUS]
@@ -1047,11 +1027,11 @@ class AnonymousSASLProvider(SASLProvider):
         intf = sasl.SASLXMPPInterface(xmlstream)
         mechanism = aiosasl.ANONYMOUS(self._token)
 
-        return (yield from self._execute(
+        return await self._execute(
             intf,
             mechanism,
             token,
-        ))
+        )
 
 
 if not hasattr(aiosasl, "ANONYMOUS"):
@@ -1138,11 +1118,10 @@ def default_ssl_context():
     return ctx
 
 
-@asyncio.coroutine
-def negotiate_sasl(transport, xmlstream,
-                   sasl_providers,
-                   negotiation_timeout,
-                   jid, features):
+async def negotiate_sasl(transport, xmlstream,
+                         sasl_providers,
+                         negotiation_timeout,
+                         jid, features):
     """
     Perform SASL authentication on the given :class:`.protocol.XMLStream`
     `stream`. `transport` must be the :class:`asyncio.Transport` over which the
@@ -1180,7 +1159,7 @@ def negotiate_sasl(transport, xmlstream,
     last_auth_error = None
     for sasl_provider in sasl_providers:
         try:
-            result = yield from sasl_provider.execute(
+            result = await sasl_provider.execute(
                 jid, features, xmlstream, transport)
         except ValueError as err:
             raise errors.StreamNegotiationFailure(
@@ -1191,7 +1170,7 @@ def negotiate_sasl(transport, xmlstream,
             continue
 
         if result:
-            features = yield from protocol.reset_stream_and_get_features(
+            features = await protocol.reset_stream_and_get_features(
                 xmlstream
             )
             break
@@ -1463,16 +1442,14 @@ def make(
     if isinstance(password_provider, str):
         static_password = password_provider
 
-        @asyncio.coroutine
-        def password_provider(jid, nattempt):
+        async def password_provider(jid, nattempt):
             if nattempt == 0:
                 return static_password
             return None
 
     if pin_store is not None:
         if post_handshake_deferred_failure is None:
-            @asyncio.coroutine
-            def post_handshake_deferred_failure(verifier):
+            async def post_handshake_deferred_failure(verifier):
                 return False
 
         if not isinstance(pin_store, AbstractPinStore):

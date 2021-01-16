@@ -57,20 +57,18 @@ class TestProtocol(asyncio.Protocol):
 
 
 class TestIBB(TestCase):
-    @asyncio.coroutine
-    def make_client(self, run_before=None):
-        return (yield from self.provisioner.get_connected_client(
+    async def make_client(self, run_before=None):
+        return await self.provisioner.get_connected_client(
             services=[
                 aioxmpp.ibb.IBBService,
             ],
             prepare=run_before,
-        ))
+        )
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_ibb(self):
-        client1 = yield from self.make_client()
-        client2 = yield from self.make_client()
+    async def test_ibb(self):
+        client1 = await self.make_client()
+        client2 = await self.make_client()
 
         s1 = client1.summon(aioxmpp.ibb.IBBService)
         s2 = client2.summon(aioxmpp.ibb.IBBService)
@@ -78,10 +76,9 @@ class TestIBB(TestCase):
         # set-up the session
         handle2_fut = s2.expect_session(
             TestProtocol, client1.local_jid, "fnord")
-        transport1, proto1 = yield from s1.open_session(
+        transport1, proto1 = await s1.open_session(
             TestProtocol, client2.local_jid, sid="fnord")
-        transport2, proto2 = yield from handle2_fut
-
+        transport2, proto2 = await handle2_fut
 
         # transfer data
         transport2.write(b"this")
@@ -90,18 +87,17 @@ class TestIBB(TestCase):
         transport2.close()
 
         # assert that both protocols get notified (otherwise time out)
-        e1 = yield from proto1.connection_lost_fut
+        e1 = await proto1.connection_lost_fut
         self.assertIsNone(e1)
-        e2 = yield from proto2.connection_lost_fut
+        e2 = await proto2.connection_lost_fut
         self.assertIsNone(e2)
 
         self.assertEqual(proto1.data, b"thisisdata")
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_ibb_message(self):
-        client1 = yield from self.make_client()
-        client2 = yield from self.make_client()
+    async def test_ibb_message(self):
+        client1 = await self.make_client()
+        client2 = await self.make_client()
 
         s1 = client1.summon(aioxmpp.ibb.IBBService)
         s2 = client2.summon(aioxmpp.ibb.IBBService)
@@ -109,11 +105,11 @@ class TestIBB(TestCase):
         # set-up the session
         handle2_fut = s2.expect_session(
             TestProtocol, client1.local_jid, "fnord")
-        transport1, proto1 = yield from s1.open_session(
+        transport1, proto1 = await s1.open_session(
             TestProtocol, client2.local_jid, sid="fnord",
             stanza_type=aioxmpp.ibb.IBBStanzaType.MESSAGE
         )
-        transport2, proto2 = yield from handle2_fut
+        transport2, proto2 = await handle2_fut
 
         # transfer data
         transport2.write(b"this")
@@ -122,18 +118,17 @@ class TestIBB(TestCase):
         transport2.close()
 
         # assert that both protocols get notified (otherwise time out)
-        e1 = yield from proto1.connection_lost_fut
+        e1 = await proto1.connection_lost_fut
         self.assertIsNone(e1)
-        e2 = yield from proto2.connection_lost_fut
+        e2 = await proto2.connection_lost_fut
         self.assertIsNone(e2)
 
         self.assertEqual(proto1.data, b"thisisdata")
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_ibb_client_disconnects(self):
-        client1 = yield from self.make_client()
-        client2 = yield from self.make_client()
+    async def test_ibb_client_disconnects(self):
+        client1 = await self.make_client()
+        client2 = await self.make_client()
 
         s1 = client1.summon(aioxmpp.ibb.IBBService)
         s2 = client2.summon(aioxmpp.ibb.IBBService)
@@ -141,10 +136,9 @@ class TestIBB(TestCase):
         # set-up the session
         handle2_fut = s2.expect_session(
             TestProtocol, client1.local_jid, "fnord")
-        transport1, proto1 = yield from s1.open_session(
+        transport1, proto1 = await s1.open_session(
             TestProtocol, client2.local_jid, sid="fnord")
-        transport2, proto2 = yield from handle2_fut
-
+        transport2, proto2 = await handle2_fut
 
         # transfer data
         transport2.write(b"this")
@@ -152,7 +146,7 @@ class TestIBB(TestCase):
         transport2.write(b"is")
 
         # assert that both protocols get notified (otherwise time out)
-        e1 = yield from proto1.connection_lost_fut
+        e1 = await proto1.connection_lost_fut
         self.assertIsNone(e1)
-        e2 = yield from proto2.connection_lost_fut
+        e2 = await proto2.connection_lost_fut
         self.assertIsInstance(e2, aioxmpp.errors.XMPPCancelError)

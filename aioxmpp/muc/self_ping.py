@@ -220,8 +220,7 @@ class MUCPinger:
             )
             self._on_exited()
 
-    @asyncio.coroutine
-    def _pinger(self):
+    async def _pinger(self):
         in_flight = []
         next_ping_at = None
         self._logger.debug("%s: pinger booted up", self.ping_address)
@@ -273,7 +272,7 @@ class MUCPinger:
                         self.ping_address,
                         timeout,
                     )
-                    yield from asyncio.sleep(timeout)
+                    await asyncio.sleep(timeout)
                     continue
 
                 self._logger.debug(
@@ -282,7 +281,7 @@ class MUCPinger:
                     len(in_flight),
                     timeout,
                 )
-                done, pending = yield from asyncio.wait(
+                done, pending = await asyncio.wait(
                     in_flight,
                     timeout=timeout,
                     return_when=asyncio.FIRST_COMPLETED,

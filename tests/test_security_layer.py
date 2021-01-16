@@ -1595,11 +1595,28 @@ class TestPinningPKIXCertificateVerifier(unittest.TestCase):
 
 
 class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
+    def _make_and_enable_random_patches(self):
+        names = [
+            "aiosasl._system_random",
+            "aiosasl.scram._system_random",
+        ]
+        patches = []
+        mock = unittest.mock.Mock(["getrandbits"])
+        for name in names:
+            p = unittest.mock.patch(name, new=mock)
+            try:
+                p.start()
+            except (ImportError, AttributeError):
+                continue
+            patches.append(p)
+        return mock, patches
+
     def setUp(self):
-        aiosasl._system_random = unittest.mock.MagicMock()
-        aiosasl._system_random.getrandbits.return_value = int.from_bytes(
+        random_mock, self._patches = self._make_and_enable_random_patches()
+        random_mock.getrandbits.return_value = int.from_bytes(
             b"foo",
-            "little")
+            "little",
+        )
 
         self.client_jid = structs.JID.fromstr("foo@bar.example")
 
@@ -1616,8 +1633,11 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
 
         self.password_provider = unittest.mock.MagicMock()
 
-    @asyncio.coroutine
-    def _password_provider_wrapper(self, client_jid, nattempt):
+    def tearDown(self):
+        for p in self._patches:
+            p.stop()
+
+    async def _password_provider_wrapper(self, client_jid, nattempt):
         return self.password_provider(client_jid, nattempt)
 
     def _test_provider(self, provider,

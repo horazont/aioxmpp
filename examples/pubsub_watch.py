@@ -48,10 +48,9 @@ class PubSubWatch(Example):
             nargs="?",
         )
 
-    @asyncio.coroutine
-    def run_example(self):
+    async def run_example(self):
         self.stop_event = self.make_sigint_event()
-        yield from super().run_example()
+        await super().run_example()
 
     def _on_item_published(self, jid, node, item, *, message=None):
         print("PUBLISHED: {}".format(item.id_))
@@ -59,20 +58,19 @@ class PubSubWatch(Example):
     def _on_item_retracted(self, jid, node, id_, *, message=None):
         print("RETRACTED: {}".format(id_))
 
-    @asyncio.coroutine
-    def run_simple_example(self):
+    async def run_simple_example(self):
         pubsub = self.client.summon(aioxmpp.PubSubClient)
         pubsub.on_item_published.connect(self._on_item_published)
         pubsub.on_item_retracted.connect(self._on_item_retracted)
-        subid = (yield from pubsub.subscribe(
+        subid = (await pubsub.subscribe(
             self.args.target_entity,
             node=self.args.target_node,
         )).payload.subid
         print("SUBSCRIBED: subid={!r}".format(subid))
         try:
-            yield from self.stop_event.wait()
+            await self.stop_event.wait()
         finally:
-            yield from pubsub.unsubscribe(
+            await pubsub.unsubscribe(
                 self.args.target_entity,
                 node=self.args.target_node,
                 subid=subid,

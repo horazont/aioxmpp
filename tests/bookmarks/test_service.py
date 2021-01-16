@@ -49,15 +49,13 @@ class PrivateXMLSimulator:
         self.stored = {}
         self.delay = 0
 
-    @asyncio.coroutine
-    def get_private_xml(self, xso):
+    async def get_private_xml(self, xso):
         payload = copy.deepcopy(
             self.stored.setdefault(xso.TAG[0], copy.deepcopy(xso))
         )
         return aioxmpp.private_xml.Query(payload)
 
-    @asyncio.coroutine
-    def set_private_xml(self, xso):
+    async def set_private_xml(self, xso):
         if self.delay == 0:
             self.stored[xso.TAG[0]] = copy.deepcopy(xso)
         else:
@@ -88,15 +86,14 @@ class TestPrivateXMLSimulator(unittest.TestCase):
         before = None
         after = None
 
-        @asyncio.coroutine
-        def test_private_xml():
+        async def test_private_xml():
             nonlocal before, after
             before = (
-                yield from self.private_xml.get_private_xml(ExampleXSO())
+                await self.private_xml.get_private_xml(ExampleXSO())
             ).registered_payload
-            yield from self.private_xml.set_private_xml(ExampleXSO("foo"))
+            await self.private_xml.set_private_xml(ExampleXSO("foo"))
             after = (
-                yield from self.private_xml.get_private_xml(ExampleXSO())
+                await self.private_xml.get_private_xml(ExampleXSO())
             ).registered_payload
 
         run_coroutine(test_private_xml())
@@ -108,11 +105,10 @@ class TestPrivateXMLSimulator(unittest.TestCase):
         self.assertEqual(after.text, "foo")
 
     def test_store_and_retrieve(self):
-        @asyncio.coroutine
-        def test_private_xml():
-            yield from self.private_xml.set_private_xml(ExampleXSO("foo"))
+        async def test_private_xml():
+            await self.private_xml.set_private_xml(ExampleXSO("foo"))
             return (
-                yield from self.private_xml.get_private_xml(ExampleXSO())
+                await self.private_xml.get_private_xml(ExampleXSO())
             ).registered_payload
 
         res = run_coroutine(test_private_xml())
@@ -123,12 +119,11 @@ class TestPrivateXMLSimulator(unittest.TestCase):
         results = []
         self.private_xml.delay = 3
 
-        @asyncio.coroutine
-        def test_private_xml():
+        async def test_private_xml():
             for i in range(5):
-                yield from self.private_xml.set_private_xml(ExampleXSO("foo"))
+                await self.private_xml.set_private_xml(ExampleXSO("foo"))
                 results.append((
-                    yield from self.private_xml.get_private_xml(ExampleXSO())
+                    await self.private_xml.get_private_xml(ExampleXSO())
                 ).registered_payload)
         run_coroutine(test_private_xml())
 

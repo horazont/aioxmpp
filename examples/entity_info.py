@@ -51,11 +51,10 @@ class ServerInfo(Example):
             help="disco node to query"
         )
 
-    @asyncio.coroutine
-    def run_simple_example(self):
+    async def run_simple_example(self):
         disco = self.client.summon(aioxmpp.DiscoClient)
         try:
-            info = yield from disco.query_info(
+            info = await disco.query_info(
                 self.args.target_entity or self.client.local_jid.bare(),
                 node=self.args.target_node,
                 timeout=10

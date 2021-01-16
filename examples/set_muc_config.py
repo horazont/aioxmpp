@@ -125,11 +125,10 @@ class ServerInfo(Example):
         client.summon(aioxmpp.MUCClient)
         return client
 
-    @asyncio.coroutine
-    def run_simple_example(self):
+    async def run_simple_example(self):
         muc = self.client.summon(aioxmpp.MUCClient)
 
-        config = yield from muc.get_room_config(
+        config = await muc.get_room_config(
             self.muc_jid
         )
         form = aioxmpp.muc.xso.ConfigurationForm.from_xso(config)
@@ -149,7 +148,7 @@ class ServerInfo(Example):
         if self.args.name is not None:
             form.roomname.value = self.args.name
 
-        yield from muc.set_room_config(
+        await muc.set_room_config(
             self.muc_jid,
             form.render_reply()
         )

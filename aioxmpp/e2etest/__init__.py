@@ -105,9 +105,11 @@ Provisioners
 
 .. autoclass:: Provisioner
 
-.. autoclass:: AnonymousProvisioner
+.. autoclass:: AnonymousProvisioner()
 
-.. autoclass:: AnyProvisioner
+.. autoclass:: AnyProvisioner()
+
+.. autoclass:: StaticPasswordProvisioner()
 
 .. currentmodule:: aioxmpp.e2etest
 
@@ -309,9 +311,8 @@ def blocking_with_timeout(timeout):
     def decorator(f):
         @blocking
         @functools.wraps(f)
-        @asyncio.coroutine
-        def wrapper(*args, **kwargs):
-            yield from asyncio.wait_for(f(*args, **kwargs), timeout)
+        async def wrapper(*args, **kwargs):
+            return await asyncio.wait_for(f(*args, **kwargs), timeout)
         return wrapper
     return decorator
 
@@ -336,16 +337,14 @@ def blocking_timed(f):
     """
     @blocking
     @functools.wraps(f)
-    @asyncio.coroutine
-    def wrapper(*args, **kwargs):
+    async def wrapper(*args, **kwargs):
         global timeout
-        yield from asyncio.wait_for(f(*args, **kwargs), timeout)
+        await asyncio.wait_for(f(*args, **kwargs), timeout)
     return wrapper
 
 
 @blocking
-@asyncio.coroutine
-def setup_package():
+async def setup_package():
     global provisioner, config, timeout
     if config is None:
         # AioxmppPlugin is not used -> skip all e2e tests
@@ -366,7 +365,7 @@ def setup_package():
     section = config[provisioner_name]
     provisioner = cls_()
     provisioner.configure(section)
-    yield from provisioner.initialise()
+    await provisioner.initialise()
 
 
 def teardown_package():
@@ -398,6 +397,13 @@ class E2ETestPlugin(Plugin):
             default=None,
             help="A file to write a transcript to"
         )
+        options.add_option(
+            "--e2etest-only",
+            dest="aioxmpp_e2e_only",
+            action="store_true",
+            default=False,
+            help="If set, only E2E tests will be executed."
+        )
 
     def configure(self, options, conf):
         self.enabled = True
@@ -416,19 +422,21 @@ class E2ETestPlugin(Plugin):
             logger = logging.getLogger("aioxmpp.e2etest.provision")
             logger.addHandler(handler)
 
-    @blocking
-    @asyncio.coroutine
-    def beforeTest(self, test):
-        global provisioner
-        if provisioner is not None:
-            yield from provisioner.setup()
+        self.__only_e2etest = options.aioxmpp_e2e_only
 
     @blocking
-    @asyncio.coroutine
-    def afterTest(self, test):
+    async def beforeTest(self, test):
+        global provisioner
+        if self.__only_e2etest and not isinstance(test.test, TestCase):
+            raise unittest.SkipTest("not an e2etest")
+        if provisioner is not None:
+            await provisioner.setup()
+
+    @blocking
+    async def afterTest(self, test):
         global provisioner
         if provisioner is not None:
-            yield from provisioner.teardown()
+            await provisioner.teardown()
 
 
 class TestCase(unittest.TestCase):

@@ -52,6 +52,8 @@ ESCAPING_TEST_VECTORS = [
     (r"\2plus\2is\4", r"\2plus\2is\4"),
     (r"foo\bar", r"foo\bar"),
     (r"foo\41r", r"foo\41r"),
+    # additional test vectors
+    (r"call\20me", r"call\5c20me"),
 ]
 
 

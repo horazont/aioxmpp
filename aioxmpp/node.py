@@ -93,19 +93,15 @@ from . import (
 logger = logging.getLogger(__name__)
 
 
-def lookup_addresses(loop, jid):
-    addresses = yield from network.find_xmpp_host_addr(
+async def lookup_addresses(loop, jid):
+    addresses = await network.find_xmpp_host_addr(
         loop,
         jid.domain)
 
     return network.group_and_order_srv_records(addresses)
 
 
-@asyncio.coroutine
-def discover_connectors(
-        domain: str,
-        loop=None,
-        logger=logger):
+async def discover_connectors(domain: str, loop=None, logger=logger):
     """
     Discover all connection options for a domain, in descending order of
     preference.
@@ -146,7 +142,7 @@ def discover_connectors(
     tls_srv_failed = False
 
     try:
-        starttls_srv_records = yield from network.lookup_srv(
+        starttls_srv_records = await network.lookup_srv(
             domain_encoded,
             "xmpp-client",
         )
@@ -165,7 +161,7 @@ def discover_connectors(
         starttls_srv_disabled = True
 
     try:
-        tls_srv_records = yield from network.lookup_srv(
+        tls_srv_records = await network.lookup_srv(
             domain_encoded,
             "xmpps-client",
         )
@@ -231,9 +227,8 @@ def discover_connectors(
     return options
 
 
-@asyncio.coroutine
-def _try_options(options, exceptions,
-                 jid, metadata, negotiation_timeout, loop, logger):
+async def _try_options(options, exceptions,
+                       jid, metadata, negotiation_timeout, loop, logger):
     """
     Helper function for :func:`connect_xmlstream`.
     """
@@ -243,7 +238,7 @@ def _try_options(options, exceptions,
             jid.domain, host, port, conn
         )
         try:
-            transport, xmlstream, features = yield from conn.connect(
+            transport, xmlstream, features = await conn.connect(
                 loop,
                 metadata,
                 jid.domain,
@@ -269,7 +264,7 @@ def _try_options(options, exceptions,
             return transport, xmlstream, features
 
         try:
-            features = yield from security_layer.negotiate_sasl(
+            features = await security_layer.negotiate_sasl(
                 transport,
                 xmlstream,
                 metadata.sasl_providers,
@@ -298,8 +293,7 @@ def _try_options(options, exceptions,
     return None
 
 
-@asyncio.coroutine
-def connect_xmlstream(
+async def connect_xmlstream(
         jid,
         metadata,
         negotiation_timeout=60.,
@@ -379,7 +373,7 @@ def connect_xmlstream(
 
     exceptions = []
 
-    result = yield from _try_options(
+    result = await _try_options(
         options,
         exceptions,
         jid, metadata, negotiation_timeout, loop, logger,
@@ -387,13 +381,13 @@ def connect_xmlstream(
     if result is not None:
         return result
 
-    options = list((yield from discover_connectors(
+    options = list(await discover_connectors(
         jid.domain,
         loop=loop,
         logger=logger,
-    )))
+    ))
 
-    result = yield from _try_options(
+    result = await _try_options(
         options,
         exceptions,
         jid, metadata, negotiation_timeout, loop, logger,
@@ -848,22 +842,20 @@ class Client:
             self.logger.exception("main failed")
             self.on_failure(err)
 
-    @asyncio.coroutine
-    def _try_resume_stream_management(self, xmlstream, features):
+    async def _try_resume_stream_management(self, xmlstream, features):
         try:
-            yield from self.stream.resume_sm(xmlstream)
+            await self.stream.resume_sm(xmlstream)
         except errors.StreamNegotiationFailure as exc:
             self.logger.warn("failed to resume stream (%s)",
                              exc)
             return False
         return True
 
-    @asyncio.coroutine
-    def _negotiate_legacy_session(self):
+    async def _negotiate_legacy_session(self):
         self.logger.debug(
             "remote server announces support for legacy sessions"
         )
-        yield from self.stream._send_immediately(
+        await self.stream._send_immediately(
             stanza.IQ(type_=structs.IQType.SET,
                       payload=rfc3921.Session())
         )
@@ -871,8 +863,7 @@ class Client:
             "legacy session negotiated (upgrade your server!)"
         )
 
-    @asyncio.coroutine
-    def _negotiate_stream(self, xmlstream, features):
+    async def _negotiate_stream(self, xmlstream, features):
         server_can_do_sm = True
         try:
             features[nonza.StreamManagementFeature]
@@ -886,7 +877,7 @@ class Client:
                           server_can_do_sm)
 
         if self.stream.sm_enabled:
-            resumed = yield from self._try_resume_stream_management(
+            resumed = await self._try_resume_stream_management(
                 xmlstream, features)
             if resumed:
                 return features, resumed
@@ -898,12 +889,12 @@ class Client:
 
         if not resumed:
             self.logger.debug("binding to resource")
-            yield from self._bind()
+            await self._bind()
 
         if server_can_do_sm:
             self.logger.debug("attempting to start stream management")
             try:
-                yield from self.stream.start_sm(
+                await self.stream.start_sm(
                     resumption_timeout=self._resumption_timeout
                 )
             except errors.StreamNegotiationFailure:
@@ -916,7 +907,7 @@ class Client:
             pass  # yay
         else:
             if not session_feature.optional:
-                yield from self._negotiate_legacy_session()
+                await self._negotiate_legacy_session()
             else:
                 self.logger.debug(
                     "skipping optional legacy session negotiation"
@@ -924,18 +915,17 @@ class Client:
 
         self.established_event.set()
 
-        yield from self.before_stream_established()
+        await self.before_stream_established()
 
         self.on_stream_established()
 
         return features, resumed
 
-    @asyncio.coroutine
-    def _bind(self):
+    async def _bind(self):
         iq = stanza.IQ(type_=structs.IQType.SET)
         iq.payload = rfc6120.Bind(resource=self._local_jid.resource)
         try:
-            result = yield from self.stream._send_immediately(iq)
+            result = await self.stream._send_immediately(iq)
         except errors.XMPPError as exc:
             raise errors.StreamNegotiationFailure(
                 "Resource binding failed: {}".format(exc)
@@ -945,8 +935,7 @@ class Client:
         self.stream.local_jid = result.jid.bare()
         self.logger.info("bound to jid: %s", self._local_jid)
 
-    @asyncio.coroutine
-    def _main_impl(self):
+    async def _main_impl(self):
         failure_future = self._failure_future
 
         override_peer = []
@@ -960,8 +949,7 @@ class Client:
                 ))
         override_peer += self.override_peer
 
-        tls_transport, xmlstream, features = \
-            yield from connect_xmlstream(
+        tls_transport, xmlstream, features = await connect_xmlstream(
                 self._local_jid,
                 self._security_layer,
                 negotiation_timeout=self.negotiation_timeout.total_seconds(),
@@ -972,7 +960,7 @@ class Client:
         self._had_connection = True
 
         try:
-            features, sm_resumed = yield from self._negotiate_stream(
+            features, sm_resumed = await self._negotiate_stream(
                 xmlstream,
                 features)
 
@@ -981,20 +969,19 @@ class Client:
             self._is_suspended = False
             self._backoff_time = None
 
-            exc = yield from failure_future
+            exc = await failure_future
             self.logger.error("stream failed: %s", exc)
             raise exc
         except asyncio.CancelledError:
             self.logger.info("client shutting down (on request)")
             # cancelled, this means a clean shutdown is requested
-            yield from self.stream.close()
+            await self.stream.close()
             raise
         finally:
             self.logger.info("stopping stream")
             self.stream.stop()
 
-    @asyncio.coroutine
-    def _main(self):
+    async def _main(self):
         with contextlib.ExitStack() as stack:
             stack.enter_context(
                 self.stream.on_failure.context_connect(self._stream_failure)
@@ -1007,7 +994,7 @@ class Client:
                 self._nattempt += 1
                 self._failure_future = asyncio.Future()
                 try:
-                    yield from self._main_impl()
+                    await self._main_impl()
                 except errors.StreamError as err:
                     if err.condition == errors.StreamErrorCondition.CONFLICT:
                         self.logger.debug("conflict!")
@@ -1032,7 +1019,7 @@ class Client:
                         self._backoff_time = self.backoff_start.total_seconds()
                     self.logger.debug("re-trying after %.1f seconds",
                                       self._backoff_time)
-                    yield from asyncio.sleep(self._backoff_time)
+                    await asyncio.sleep(self._backoff_time)
                     self._backoff_time *= self.backoff_factor
                     if self._backoff_time > self.backoff_cap.total_seconds():
                         self._backoff_time = self.backoff_cap.total_seconds()
@@ -1251,8 +1238,7 @@ class Client:
 
         return self.stream._enqueue(stanza, **kwargs)
 
-    @asyncio.coroutine
-    def send(self, stanza, *, timeout=None, cb=None):
+    async def send(self, stanza, *, timeout=None, cb=None):
         """
         Send a stanza.
 
@@ -1347,7 +1333,7 @@ class Client:
             established_fut = asyncio.ensure_future(
                 self.established_event.wait()
             )
-            done, pending = yield from asyncio.wait(
+            done, pending = await asyncio.wait(
                 [
                     established_fut,
                     failure_fut,
@@ -1367,9 +1353,9 @@ class Client:
 
             self.logger.debug("send(%s): stream established, sending")
 
-        return (yield from self.stream._send_immediately(stanza,
-                                                         timeout=timeout,
-                                                         cb=cb))
+        return await self.stream._send_immediately(stanza,
+                                                   timeout=timeout,
+                                                   cb=cb)
 
 
 class PresenceManagedClient(Client):
@@ -1628,8 +1614,7 @@ class UseConnected:
         )
         self._presence = value
 
-    @asyncio.coroutine
-    def __aenter__(self):
+    async def __aenter__(self):
         if self._presence.available:
             svc = self._client.summon(
                 mod_presence.PresenceServer
@@ -1656,7 +1641,7 @@ class UseConnected:
 
         if self._timeout is not None:
             try:
-                yield from asyncio.wait_for(
+                await asyncio.wait_for(
                     conn_future,
                     self._timeout.total_seconds(),
                 )
@@ -1664,12 +1649,11 @@ class UseConnected:
                 self._client.stop()
                 raise TimeoutError()
         else:
-            yield from conn_future
+            await conn_future
 
         return self._client.stream
 
-    @asyncio.coroutine
-    def __aexit__(self, exc_type, exc_value, exc_traceback):
+    async def __aexit__(self, exc_type, exc_value, exc_traceback):
         if not self._client.running:
             return
 
@@ -1688,7 +1672,7 @@ class UseConnected:
         self._client.stop()
 
         try:
-            yield from disconn_future
+            await disconn_future
         except Exception:
             # we don’t want to re-raise that; the stream is dead, goal
             # achieved.

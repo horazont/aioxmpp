@@ -740,12 +740,11 @@ class TestService(unittest.TestCase):
 
 class TestE2E(TestCase):
     @blocking_timed
-    @asyncio.coroutine
-    def setUp(self):
+    async def setUp(self):
         services = [p2p.Service]
 
         self.firstwitch, self.secondwitch, self.thirdwitch = \
-            yield from asyncio.gather(
+            await asyncio.gather(
                 self.provisioner.get_connected_client(
                     services=services
                 ),
@@ -758,8 +757,7 @@ class TestE2E(TestCase):
             )
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_converse_with_preexisting(self):
+    async def test_converse_with_preexisting(self):
         c1 = self.firstwitch.summon(p2p.Service).get_conversation(
             self.secondwitch.local_jid.bare()
         )
@@ -792,7 +790,7 @@ class TestE2E(TestCase):
         msg = aioxmpp.Message(aioxmpp.MessageType.CHAT)
         msg.body[None] = "foo"
         c1.send_message(msg)
-        yield from swev.wait()
+        await swev.wait()
 
         self.assertEqual(len(swmsgs), 1)
         self.assertEqual(swmsgs[0].body.any(), "foo")
@@ -800,17 +798,16 @@ class TestE2E(TestCase):
 
         msg.body[None] = "bar"
         c2.send_message(msg)
-        yield from fwev.wait()
+        await fwev.wait()
 
         self.assertEqual(len(fwmsgs), 1)
         self.assertEqual(fwmsgs[0].body.any(), "bar")
         self.assertEqual(len(swmsgs), 1)
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_leave(self):
+    async def test_leave(self):
         c1 = self.firstwitch.summon(p2p.Service).get_conversation(
             self.secondwitch.local_jid.bare()
         )
 
-        yield from c1.leave()
+        await c1.leave()

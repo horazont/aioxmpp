@@ -28,6 +28,7 @@ import fnmatch
 import json
 import logging
 import random
+import unittest
 
 import aioxmpp
 import aioxmpp.disco
@@ -81,6 +82,8 @@ class Quirk(enum.Enum):
         "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#broken-muc"
     PUBSUB_GET_MULTIPLE_ITEMS_BY_ID_BROKEN = \
         "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#broken-pubsub-get-multiple-by-id"  # NOQA: E501
+    NO_PRIVATE_XML = \
+        "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#no-xep-0049"
 
 
 def fix_quirk_str(s):
@@ -181,9 +184,8 @@ def _is_feature_blocked(peer, feature, blockmap):
     )
 
 
-@asyncio.coroutine
-def discover_server_features(disco, peer, recurse_into_items=True,
-                             blockmap={}):
+async def discover_server_features(disco, peer, recurse_into_items=True,
+                                   blockmap={}):
     """
     Use :xep:`30` service discovery to discover features supported by the
     server.
@@ -211,7 +213,7 @@ def discover_server_features(disco, peer, recurse_into_items=True,
     precedence).
     """
 
-    server_info = yield from disco.query_info(peer)
+    server_info = await disco.query_info(peer)
 
     all_features = {
         feature: [peer]
@@ -220,8 +222,8 @@ def discover_server_features(disco, peer, recurse_into_items=True,
     }
 
     if recurse_into_items:
-        server_items = yield from disco.query_items(peer)
-        features_list = yield from asyncio.gather(
+        server_items = await disco.query_items(peer)
+        features_list = await asyncio.gather(
             *(
                 discover_server_features(
                     disco,
@@ -240,8 +242,7 @@ def discover_server_features(disco, peer, recurse_into_items=True,
     return all_features
 
 
-@asyncio.coroutine
-def discover_server_identities(disco, peer, recurse_into_items=True):
+async def discover_server_identities(disco, peer, recurse_into_items=True):
     """
     Use :xep:`30` service discovery to discover identities provided by the
     server.
@@ -270,7 +271,7 @@ def discover_server_identities(disco, peer, recurse_into_items=True):
     overriden -- so `peer` takes precedence).
     """
 
-    server_info = yield from disco.query_info(peer)
+    server_info = await disco.query_info(peer)
 
     all_identities = {
         (identity.category, identity.type_): [peer]
@@ -278,8 +279,8 @@ def discover_server_identities(disco, peer, recurse_into_items=True):
     }
 
     if recurse_into_items:
-        server_items = yield from disco.query_items(peer)
-        identities_list = yield from asyncio.gather(
+        server_items = await disco.query_items(peer)
+        identities_list = await asyncio.gather(
             *(
                 discover_server_identities(
                     disco,
@@ -345,8 +346,7 @@ class Provisioner(metaclass=abc.ABCMeta):
         self.__counter = 0
 
     @abc.abstractmethod
-    @asyncio.coroutine
-    def _make_client(self, logger):
+    async def _make_client(self, logger):
         """
         :param logger: The logger to pass to the client.
         :return: Client with a fresh account.
@@ -355,9 +355,8 @@ class Provisioner(metaclass=abc.ABCMeta):
         new account. This method must be re-implemented by subclasses.
         """
 
-    @asyncio.coroutine
-    def get_connected_client(self, presence=aioxmpp.PresenceState(True), *,
-                             services=[], prepare=None):
+    async def get_connected_client(self, presence=aioxmpp.PresenceState(True), *,
+                                   services=[], prepare=None):
         """
         Return a connected client to a unique XMPP account.
 
@@ -394,13 +393,13 @@ class Provisioner(metaclass=abc.ABCMeta):
         self.__counter += 1
         self._logger.debug("obtaining client%d from %r", id_, self)
         logger = self._logger.getChild("client{}".format(id_))
-        client = yield from self._make_client(logger)
+        client = await self._make_client(logger)
         for service in services:
             client.summon(service)
         if prepare is not None:
-            yield from prepare(client)
+            await prepare(client)
         cm = client.connected(presence=presence)
-        yield from cm.__aenter__()
+        await cm.__aenter__()
         self._accounts_to_dispose.append(cm)
         return client
 
@@ -506,8 +505,7 @@ class Provisioner(metaclass=abc.ABCMeta):
               features from specific hosts
         """
 
-    @asyncio.coroutine
-    def initialise(self):
+    async def initialise(self):
         """
         Called once on test framework startup.
 
@@ -521,20 +519,17 @@ class Provisioner(metaclass=abc.ABCMeta):
               features.
         """
 
-    @asyncio.coroutine
-    def finalise(self):
+    async def finalise(self):
         """
         Called once on test framework shutdown (timeout of 10 seconds applies).
         """
 
-    @asyncio.coroutine
-    def setup(self):
+    async def setup(self):
         """
         Called before each test run.
         """
 
-    @asyncio.coroutine
-    def teardown(self):
+    async def teardown(self):
         """
         Called after each test run.
 
@@ -552,7 +547,7 @@ class Provisioner(metaclass=abc.ABCMeta):
 
         self._logger.debug("waiting for %d accounts to shut down",
                            len(futures))
-        yield from asyncio.gather(
+        await asyncio.gather(
             *futures,
             return_exceptions=True
         )
@@ -563,27 +558,22 @@ class _AutoConfiguredProvisioner(Provisioner):
         super().configure(section)
         self._blockmap = configure_blockmap(section)
 
-    @asyncio.coroutine
-    def initialise(self):
+    async def initialise(self):
         self._logger.debug("auto-configuring provisioner %s", self)
 
-        client = yield from self.get_connected_client()
+        client = await self.get_connected_client()
         disco = client.summon(aioxmpp.DiscoClient)
 
-        self._featuremap.update(
-            (yield from discover_server_features(
-                disco,
-                self._domain,
-                blockmap=self._blockmap,
-            ))
-        )
+        self._featuremap.update(await discover_server_features(
+            disco,
+            self._domain,
+            blockmap=self._blockmap,
+        ))
 
-        self._identitymap.update(
-            (yield from discover_server_identities(
-                disco,
-                self._domain,
-            ))
-        )
+        self._identitymap.update(await discover_server_identities(
+            disco,
+            self._domain,
+        ))
 
         self._logger.debug("found %d features", len(self._featuremap))
         if self._logger.isEnabledFor(logging.DEBUG):
@@ -594,11 +584,11 @@ class _AutoConfiguredProvisioner(Provisioner):
                     ", ".join(sorted(map(str, providers)))
                 )
 
-        self._account_info = yield from disco.query_info(None)
+        self._account_info = await disco.query_info(None)
 
         # clean up state
         del client
-        yield from self.teardown()
+        await self.teardown()
 
 
 class AnonymousProvisioner(_AutoConfiguredProvisioner):
@@ -642,8 +632,7 @@ class AnonymousProvisioner(_AutoConfiguredProvisioner):
         )
         self._quirks = configure_quirks(section)
 
-    @asyncio.coroutine
-    def _make_client(self, logger):
+    async def _make_client(self, logger):
         override_peer = []
         if self.__port is not None:
             override_peer.append(
@@ -705,8 +694,7 @@ class AnyProvisioner(_AutoConfiguredProvisioner):
         self.__username_rng = random.Random()
         self.__username_rng.seed(_rng.getrandbits(256))
 
-    @asyncio.coroutine
-    def _make_client(self, logger):
+    async def _make_client(self, logger):
         override_peer = []
         if self.__port is not None:
             override_peer.append(
@@ -725,3 +713,98 @@ class AnyProvisioner(_AutoConfiguredProvisioner):
             override_peer=override_peer,
             logger=logger,
         )
+
+
+class StaticPasswordProvisioner(_AutoConfiguredProvisioner):
+    """
+    This provisioner expects a list of username/password pairs to authenticate
+    against the tested server.
+
+    This is for use with servers which support neither SASL ANONYMOUS nor
+    a ``mod_auth_any`` equivalent.
+
+    The configuration of this provisioner is slightly unwieldly since we do
+    not want to add a dependency to a more sane configuration file format. Here
+    is an example on how to configure a provisioner with two accounts:
+
+    .. code-block:: ini
+
+        [aioxmpp.e2etest.provision.StaticPasswordProvisioner]
+        host=localhost
+        accounts=[("user1", "password1"), ("user2", "password2")]
+        skip_on_too_few_accounts=false
+
+    All accounts need to have exactly the same privileges on the server. The
+    first account will be used to auto-discover any features offered by the
+    test environment.
+
+    If `skip_on_too_few_accounts` is set to true (the default is false), tests
+    will be skipped if the provisioner runs out of accounts instead of failing.
+    """
+
+    def _load_accounts(self, cfg):
+        result = []
+        for username, password in ast.literal_eval(cfg):
+            result.append((
+                aioxmpp.JID(localpart=username, domain=self._domain.domain,
+                            resource=None),
+                aioxmpp.make_security_layer(password, **self.__tls_config)
+            ))
+        return result
+
+    def configure(self, section):
+        super().configure(section)
+        self.__host = section.get("host")
+        self._domain = aioxmpp.JID.fromstr(section.get(
+            "domain",
+            self.__host
+        ))
+        self.__port = section.getint("port")
+        self.__tls_config = configure_tls_config(section)
+        self.__accounts = self._load_accounts(section.get("accounts"))
+        if len(self.__accounts) == 0:
+            raise RuntimeError(
+                "at least one account needs to be configured in the "
+                "StaticPasswordProvisioner section"
+            )
+
+        self.__nused_accounts = 0
+        self._quirks = configure_quirks(section)
+        self.__username_rng = random.Random()
+        self.__skip_on_too_few_accounts = section.getboolean(
+            "skip_on_too_few_accounts",
+            fallback=False,
+        )
+
+    async def _make_client(self, logger):
+        override_peer = []
+        if self.__port is not None:
+            override_peer.append(
+                (self.__host, self.__port,
+                 aioxmpp.connector.STARTTLSConnector())
+            )
+
+        next_account = self.__nused_accounts
+        try:
+            address, security_layer = self.__accounts[next_account]
+        except IndexError:
+            err = (
+                "not enough accounts; needed at least one more account "
+                "after already using {} accounts".format(next_account)
+            )
+            if self.__skip_on_too_few_accounts:
+                raise unittest.SkipTest(err)
+            raise RuntimeError(err)
+
+        self.__nused_accounts += 1
+
+        return aioxmpp.PresenceManagedClient(
+            address,
+            security_layer,
+            override_peer=override_peer,
+            logger=logger,
+        )
+
+    async def teardown(self):
+        await super().teardown()
+        self.__nused_accounts = 0

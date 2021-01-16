@@ -42,6 +42,8 @@ class Testthreadlocal_resolver_instance(unittest.TestCase):
         network.reconfigure_resolver()
 
     def test_get_resolver_returns_Resolver_instance(self):
+        if isinstance(network.get_resolver(), network.DummyResolver):
+            raise unittest.SkipTest("no /etc/resolv.conf")
         self.assertIsInstance(
             network.get_resolver(),
             dns.resolver.Resolver,
@@ -54,10 +56,14 @@ class Testthreadlocal_resolver_instance(unittest.TestCase):
         self.assertIs(i1, i2)
 
     def test_get_resolver_is_not_dnspython_default_resolver(self):
-        self.assertIsNot(
-            network.get_resolver(),
-            dns.resolver.get_default_resolver(),
-        )
+        try:
+            self.assertIsNot(
+                network.get_resolver(),
+                dns.resolver.get_default_resolver(),
+            )
+        except dns.resolver.NoResolverConfiguration:
+            # no /etc/resolv.conf, cannot run this test
+            raise unittest.SkipTest("no /etc/resolv.conf found")
 
     def test_get_resolver_is_thread_local(self):
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
@@ -202,8 +208,7 @@ class Testrepeated_query(unittest.TestCase):
         self.base = base
         self.run_in_executor = unittest.mock.Mock()
 
-        @asyncio.coroutine
-        def run_in_executor(executor, func, *args):
+        async def run_in_executor(executor, func, *args):
             self.run_in_executor(executor, func, *args)
             return func(*args)
 
@@ -1368,6 +1373,7 @@ class Testgroup_and_order_srv_records(unittest.TestCase):
 class Testfind_xmpp_host_addr(unittest.TestCase):
     def test_returns_items_if_available(self):
         base = unittest.mock.Mock()
+        base.lookup_srv = CoroutineMock()
 
         nattempts = object()
         items = object()
@@ -1400,6 +1406,7 @@ class Testfind_xmpp_host_addr(unittest.TestCase):
 
     def test_creates_fake_srv_if_no_srvs_available(self):
         base = unittest.mock.Mock()
+        base.lookup_srv = CoroutineMock()
 
         nattempts = object()
 
@@ -1436,6 +1443,7 @@ class Testfind_xmpp_host_addr(unittest.TestCase):
 
     def test_propagates_OSError_from_lookup_srv(self):
         base = unittest.mock.Mock()
+        base.lookup_srv = CoroutineMock()
 
         nattempts = object()
 
@@ -1453,6 +1461,7 @@ class Testfind_xmpp_host_addr(unittest.TestCase):
 
     def test_propagates_ValueError_from_lookup_srv(self):
         base = unittest.mock.Mock()
+        base.lookup_srv = CoroutineMock()
 
         nattempts = object()
 

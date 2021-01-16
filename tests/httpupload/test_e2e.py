@@ -37,16 +37,15 @@ from aioxmpp.e2etest import (
 class TestE2E(aioxmpp.e2etest.TestCase):
     @require_feature(namespaces.xep0363_http_upload)
     @blocking_timed
-    @asyncio.coroutine
-    def setUp(self, target):
-        self.client = yield from self.provisioner.get_connected_client()
+    async def setUp(self, target):
+        self.client = await self.provisioner.get_connected_client()
         self.target = target
 
     @blocking_timed
-    def test_upload(self):
+    async def test_upload(self):
         logging.debug("using %s", self.target)
 
-        slot = yield from aioxmpp.httpupload.request_slot(
+        slot = await aioxmpp.httpupload.request_slot(
             self.client,
             self.target,
             "filename.jpg",

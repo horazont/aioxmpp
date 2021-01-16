@@ -50,8 +50,7 @@ class SendMessage(Example):
             help="XML to send as message",
         )
 
-    @asyncio.coroutine
-    def run_simple_example(self):
+    async def run_simple_example(self):
         # compose a message
         msg = aioxmpp.stanza.Message(
             to=self.args.recipient,
@@ -61,7 +60,7 @@ class SendMessage(Example):
         msg.raw.append(self.args.xml)
 
         print("sending message ...")
-        yield from self.client.send(msg)
+        await self.client.send(msg)
         print("message sent!")
 
 

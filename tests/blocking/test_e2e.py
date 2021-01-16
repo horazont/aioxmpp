@@ -46,38 +46,35 @@ class TestBlocking(TestCase):
     def setUp(self, *features):
         pass
 
-    @asyncio.coroutine
-    def make_client(self, run_before=None):
-        return (yield from self.provisioner.get_connected_client(
+    async def make_client(self, run_before=None):
+        return await self.provisioner.get_connected_client(
             services=[
                     aioxmpp.DiscoClient,
                     aioxmpp.BlockingClient,
             ],
             prepare=run_before,
-        ))
+        )
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_blocklist(self):
+    async def test_blocklist(self):
 
         initial_future = asyncio.Future()
         block_future = asyncio.Future()
         unblock_future = asyncio.Future()
         unblock_all_future = asyncio.Future()
 
-        @asyncio.coroutine
-        def connect_initial_signal(client):
+        async def connect_initial_signal(client):
             blocking = client.summon(aioxmpp.BlockingClient)
             blocking.on_initial_blocklist_received.connect(
                 initial_future,
                 blocking.on_initial_blocklist_received.AUTO_FUTURE
             )
 
-        client = yield from self.make_client(connect_initial_signal)
+        client = await self.make_client(connect_initial_signal)
 
         blocking = client.summon(aioxmpp.BlockingClient)
         logging.info("waiting for initial blocklist")
-        initial_blocklist = yield from initial_future
+        initial_blocklist = await initial_future
         self.assertEqual(initial_blocklist, frozenset())
         self.assertEqual(blocking.blocklist, frozenset())
 
@@ -85,9 +82,9 @@ class TestBlocking(TestCase):
             block_future,
             blocking.on_jids_blocked.AUTO_FUTURE
         )
-        yield from blocking.block_jids([TEST_JID1, TEST_JID2, TEST_JID3])
+        await blocking.block_jids([TEST_JID1, TEST_JID2, TEST_JID3])
         logging.info("waiting for update on block")
-        blocked_jids = yield from block_future
+        blocked_jids = await block_future
         self.assertEqual(blocked_jids,
                          frozenset([TEST_JID1, TEST_JID2, TEST_JID3]))
         self.assertEqual(blocking.blocklist,
@@ -97,9 +94,9 @@ class TestBlocking(TestCase):
             unblock_future,
             blocking.on_jids_unblocked.AUTO_FUTURE
         )
-        yield from blocking.unblock_jids([TEST_JID1])
+        await blocking.unblock_jids([TEST_JID1])
         logging.info("waiting for update on unblock")
-        unblocked_jids = yield from unblock_future
+        unblocked_jids = await unblock_future
         self.assertEqual(unblocked_jids,
                          frozenset([TEST_JID1]))
         self.assertEqual(blocking.blocklist,
@@ -109,9 +106,9 @@ class TestBlocking(TestCase):
             unblock_all_future,
             blocking.on_jids_unblocked.AUTO_FUTURE
         )
-        yield from blocking.unblock_all()
+        await blocking.unblock_all()
         logging.info("waiting for update on unblock all")
-        unblocked_all_jids = yield from unblock_all_future
+        unblocked_all_jids = await unblock_all_future
         self.assertEqual(unblocked_all_jids,
                          frozenset([TEST_JID2, TEST_JID3]))
         self.assertEqual(blocking.blocklist,

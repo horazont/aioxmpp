@@ -87,9 +87,8 @@ class BlockingClient(service.Service):
     on_jids_unblocked = callbacks.Signal()
     on_initial_blocklist_received = callbacks.Signal()
 
-    @asyncio.coroutine
-    def _check_for_blocking(self):
-        server_info = yield from self._disco.query_info(
+    async def _check_for_blocking(self):
+        server_info = await self._disco.query_info(
             self.client.local_jid.replace(
                 resource=None,
                 localpart=None,
@@ -101,10 +100,9 @@ class BlockingClient(service.Service):
             raise RuntimeError("server does not support blocklists!")
 
     @service.depsignal(aioxmpp.Client, "before_stream_established")
-    @asyncio.coroutine
-    def _get_initial_blocklist(self):
+    async def _get_initial_blocklist(self):
         try:
-            yield from self._check_for_blocking()
+            await self._check_for_blocking()
         except RuntimeError:
             self.logger.info(
                 "server does not support block lists, skipping initial fetch"
@@ -112,12 +110,12 @@ class BlockingClient(service.Service):
             return True
 
         if self._blocklist is None:
-            with (yield from self._lock):
+            async with self._lock:
                 iq = aioxmpp.IQ(
                     type_=aioxmpp.IQType.GET,
                     payload=blocking_xso.BlockList(),
                 )
-                result = yield from self.client.send(iq)
+                result = await self.client.send(iq)
                 self._blocklist = frozenset(result.items)
             self.on_initial_blocklist_received(self._blocklist)
 
@@ -130,13 +128,12 @@ class BlockingClient(service.Service):
         """
         return self._blocklist
 
-    @asyncio.coroutine
-    def block_jids(self, jids_to_block):
+    async def block_jids(self, jids_to_block):
         """
         Add the JIDs in the sequence `jids_to_block` to the client's
         blocklist.
         """
-        yield from self._check_for_blocking()
+        await self._check_for_blocking()
 
         if not jids_to_block:
             return
@@ -146,15 +143,14 @@ class BlockingClient(service.Service):
             type_=aioxmpp.IQType.SET,
             payload=cmd,
         )
-        yield from self.client.send(iq)
+        await self.client.send(iq)
 
-    @asyncio.coroutine
-    def unblock_jids(self, jids_to_unblock):
+    async def unblock_jids(self, jids_to_unblock):
         """
         Remove the JIDs in the sequence `jids_to_block` from the
         client's blocklist.
         """
-        yield from self._check_for_blocking()
+        await self._check_for_blocking()
 
         if not jids_to_unblock:
             return
@@ -164,27 +160,25 @@ class BlockingClient(service.Service):
             type_=aioxmpp.IQType.SET,
             payload=cmd,
         )
-        yield from self.client.send(iq)
+        await self.client.send(iq)
 
-    @asyncio.coroutine
-    def unblock_all(self):
+    async def unblock_all(self):
         """
         Unblock all JIDs currently blocked.
         """
-        yield from self._check_for_blocking()
+        await self._check_for_blocking()
 
         cmd = blocking_xso.UnblockCommand()
         iq = aioxmpp.IQ(
             type_=aioxmpp.IQType.SET,
             payload=cmd,
         )
-        yield from self.client.send(iq)
+        await self.client.send(iq)
 
     @service.iq_handler(aioxmpp.IQType.SET, blocking_xso.BlockCommand)
-    @asyncio.coroutine
-    def handle_block_push(self, block_command):
+    async def handle_block_push(self, block_command):
         diff = ()
-        with (yield from self._lock):
+        async with self._lock:
             if self._blocklist is None:
                 # this means the stream was destroyed while we were waiting for
                 # the lock/while the handler was enqueued for scheduling, or
@@ -208,10 +202,9 @@ class BlockingClient(service.Service):
             self.on_jids_blocked(diff)
 
     @service.iq_handler(aioxmpp.IQType.SET, blocking_xso.UnblockCommand)
-    @asyncio.coroutine
-    def handle_unblock_push(self, unblock_command):
+    async def handle_unblock_push(self, unblock_command):
         diff = ()
-        with (yield from self._lock):
+        async with self._lock:
             if self._blocklist is None:
                 # this means the stream was destroyed while we were waiting for
                 # the lock/while the handler was enqueued for scheduling, or

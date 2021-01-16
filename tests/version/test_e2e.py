@@ -37,13 +37,12 @@ from aioxmpp.e2etest import (
 
 class TestVersion(TestCase):
     @blocking
-    @asyncio.coroutine
-    def setUp(self):
+    async def setUp(self):
         services = [
             aioxmpp.version.VersionServer,
         ]
 
-        self.a, self.b = yield from asyncio.gather(
+        self.a, self.b = await asyncio.gather(
             self.provisioner.get_connected_client(
                 services=services,
             ),
@@ -53,12 +52,11 @@ class TestVersion(TestCase):
         )
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_version_query_returns_service_unavailable_if_unconfigured(self):
+    async def test_version_query_returns_service_unavailable_if_unconfigured(self):
         b_version = self.b.summon(aioxmpp.version.VersionServer)
 
         with self.assertRaises(aioxmpp.XMPPCancelError) as ctx:
-            yield from aioxmpp.version.query_version(
+            await aioxmpp.version.query_version(
                 self.a.stream,
                 self.b.local_jid,
             )
@@ -67,13 +65,12 @@ class TestVersion(TestCase):
                          aioxmpp.ErrorCondition.SERVICE_UNAVAILABLE)
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_version_query_with_results(self):
+    async def test_version_query_with_results(self):
         b_version = self.b.summon(aioxmpp.version.VersionServer)
         b_version.name = "aioxmpp"
         b_version.version = aioxmpp.__version__
 
-        result = yield from aioxmpp.version.query_version(
+        result = await aioxmpp.version.query_version(
             self.a.stream,
             self.b.local_jid,
         )
@@ -93,9 +90,8 @@ class TestVersion(TestCase):
 
     @require_feature(namespaces.xep0092_version)
     @blocking_timed
-    @asyncio.coroutine
-    def test_version_query_against_server(self, peer):
-        result = yield from aioxmpp.version.query_version(
+    async def test_version_query_against_server(self, peer):
+        result = await aioxmpp.version.query_version(
             self.a.stream,
             peer,
         )

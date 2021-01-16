@@ -25,37 +25,37 @@ import aioxmpp.bookmarks
 
 from aioxmpp.e2etest import (
     blocking_timed,
+    skip_with_quirk,
+    Quirk,
     TestCase,
 )
 
 
 class TestBookmarks(TestCase):
+    @skip_with_quirk(Quirk.NO_PRIVATE_XML)
     @blocking_timed
-    @asyncio.coroutine
-    def setUp(self):
-        self.client = yield from self.provisioner.get_connected_client(
+    async def setUp(self):
+        self.client = await self.provisioner.get_connected_client(
             services=[aioxmpp.BookmarkClient]
         )
 
         self.s = self.client.summon(aioxmpp.BookmarkClient)
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_store_and_retrieve(self):
+    async def test_store_and_retrieve(self):
         bookmark = aioxmpp.bookmarks.Conference(
             "Coven",
             aioxmpp.JID.fromstr("coven@chat.shakespeare.lit")
         )
 
-        yield from self.s.add_bookmark(bookmark)
+        await self.s.add_bookmark(bookmark)
 
-        bookmarks = yield from self.s.get_bookmarks()
+        bookmarks = await self.s.get_bookmarks()
         self.assertIn(bookmark, bookmarks)
         self.assertIsNot(bookmark, bookmarks[0])
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_add_event(self):
+    async def test_add_event(self):
         bookmark = aioxmpp.bookmarks.Conference(
             "Coven",
             aioxmpp.JID.fromstr("coven@chat.shakespeare.lit")
@@ -69,36 +69,34 @@ class TestBookmarks(TestCase):
 
         self.s.on_bookmark_added.connect(handler)
 
-        yield from self.s.add_bookmark(bookmark)
+        await self.s.add_bookmark(bookmark)
 
         self.assertTrue(added_future.done())
         self.assertEqual(added_future.result(), bookmark)
         self.assertIsNot(added_future.result(), bookmark)
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_store_and_remove(self):
+    async def test_store_and_remove(self):
         bookmark = aioxmpp.bookmarks.Conference(
             "Coven",
             aioxmpp.JID.fromstr("coven@chat.shakespeare.lit")
         )
 
-        yield from self.s.add_bookmark(bookmark)
+        await self.s.add_bookmark(bookmark)
 
-        yield from self.s.discard_bookmark(bookmark)
+        await self.s.discard_bookmark(bookmark)
 
-        bookmarks = yield from self.s.get_bookmarks()
+        bookmarks = await self.s.get_bookmarks()
         self.assertNotIn(bookmark, bookmarks)
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_remove_event(self):
+    async def test_remove_event(self):
         bookmark = aioxmpp.bookmarks.Conference(
             "Coven",
             aioxmpp.JID.fromstr("coven@chat.shakespeare.lit")
         )
 
-        yield from self.s.add_bookmark(bookmark)
+        await self.s.add_bookmark(bookmark)
 
         removed_future = asyncio.Future()
 
@@ -108,21 +106,20 @@ class TestBookmarks(TestCase):
 
         self.s.on_bookmark_removed.connect(handler)
 
-        yield from self.s.discard_bookmark(bookmark)
+        await self.s.discard_bookmark(bookmark)
 
         self.assertTrue(removed_future.done())
         self.assertEqual(removed_future.result(), bookmark)
         self.assertIsNot(removed_future.result(), bookmark)
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_store_and_update(self):
+    async def test_store_and_update(self):
         bookmark = aioxmpp.bookmarks.Conference(
             "Coven",
             aioxmpp.JID.fromstr("coven@chat.shakespeare.lit")
         )
 
-        yield from self.s.add_bookmark(bookmark)
+        await self.s.add_bookmark(bookmark)
 
         updated_bookmark = aioxmpp.bookmarks.Conference(
             "Coven",
@@ -131,21 +128,20 @@ class TestBookmarks(TestCase):
             autojoin=True,
         )
 
-        yield from self.s.update_bookmark(bookmark, updated_bookmark)
+        await self.s.update_bookmark(bookmark, updated_bookmark)
 
-        bookmarks = yield from self.s.get_bookmarks()
+        bookmarks = await self.s.get_bookmarks()
         self.assertNotIn(bookmark, bookmarks)
         self.assertIn(updated_bookmark, bookmarks)
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_change_event(self):
+    async def test_change_event(self):
         bookmark = aioxmpp.bookmarks.Conference(
             "Coven",
             aioxmpp.JID.fromstr("coven@chat.shakespeare.lit")
         )
 
-        yield from self.s.add_bookmark(bookmark)
+        await self.s.add_bookmark(bookmark)
 
         changed_future = asyncio.Future()
 
@@ -162,7 +158,7 @@ class TestBookmarks(TestCase):
             autojoin=True,
         )
 
-        yield from self.s.update_bookmark(bookmark, updated_bookmark)
+        await self.s.update_bookmark(bookmark, updated_bookmark)
 
         self.assertTrue(changed_future.done())
         old, new = changed_future.result()

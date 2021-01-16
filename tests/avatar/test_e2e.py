@@ -121,9 +121,8 @@ class TestAvatar(TestCase):
 
     @require_pep
     @blocking
-    @asyncio.coroutine
-    def setUp(self):
-        self.client, = yield from asyncio.gather(
+    async def setUp(self):
+        self.client, = await asyncio.gather(
             self.provisioner.get_connected_client(
                 services=[
                     aioxmpp.EntityCapsService,
@@ -134,16 +133,15 @@ class TestAvatar(TestCase):
         )
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_provide_and_retrieve_avatar(self):
+    async def test_provide_and_retrieve_avatar(self):
         avatar_impl = self.client.summon(aioxmpp.avatar.AvatarService)
 
         avatar_set = aioxmpp.avatar.AvatarSet()
         avatar_set.add_avatar_image("image/png", image_bytes=TEST_IMAGE)
 
-        yield from avatar_impl.publish_avatar_set(avatar_set)
+        await avatar_impl.publish_avatar_set(avatar_set)
 
-        avatar_info = yield from avatar_impl.get_avatar_metadata(
+        avatar_info = await avatar_impl.get_avatar_metadata(
             self.client.local_jid.bare()
         )
 
@@ -154,7 +152,7 @@ class TestAvatar(TestCase):
 
         info = avatar_info[0]
 
-        test_image_retrieved = yield from info.get_image_bytes()
+        test_image_retrieved = await info.get_image_bytes()
 
         self.assertEqual(
             test_image_retrieved,
@@ -162,8 +160,7 @@ class TestAvatar(TestCase):
         )
 
     @blocking_timed
-    @asyncio.coroutine
-    def test_on_metadata_changed(self):
+    async def test_on_metadata_changed(self):
         avatar_impl = self.client.summon(aioxmpp.avatar.AvatarService)
 
         done_future = asyncio.Future()
@@ -177,8 +174,8 @@ class TestAvatar(TestCase):
         avatar_set.add_avatar_image("image/png", image_bytes=TEST_IMAGE)
 
         logging.info("publishing avatar")
-        yield from avatar_impl.publish_avatar_set(avatar_set)
+        await avatar_impl.publish_avatar_set(avatar_set)
         logging.info("waiting for completion")
-        jid, metadata = yield from done_future
+        jid, metadata = await done_future
         self.assertEqual(jid, self.client.local_jid.bare())
         self.assertEqual(len(metadata), 1)

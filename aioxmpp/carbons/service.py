@@ -53,10 +53,9 @@ class CarbonsClient(aioxmpp.service.Service):
         aioxmpp.DiscoClient,
     ]
 
-    @asyncio.coroutine
-    def _check_for_feature(self):
+    async def _check_for_feature(self):
         disco_client = self.dependencies[aioxmpp.DiscoClient]
-        info = yield from disco_client.query_info(
+        info = await disco_client.query_info(
             self.client.local_jid.replace(
                 localpart=None,
                 resource=None,
@@ -70,8 +69,7 @@ class CarbonsClient(aioxmpp.service.Service):
                 )
             )
 
-    @asyncio.coroutine
-    def enable(self):
+    async def enable(self):
         """
         Enable message carbons.
 
@@ -80,17 +78,16 @@ class CarbonsClient(aioxmpp.service.Service):
                                    request.
         :raises: as specified in :meth:`aioxmpp.Client.send`
         """
-        yield from self._check_for_feature()
+        await self._check_for_feature()
 
         iq = aioxmpp.IQ(
             type_=aioxmpp.IQType.SET,
             payload=carbons_xso.Enable()
         )
 
-        yield from self.client.send(iq)
+        await self.client.send(iq)
 
-    @asyncio.coroutine
-    def disable(self):
+    async def disable(self):
         """
         Disable message carbons.
 
@@ -99,11 +96,11 @@ class CarbonsClient(aioxmpp.service.Service):
                                    request.
         :raises: as specified in :meth:`aioxmpp.Client.send`
         """
-        yield from self._check_for_feature()
+        await self._check_for_feature()
 
         iq = aioxmpp.IQ(
             type_=aioxmpp.IQType.SET,
             payload=carbons_xso.Disable()
         )
 
-        yield from self.client.send(iq)
+        await self.client.send(iq)

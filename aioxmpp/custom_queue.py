@@ -66,10 +66,9 @@ class AsyncDeque:
             self._non_empty.clear()
         return item
 
-    @asyncio.coroutine
-    def get(self):
+    async def get(self):
         while not self._data:
-            yield from self._non_empty.wait()
+            await self._non_empty.wait()
         return self.get_nowait()
 
     def clear(self):

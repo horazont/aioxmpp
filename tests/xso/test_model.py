@@ -2292,8 +2292,9 @@ class TestCapturingXSO(unittest.TestCase):
         )
 
     def test_is_abstract(self):
-        with self.assertRaisesRegex(TypeError,
-                                    r"abstract methods _set_captured_events"):
+        with self.assertRaisesRegex(
+                TypeError,
+                r"abstract methods? _set_captured_events"):
             xso_model.CapturingXSO()
 
 

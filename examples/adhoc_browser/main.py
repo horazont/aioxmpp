@@ -139,8 +139,7 @@ class MainWindow(Qt.QMainWindow):
         self.scan()
 
     @asyncify_blocking
-    @asyncio.coroutine
-    def command_activated(self, index):
+    async def command_activated(self, index):
         if not index.isValid():
             return
 
@@ -169,13 +168,12 @@ class MainWindow(Qt.QMainWindow):
         dlg.run_with_session_fut(node, session_fut)
 
     @asyncify_blocking
-    @asyncio.coroutine
-    def scan(self, *args, **kwargs):
+    async def scan(self, *args, **kwargs):
         jid = aioxmpp.JID.fromstr(self.ui.target_jid.text())
-        items = yield from self.disco_svc.query_items(
+        items = await self.disco_svc.query_items(
             jid
         )
-        commands = yield from self.adhoc_svc.get_commands(
+        commands = await self.adhoc_svc.get_commands(
             jid
         )
 
@@ -194,14 +192,13 @@ class AdHocBrowser(Example):
         self._close = asyncio.Future()
         self._mainwindow = MainWindow(self._close)
 
-    @asyncio.coroutine
-    def _main(self):
+    async def _main(self):
         self._mainwindow.client = self.client
         self._mainwindow.disco_svc = self.disco_svc
         self._mainwindow.adhoc_svc = self.adhoc_svc
         self._mainwindow.show()
         try:
-            yield from self._close
+            await self._close
         except:
             self._mainwindow.close()
 
@@ -214,8 +211,7 @@ class AdHocBrowser(Example):
                 str(self.client.local_jid.domain)
             )
 
-    @asyncio.coroutine
-    def run_example(self):
+    async def run_example(self):
         def kill(*args):
             nonlocal task
             if task is not None:
@@ -227,14 +223,6 @@ class AdHocBrowser(Example):
         self.client.on_failure.connect(kill)
         self.client.on_stream_established.connect(self._established)
 
-        cm = self.client.connected()
-        aexit = cm.__aexit__
-        yield from cm.__aenter__()
-        try:
+        async with self.client.connected():
             task = asyncio.ensure_future(self._main())
-            yield from task
-        except:
-            if not (yield from aexit(*sys.exc_info())):
-                raise
-        else:
-            yield from aexit(None, None, None)
+            await task

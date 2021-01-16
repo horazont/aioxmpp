@@ -241,8 +241,7 @@ class AbstractAvatarDescriptor:
                 self._height == other._height and
                 self._url == other._url)
 
-    @asyncio.coroutine
-    def get_image_bytes(self):
+    async def get_image_bytes(self):
         """
         Try to retrieve the image data corresponding to this avatar
         descriptor.
@@ -377,9 +376,8 @@ class PubsubAvatarDescriptor(AbstractAvatarDescriptor):
     def can_get_image_bytes_via_xmpp(self):
         return True
 
-    @asyncio.coroutine
-    def get_image_bytes(self):
-        image_data = yield from self._pubsub.get_items_by_id(
+    async def get_image_bytes(self):
+        image_data = await self._pubsub.get_items_by_id(
             self._remote_jid,
             namespaces.xep0084_data,
             [self.id_],
@@ -393,8 +391,7 @@ class PubsubAvatarDescriptor(AbstractAvatarDescriptor):
 
 class HttpAvatarDescriptor(AbstractAvatarDescriptor):
 
-    @asyncio.coroutine
-    def get_image_bytes(self):
+    async def get_image_bytes(self):
         raise NotImplementedError
 
     def __eq__(self, other):
@@ -420,13 +417,12 @@ class VCardAvatarDescriptor(AbstractAvatarDescriptor):
     def can_get_image_bytes_via_xmpp(self):
         return True
 
-    @asyncio.coroutine
-    def get_image_bytes(self):
+    async def get_image_bytes(self):
         if self._image_bytes is not None:
             return self._image_bytes
 
         logger.debug("retrieving vCard %s", self._remote_jid)
-        vcard = yield from self._vcard.get_vcard(self._remote_jid)
+        vcard = await self._vcard.get_vcard(self._remote_jid)
         photo = vcard.get_photo_data()
         if photo is None:
             raise RuntimeError("Avatar image is not set")
@@ -695,10 +691,9 @@ class AvatarService(service.Service):
             set_new_vcard_id
         )
 
-    @asyncio.coroutine
-    def _calculate_vcard_id(self):
+    async def _calculate_vcard_id(self):
         self.logger.debug("updating vcard hash")
-        vcard = yield from self._vcard.get_vcard()
+        vcard = await self._vcard.get_vcard()
         self.logger.debug("got vcard for hash update: %s", vcard)
         photo = vcard.get_photo_data()
 
@@ -789,10 +784,9 @@ class AvatarService(service.Service):
         self._has_pep_avatar.add(jid)
         self._update_metadata(jid, metadata)
 
-    @asyncio.coroutine
-    def _get_avatar_metadata_vcard(self, jid):
+    async def _get_avatar_metadata_vcard(self, jid):
         logger.debug("trying vCard avatar as fallback for %s", jid)
-        vcard = yield from self._vcard.get_vcard(jid)
+        vcard = await self._vcard.get_vcard(jid)
         photo = vcard.get_photo_data()
         mime_type = vcard.get_photo_mime_type()
         if photo is None:
@@ -811,10 +805,9 @@ class AvatarService(service.Service):
             image_bytes=photo,
         )]
 
-    @asyncio.coroutine
-    def _get_avatar_metadata_pep(self, jid):
+    async def _get_avatar_metadata_pep(self, jid):
         try:
-            metadata_raw = yield from self._pubsub.get_items(
+            metadata_raw = await self._pubsub.get_items(
                 jid,
                 namespaces.xep0084_metadata,
                 max_items=1
@@ -831,9 +824,8 @@ class AvatarService(service.Service):
         self._has_pep_avatar.add(jid)
         return self._cook_metadata(jid, metadata_raw.payload.items)
 
-    @asyncio.coroutine
-    def get_avatar_metadata(self, jid, *, require_fresh=False,
-                            disable_pep=False):
+    async def get_avatar_metadata(self, jid, *, require_fresh=False,
+                                  disable_pep=False):
         """
         Retrieve a list of avatar descriptors.
 
@@ -880,12 +872,12 @@ class AvatarService(service.Service):
         if disable_pep:
             metadata = []
         else:
-            metadata = yield from self._get_avatar_metadata_pep(jid)
+            metadata = await self._get_avatar_metadata_pep(jid)
 
         # try the vcard fallback, note: we don't try this
         # if the PEP avatar is disabled!
         if not metadata and jid not in self._has_pep_avatar:
-            metadata = yield from self._get_avatar_metadata_vcard(jid)
+            metadata = await self._get_avatar_metadata_vcard(jid)
 
         # if a notify was fired while we waited for the results, then
         # use the version in the cache, this will mitigate the race
@@ -895,12 +887,11 @@ class AvatarService(service.Service):
             self._update_metadata(jid, metadata)
         return self._metadata_cache[jid]
 
-    @asyncio.coroutine
-    def subscribe(self, jid):
+    async def subscribe(self, jid):
         """
         Explicitly subscribe to metadata change notifications for `jid`.
         """
-        yield from self._pubsub.subscribe(jid, namespaces.xep0084_metadata)
+        await self._pubsub.subscribe(jid, namespaces.xep0084_metadata)
 
     @aioxmpp.service.depsignal(aioxmpp.stream.StanzaStream,
                                "on_stream_destroyed")
@@ -909,8 +900,7 @@ class AvatarService(service.Service):
         self._vcard_resource_interference.clear()
         self._has_pep_avatar.clear()
 
-    @asyncio.coroutine
-    def publish_avatar_set(self, avatar_set):
+    async def publish_avatar_set(self, avatar_set):
         """
         Make `avatar_set` the current avatar of the jid associated with this
         connection.
@@ -926,15 +916,15 @@ class AvatarService(service.Service):
         id_ = avatar_set.png_id
 
         done = False
-        with (yield from self._publish_lock):
-            if (yield from self._pep.available()):
-                yield from self._pep.publish(
+        async with self._publish_lock:
+            if await self._pep.available():
+                await self._pep.publish(
                     namespaces.xep0084_data,
                     avatar_xso.Data(avatar_set.image_bytes),
                     id_=id_
                 )
 
-                yield from self._pep.publish(
+                await self._pep.publish(
                     namespaces.xep0084_metadata,
                     avatar_set.metadata,
                     id_=id_
@@ -942,11 +932,11 @@ class AvatarService(service.Service):
                 done = True
 
             if self._synchronize_vcard:
-                my_vcard = yield from self._vcard.get_vcard()
+                my_vcard = await self._vcard.get_vcard()
                 my_vcard.set_photo_data("image/png",
                                         avatar_set.image_bytes)
                 self._vcard_id = avatar_set.png_id
-                yield from self._vcard.set_vcard(my_vcard)
+                await self._vcard.set_vcard(my_vcard)
                 self._presence_server.resend_presence()
                 done = True
 
@@ -955,16 +945,14 @@ class AvatarService(service.Service):
                 "failed to publish avatar: no protocol available"
             )
 
-    @asyncio.coroutine
-    def _disable_vcard_avatar(self):
-        my_vcard = yield from self._vcard.get_vcard()
+    async def _disable_vcard_avatar(self):
+        my_vcard = await self._vcard.get_vcard()
         my_vcard.clear_photo_data()
         self._vcard_id = ""
-        yield from self._vcard.set_vcard(my_vcard)
+        await self._vcard.set_vcard(my_vcard)
         self._presence_server.resend_presence()
 
-    @asyncio.coroutine
-    def disable_avatar(self):
+    async def disable_avatar(self):
         """
         Temporarily disable the avatar.
 
@@ -981,21 +969,20 @@ class AvatarService(service.Service):
             by the spawned tasks.
         """
 
-        with (yield from self._publish_lock):
+        async with self._publish_lock:
             todo = []
             if self._synchronize_vcard:
                 todo.append(self._disable_vcard_avatar())
 
-            if (yield from self._pep.available()):
+            if await self._pep.available():
                 todo.append(self._pep.publish(
                     namespaces.xep0084_metadata,
                     avatar_xso.Metadata()
                 ))
 
-            yield from gather_reraise_multi(*todo, message="disable_avatar")
+            await gather_reraise_multi(*todo, message="disable_avatar")
 
-    @asyncio.coroutine
-    def wipe_avatar(self):
+    async def wipe_avatar(self):
         """
         Remove all avatar data stored on the server.
 
@@ -1012,23 +999,22 @@ class AvatarService(service.Service):
             by the spawned tasks.
         """
 
-        @asyncio.coroutine
-        def _wipe_pep_avatar():
-            yield from self._pep.publish(
+        async def _wipe_pep_avatar():
+            await self._pep.publish(
                 namespaces.xep0084_metadata,
                 avatar_xso.Metadata()
             )
-            yield from self._pep.publish(
+            await self._pep.publish(
                 namespaces.xep0084_data,
                 avatar_xso.Data(b'')
             )
 
-        with (yield from self._publish_lock):
+        async with self._publish_lock:
             todo = []
             if self._synchronize_vcard:
                 todo.append(self._disable_vcard_avatar())
 
-            if (yield from self._pep.available()):
+            if await self._pep.available():
                 todo.append(_wipe_pep_avatar())
 
-            yield from gather_reraise_multi(*todo, message="wipe_avatar")
+            await gather_reraise_multi(*todo, message="wipe_avatar")

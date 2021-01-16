@@ -509,12 +509,9 @@ class TestService(unittest.TestCase):
         o = object()
         s = service.Service(o)
 
-        def coro():
-            return
-            yield
-
-        with unittest.mock.patch.object(s, "_shutdown") as _shutdown:
-            _shutdown.return_value = coro()
+        with unittest.mock.patch.object(s, "_shutdown",
+                                        new=CoroutineMock()) as _shutdown:
+            _shutdown.return_value = None
             run_coroutine(s.shutdown())
 
         self.assertSequenceEqual(
@@ -1292,8 +1289,7 @@ class Testiq_handler(unittest.TestCase):
             )
 
     def test_works_as_decorator(self):
-        @asyncio.coroutine
-        def coro():
+        async def coro():
             pass
 
         self.assertIs(
@@ -1302,8 +1298,7 @@ class Testiq_handler(unittest.TestCase):
         )
 
     def test_adds_magic_attribute(self):
-        @asyncio.coroutine
-        def coro():
+        async def coro():
             pass
 
         self.decorator(coro)
@@ -1311,8 +1306,7 @@ class Testiq_handler(unittest.TestCase):
         self.assertTrue(hasattr(coro, "_aioxmpp_service_handlers"))
 
     def test_adds__apply_iq_handler_entry(self):
-        @asyncio.coroutine
-        def coro():
+        async def coro():
             pass
 
         self.decorator(coro)
@@ -1329,8 +1323,7 @@ class Testiq_handler(unittest.TestCase):
         )
 
     def test_stacks_with_other_effects(self):
-        @asyncio.coroutine
-        def coro():
+        async def coro():
             pass
 
         coro._aioxmpp_service_handlers = {"foo": {}}
@@ -1363,8 +1356,7 @@ class Testiq_handler(unittest.TestCase):
         iscoroutinefunction.assert_not_called()
 
     def test_works_with_is_iq_handler(self):
-        @asyncio.coroutine
-        def coro():
+        async def coro():
             pass
 
         self.assertFalse(
@@ -1824,8 +1816,7 @@ class Testdepsignal(unittest.TestCase):
             self.decorator(cb)
 
     def test_coroutinefunction_and_sync_signal(self):
-        @asyncio.coroutine
-        def coro():
+        async def coro():
             pass
 
         self.decorator = service.depsignal(
@@ -1858,8 +1849,7 @@ class Testdepsignal(unittest.TestCase):
             defer=True,
         )
 
-        @asyncio.coroutine
-        def coro():
+        async def coro():
             pass
 
         with unittest.mock.patch.object(
@@ -1893,8 +1883,7 @@ class Testdepsignal(unittest.TestCase):
             "signal",
         )
 
-        @asyncio.coroutine
-        def coro():
+        async def coro():
             pass
 
         with self.assertRaisesRegex(
@@ -1910,8 +1899,7 @@ class Testdepsignal(unittest.TestCase):
             defer=True,
         )
 
-        @asyncio.coroutine
-        def coro():
+        async def coro():
             pass
 
         with self.assertRaisesRegex(
@@ -1977,8 +1965,7 @@ class Testdepsignal(unittest.TestCase):
         )
 
     def test_does_not_add_dependency_for_Client(self):
-        @asyncio.coroutine
-        def cb():
+        async def cb():
             pass
 
         decorator = service.depsignal(
@@ -2176,8 +2163,7 @@ class Testattrsignal(unittest.TestCase):
             self.decorator(cb)
 
     def test_coroutinefunction_and_sync_signal(self):
-        @asyncio.coroutine
-        def coro():
+        async def coro():
             pass
 
         self.decorator = service.attrsignal(
@@ -2210,8 +2196,7 @@ class Testattrsignal(unittest.TestCase):
             defer=True,
         )
 
-        @asyncio.coroutine
-        def coro():
+        async def coro():
             pass
 
         with unittest.mock.patch.object(
@@ -2245,8 +2230,7 @@ class Testattrsignal(unittest.TestCase):
             "signal",
         )
 
-        @asyncio.coroutine
-        def coro():
+        async def coro():
             pass
 
         with self.assertRaisesRegex(
@@ -2262,8 +2246,7 @@ class Testattrsignal(unittest.TestCase):
             defer=True,
         )
 
-        @asyncio.coroutine
-        def coro():
+        async def coro():
             pass
 
         with self.assertRaisesRegex(
@@ -2590,8 +2573,7 @@ class Testis_depsignal_handler(unittest.TestCase):
         def cb(self):
             pass
 
-        @asyncio.coroutine
-        def coro(self):
+        async def coro(self):
             pass
 
         tokens = [
@@ -2715,8 +2697,7 @@ class Testis_depsignal_handler(unittest.TestCase):
             signal = aioxmpp.callbacks.Signal()
 
         @service.depsignal(Cls, "signal", defer=True)
-        @asyncio.coroutine
-        def coro():
+        async def coro():
             pass
 
         self.assertTrue(
@@ -2836,8 +2817,7 @@ class Testis_attrsignal_handler(unittest.TestCase):
         def cb(self):
             pass
 
-        @asyncio.coroutine
-        def coro(self):
+        async def coro(self):
             pass
 
         tokens = [
@@ -2957,8 +2937,7 @@ class Testis_attrsignal_handler(unittest.TestCase):
 
     def test_works_for_deferred_coroutinefunctions(self):
         @service.attrsignal(self.descriptor, "signal", defer=True)
-        @asyncio.coroutine
-        def coro():
+        async def coro():
             pass
 
         self.assertTrue(

@@ -3,7 +3,28 @@
 Changelog
 #########
 
-.. _api-cahngelog-0.11:
+.. _api-changelog-0.12:
+
+Version 0.12
+============
+
+* Drop support for Python 3.4. This includes migrating to using ``async def``
+  instead of ``@asyncio.coroutine`` consistently. Future changes will include
+  using type annotations.
+
+* Add ``--e2etest-only`` flag to the e2etest nose plugin. This flag will skip
+  any test case not derived from :class:`aioxmpp.e2etest.TestCase`. The use
+  case for this is to use the aioxmpp test suite to test other servers in their
+  CI.
+
+* :class:`aioxmpp.e2etest.provision.StaticPasswordProvisioner`
+
+* Fix :func:`aioxmpp.jid_escape` double escaping sequences in some
+  circumstances.
+
+* Support for Python 3.9.
+
+.. _api-changelog-0.11:
 
 Version 0.11
 ============

@@ -57,9 +57,8 @@ class Roster(Example):
 
         return client
 
-    @asyncio.coroutine
-    def run_simple_example(self):
-        done, pending = yield from asyncio.wait(
+    async def run_simple_example(self):
+        done, pending = await asyncio.wait(
             [
                 self.sigint_event.wait(),
                 self.done_event.wait()
@@ -69,10 +68,9 @@ class Roster(Example):
         for fut in pending:
             fut.cancel()
 
-    @asyncio.coroutine
-    def run_example(self):
+    async def run_example(self):
         self.sigint_event = self.make_sigint_event()
-        yield from super().run_example()
+        await super().run_example()
 
 
 if __name__ == "__main__":

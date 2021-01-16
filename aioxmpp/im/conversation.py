@@ -754,8 +754,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
 
         """
 
-    @asyncio.coroutine
-    def kick(self, member, reason=None):
+    async def kick(self, member, reason=None):
         """
         Kick a member from the conversation.
 
@@ -773,8 +772,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         """
         raise self._not_implemented_error("kicking members")
 
-    @asyncio.coroutine
-    def ban(self, member, reason=None, *, request_kick=True):
+    async def ban(self, member, reason=None, *, request_kick=True):
         """
         Ban a member from re-joining the conversation.
 
@@ -805,10 +803,9 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         """
         raise self._not_implemented_error("banning members")
 
-    @asyncio.coroutine
-    def invite(self, address, text=None, *,
-               mode=InviteMode.DIRECT,
-               allow_upgrade=False):
+    async def invite(self, address, text=None, *,
+                     mode=InviteMode.DIRECT,
+                     allow_upgrade=False):
         """
         Invite another entity to the conversation.
 
@@ -872,8 +869,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         """
         raise self._not_implemented_error("inviting entities")
 
-    @asyncio.coroutine
-    def set_nick(self, new_nickname):
+    async def set_nick(self, new_nickname):
         """
         Change our nickname.
 
@@ -899,8 +895,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         """
         raise self._not_implemented_error("changing the nickname")
 
-    @asyncio.coroutine
-    def set_topic(self, new_topic):
+    async def set_topic(self, new_topic):
         """
         Change the (possibly publicly) visible topic of the conversation.
 
@@ -926,8 +921,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         """
         raise self._not_implemented_error("changing the topic")
 
-    @asyncio.coroutine
-    def leave(self):
+    async def leave(self):
         """
         Leave the conversation.
 
