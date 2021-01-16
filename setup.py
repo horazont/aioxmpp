@@ -69,7 +69,7 @@ setup(
     author_email="jonas@wielicki.name",
     license="LGPLv3+",
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "Operating System :: POSIX",
         "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
