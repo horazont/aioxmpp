@@ -1,0 +1,165 @@
+name: CI
+
+on:
+  push:
+    branches:
+    - devel
+    - master
+    - "release-*"
+  pull_request:
+    branches:
+    - devel
+    - master
+    - "release-*"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version:
+        - '3.5'
+        - '3.6'
+        - '3.7'
+        - '3.8'
+        - '3.9'
+        test-type:
+        - e2e
+        e2e-software:
+        - prosody
+        e2e-version:
+        - '0.11'
+
+        include:
+        # e2e-tests for non-default prosody will be run with the Python
+        # version available in debian stable
+        - python-version: '3.7'
+          test-type: e2e
+          e2e-software: prosody
+          e2e-version: '0.9'
+        - python-version: '3.7'
+          test-type: e2e
+          e2e-software: prosody
+          e2e-version: '0.10'
+        - python-version: '3.7'
+          test-type: e2e
+          e2e-software: ejabberd
+          e2e-version: '18.09'
+        - python-version: '3.7'
+          test-type: e2e
+          e2e-software: ejabberd
+          e2e-version: '19.08'
+        # plain unit test runs with most recent python version
+        - python-version: '3.9'
+          test-type: unit
+          e2e-software: coveralls
+          e2e-version: latest
+        # no proper allow-failure in GitHub actions, so we have to disable
+        # those instead :(
+        # (see https://github.com/actions/toolkit/issues/399)
+        # - python-version: '3.7'
+        #   test-type: e2e
+        #   e2e-software: prosody
+        #   e2e-version: 'trunk'
+        # - python-version: '3.7'
+        #   test-type: e2e
+        #   e2e-software: metronome
+        #   e2e-version: 'master'
+        # - python-version: '3.7'
+        #   test-type: e2e
+        #   e2e-software: ejabberd
+        #   e2e-version: latest
+
+    name: '${{ matrix.test-type }}: py${{ matrix.python-version }}, ${{ matrix.e2e-software }}@${{ matrix.e2e-version }}'
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '${{ matrix.python-version }}'
+      - name: Install Prosody
+        if: matrix.e2e-software == 'prosody'
+        run: |
+          set -euo pipefail
+          export PATH=$PWD/lua_install/bin:$PATH
+          # enable source repositories for build dependencies
+          sudo sed -ri 's/^# deb-src/deb-src/' /etc/apt/sources.list /etc/apt/sources.list.d/*
+          sudo apt-get update
+          ./utils/install-prosody.sh
+        env:
+          WITH_BUILD_DEP: "yes"
+          PROSODY_BRANCH: "${{ matrix.e2e-version }}"
+          LUA_VERSION: "5.1"
+      - name: Install Metronome
+        if: matrix.e2e-software == 'metronome'
+        run: |
+          set -euo pipefail
+          export PATH=$PWD/lua_install/bin:$PATH
+          # enable source repositories for build dependencies
+          sudo sed -ri 's/^# deb-src/deb-src/' /etc/apt/sources.list /etc/apt/sources.list.d/*
+          sudo apt-get update
+          sudo apt-get install libevent-dev
+          ./utils/install-metronome.sh
+        env:
+          WITH_BUILD_DEP: "yes"
+          METRONOME_VERSION: "${{ matrix.e2e-version }}"
+      - name: Prepare ejabberd
+        if: matrix.e2e-software == 'ejabberd'
+        run: |
+          set -euo pipefail
+          ./utils/prepare-ejabberd.sh
+        env:
+          EJABBERD_VERSION: "${{ matrix.e2e-version }}"
+      - name: Install aioxmpp and test utils
+        run: |
+          set -euo pipefail
+          pip install nose coveralls pyOpenSSL
+          pip install .
+      - name: Run test suite
+        run: |
+          set -euo pipefail
+          export PATH=$PWD/lua_install/bin:$PATH
+          if [[ "x$TEST_TYPE" = 'xunit' ]]; then
+            nosetests --with-cover --cover-package aioxmpp tests
+          else
+            case "$E2E_SOFTWARE" in
+              prosody)
+                export PROSODY_BRANCH="$E2E_VERSION"
+                ./utils/travis-e2etest-prosody.py
+                ;;
+              metronome)
+                export METRONOME_VERSION="$E2E_VERSION"
+                ./utils/travis-e2etest-metronome.py
+                ;;
+              ejabberd)
+                export EJABBERD_VERSION="$E2E_VERSION"
+                ./utils/travis-e2etest-ejabberd.py
+                ;;
+              *)
+                echo "Invalid e2e software: ${E2E_SOFTWARE}" >&2
+                exit 1
+                ;;
+            esac
+          fi
+        env:
+          TEST_TYPE: ${{ matrix.test-type }}
+          E2E_SOFTWARE: ${{ matrix.e2e-software }}
+          E2E_VERSION: ${{ matrix.e2e-version }}
+      - name: Coveralls
+        uses: AndreMiras/coveralls-python-action@develop
+        if: matrix.test-type == 'unit'
+        with:
+          parallel: true
+          flag-name: unit
+
+  finish:
+    needs: test
+    runs-on: ubuntu-latest
+    name: Finalize
+    steps:
+    - name: Finalize Coveralls interaction
+      uses: AndreMiras/coveralls-python-action@develop
+      with:
+        parallel-finished: true
