@@ -42,14 +42,14 @@ install_requires = [
     'aiosasl>=0.3',  # need 0.2+ for LGPLv3
     'aioopenssl>=0.1',
     'babel~=2.3',
-    'dnspython~=1.0',
+    'dnspython>=1.0,<3.0',
     lxml_constraint,
-    'multidict<5,>=2.0',
+    'multidict<6,>=2.0',
     'sortedcollections>=0.5',
     'pyOpenSSL',
     'pyasn1',
     'pyasn1_modules',
-    'tzlocal~=1.2',
+    'tzlocal>=1.2,<3',
 ]
 
 if tuple(map(int, setuptools.__version__.split(".")[:3])) < (6, 0, 0):
