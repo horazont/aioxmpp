@@ -113,6 +113,15 @@ def get_resolver():
     return _state.resolver
 
 
+class DummyResolver:
+    def set_flags(self, *args, **kwargs):
+        # noop
+        pass
+
+    def query(self, *args, **kwargs):
+        raise dns.resolver.NoAnswer
+
+
 def reconfigure_resolver():
     """
     Reset the resolver configured for this thread to a fresh instance. This
@@ -123,7 +132,10 @@ def reconfigure_resolver():
     """
 
     global _state
-    _state.resolver = dns.resolver.Resolver()
+    try:
+        _state.resolver = dns.resolver.Resolver()
+    except dns.resolver.NoResolverConfiguration:
+        _state.resolver = DummyResolver()
     _state.overridden_resolver = False
 
 
