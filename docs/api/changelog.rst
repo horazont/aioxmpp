@@ -24,6 +24,16 @@ Version 0.12
 
 * Support for Python 3.9.
 
+Version 0.12.1
+--------------
+
+* Fix leaking :class:`asyncio.Future` instances from internal functions in
+  :mod:`aioxmpp.protocol`, causing annoying (but harmless) error log messages
+  from asyncio.
+
+  `Issue #358 <https://github.com/horazont/aioxmpp/issues/358>`_ reported by
+  `@pszafer <https://github.com/pszafer>`_, thanks.
+
 .. _api-changelog-0.11:
 
 Version 0.11

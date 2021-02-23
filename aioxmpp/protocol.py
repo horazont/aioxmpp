@@ -899,12 +899,13 @@ async def send_and_wait_for(xmlstream, send, wait_for,
 
         if failure_future in done:
             failure_future.result()
+        else:
+            failure_future.cancel()
 
         raise TimeoutError()
 
 
 async def reset_stream_and_get_features(xmlstream, timeout=None):
-    failure_future = xmlstream.error_future()
     xmlstream.reset()
     fut = xmlstream.features_future()
     if timeout is not None:
