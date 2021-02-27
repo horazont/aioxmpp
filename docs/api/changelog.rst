@@ -41,6 +41,15 @@ Version 0.12.1
   `Issue #360 <https://github.com/horazont/aioxmpp/issues/360>`_ reported by
   `@zak333 <https://github.com/zak333>`_, thanks.
 
+Version 0.12.2
+--------------
+
+* Fix incorrect use of :meth:`aioxmpp.muc.service.Room.on_exit` in
+  :meth:`aioxmpp.muc.service.Room.leave` which causes the future to not work
+  correctly.
+
+  Again reported by `@zak333 <https://github.com/zak333>`_, thanks.
+
 .. _api-changelog-0.11:
 
 Version 0.11
