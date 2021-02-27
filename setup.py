@@ -38,6 +38,10 @@ lxml_constraint = "lxml~=4.0"
 if sys.version_info < (3, 5):
     lxml_constraint += ",<4.4"
 
+sortedcollections_constraint = "sortedcollections~=2.1"
+if sys.version_info < (3, 6):
+    sortedcollections_constraint = "sortedcollections~=1.0"
+
 install_requires = [
     'aiosasl>=0.3',  # need 0.2+ for LGPLv3
     'aioopenssl>=0.1',
@@ -45,7 +49,7 @@ install_requires = [
     'dnspython>=1.0,<3.0',
     lxml_constraint,
     'multidict<6,>=2.0',
-    'sortedcollections>=0.5',
+    sortedcollections_constraint,
     'pyOpenSSL',
     'pyasn1',
     'pyasn1_modules',

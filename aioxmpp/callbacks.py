@@ -339,8 +339,8 @@ class AdHocSignal(AbstractAdHocSignal):
        using this mode.
 
        This mode can only be used for signals which send at most one
-       argument. If no argument is sent, the :meth:`~asyncio.Future.set_result`
-       method is called with :data:`None`.
+       positional argument. If no argument is sent, the
+       :meth:`~asyncio.Future.set_result` method is called with :data:`None`.
 
        If one argument is sent and it is an instance of :class:`Exception`, it
        is passed to :meth:`~asyncio.Future.set_exception`. Otherwise, if one
@@ -412,8 +412,6 @@ class AdHocSignal(AbstractAdHocSignal):
     @classmethod
     def AUTO_FUTURE(cls, f):
         def future_wrapper(args, kwargs):
-            if kwargs:
-                raise TypeError("keyword arguments not supported")
             if len(args) > 0:
                 try:
                     arg, = args
