@@ -1775,12 +1775,6 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         """
         fut = self.on_exit.future()
 
-        def cb(**kwargs):
-            fut.set_result(None)
-            return True  # disconnect
-
-        self.on_exit.connect(cb)
-
         presence = aioxmpp.stanza.Presence(
             type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
             to=self._mucjid
