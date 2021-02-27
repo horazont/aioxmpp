@@ -34,6 +34,13 @@ Version 0.12.1
   `Issue #358 <https://github.com/horazont/aioxmpp/issues/358>`_ reported by
   `@pszafer <https://github.com/pszafer>`_, thanks.
 
+* Allow keyword arguments being passed to ``AUTO_FUTURE`` callback listeners.
+  This is to support use cases where callbacks are extended with keyword
+  arguments in subclasses, as extensively used in :mod:`aioxmpp.im`.
+
+  `Issue #360 <https://github.com/horazont/aioxmpp/issues/360>`_ reported by
+  `@zak333 <https://github.com/zak333>`_, thanks.
+
 .. _api-changelog-0.11:
 
 Version 0.11
