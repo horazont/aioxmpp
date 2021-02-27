@@ -38,10 +38,6 @@ jobs:
         - python-version: '3.7'
           test-type: e2e
           e2e-software: prosody
-          e2e-version: '0.9'
-        - python-version: '3.7'
-          test-type: e2e
-          e2e-software: prosody
           e2e-version: '0.10'
         - python-version: '3.7'
           test-type: e2e
