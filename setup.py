@@ -53,7 +53,7 @@ install_requires = [
     'pyOpenSSL',
     'pyasn1',
     'pyasn1_modules',
-    'tzlocal>=1.2,<3',
+    'tzlocal>=1.2',
 ]
 
 if tuple(map(int, setuptools.__version__.split(".")[:3])) < (6, 0, 0):
