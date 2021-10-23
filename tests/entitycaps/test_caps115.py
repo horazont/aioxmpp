@@ -853,11 +853,11 @@ class TestImplementation(unittest.TestCase):
         )
 
     def test_put_keys_raises_ValueError_if_no_keys_passed(self):
-        with self.assertRaisesRegexp(ValueError, "values to unpack"):
+        with self.assertRaisesRegex(ValueError, "values to unpack"):
             self.i.put_keys(iter([]), unittest.mock.sentinel.presence)
 
     def test_put_keys_raises_ValueError_if_too_many_keys_passed(self):
-        with self.assertRaisesRegexp(ValueError, "too many values"):
+        with self.assertRaisesRegex(ValueError, "too many values"):
             self.i.put_keys(
                 iter([unittest.mock.sentinel.k1, unittest.mock.sentinel.k2]),
                 unittest.mock.sentinel.presence

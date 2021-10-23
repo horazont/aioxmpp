@@ -252,24 +252,24 @@ class Testhash_from_algo(unittest.TestCase):
             )
 
     def test_raise_ValueError_for_MUST_NOT_hashes(self):
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 ValueError,
                 "support of md2 in XMPP is forbidden"):
             hashes.hash_from_algo("md2")
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 ValueError,
                 "support of md4 in XMPP is forbidden"):
             hashes.hash_from_algo("md4")
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 ValueError,
                 "support of md5 in XMPP is forbidden"):
             hashes.hash_from_algo("md5")
 
     def test_raises_NotImplementedError_if_function_not_supported(self):
         _sha1 = hashlib.sha1
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 NotImplementedError,
                 "sha-1 not supported by hashlib") as ctx:
             del hashlib.sha1
@@ -281,7 +281,7 @@ class Testhash_from_algo(unittest.TestCase):
         self.assertIsInstance(ctx.exception.__cause__, AttributeError)
 
     def test_raises_NotImplementedError_if_function_not_defined(self):
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 NotImplementedError,
                 "hash algorithm 'foobar' unknown"):
             hashes.hash_from_algo("foobar")
@@ -349,7 +349,7 @@ class Testalgo_from_hashlib(unittest.TestCase):
             )
 
     def test_raise_ValueError_for_MUST_NOT_hashes(self):
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 ValueError,
                 "support of md5 in XMPP is forbidden"):
             hashes.algo_of_hash(hashlib.md5())
@@ -401,7 +401,7 @@ class Testalgo_from_hashlib(unittest.TestCase):
 
     def test_raise_ValueError_on_unknown(self):
         m = unittest.mock.Mock()
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 ValueError,
                 "unknown hash implementation: <Mock id=.+>"):
             hashes.algo_of_hash(m)
