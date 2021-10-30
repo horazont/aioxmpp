@@ -2303,6 +2303,63 @@ class TestXMLStream(unittest.TestCase):
 
         self.monitor.notify_received.assert_called_once_with()
 
+    def test_customize_stream_from(self):
+        t, p = self._make_stream(
+            to=TEST_PEER,
+            from_="foo@bar.baz",
+        )
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        b'''\
+<?xml version="1.0"?>\
+<stream:stream xmlns="jabber:client" \
+xmlns:stream="http://etherx.jabber.org/streams" \
+from="foo@bar.baz" \
+to="bar.example" \
+version="1.0">''',
+                        response=[
+                            TransportMock.Receive(
+                                self._make_peer_header(version=(1, 0)) +
+                                self._make_eos()),
+                            TransportMock.ReceiveEof()
+                        ]
+                    ),
+                    TransportMock.Write(b"</stream:stream>"),
+                    TransportMock.WriteEof(),
+                    TransportMock.Close()
+                ]
+            ))
+
+    def test_customize_stream_xmlns(self):
+        t, p = self._make_stream(
+            to=TEST_PEER,
+            default_namespace="foo:bar",
+        )
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        b'''\
+<?xml version="1.0"?>\
+<stream:stream xmlns="foo:bar" \
+xmlns:stream="http://etherx.jabber.org/streams" \
+to="bar.example" \
+version="1.0">''',
+                        response=[
+                            TransportMock.Receive(
+                                self._make_peer_header(version=(1, 0)) +
+                                self._make_eos()),
+                            TransportMock.ReceiveEof()
+                        ]
+                    ),
+                    TransportMock.Write(b"</stream:stream>"),
+                    TransportMock.WriteEof(),
+                    TransportMock.Close()
+                ]
+            ))
+
 
 class Testsend_and_wait_for(xmltestutils.XMLTestCase):
     def setUp(self):

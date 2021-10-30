@@ -24,6 +24,9 @@ Version 0.12
 
 * Support for Python 3.9.
 
+* Make the stream header customizable for users of
+  :class:`aioxmpp.protocol.XMLStream`.
+
 Version 0.12.1
 --------------
 

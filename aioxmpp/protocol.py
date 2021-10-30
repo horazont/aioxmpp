@@ -197,6 +197,11 @@ class XMLStream(asyncio.Protocol):
     :param sorted_attributes: Sort attributes deterministically on output
         (debug option; not part of the public interface)
     :type sorted_attributes: :class:`bool`
+    :param default_namespace: Set the default namespace to advertise on the
+        stream header.
+    :type default_namespace: :class:`str`
+    :param from_: The value of the from attribute of the stream header.
+    :tpye from_: :class:`~aioxmpp.JID` or :data:`None`
     :param base_logger: Parent logger for this stream
     :type base_logger: :class:`logging.Logger`
 
@@ -327,8 +332,11 @@ class XMLStream(asyncio.Protocol):
                  features_future=None,
                  sorted_attributes=False,
                  base_logger=logging.getLogger("aioxmpp"),
+                 default_namespace="jabber:client",
+                 from_=None,
                  loop=None):
         self._to = to
+        self._from = from_
         self._sorted_attributes = sorted_attributes
         self._logger = base_logger.getChild("XMLStream")
         self._transport = None
@@ -341,6 +349,7 @@ class XMLStream(asyncio.Protocol):
             self._error_futures.append(features_future)
         self._smachine = statemachine.OrderedStateMachine(State.READY)
         self._transport_closing = False
+        self._default_namespace = default_namespace
         self._monitor = utils.AlivenessMonitor(self._loop)
         self._monitor.on_deadtime_hard_limit_tripped.connect(
             self._deadtime_hard_limit_triggered
@@ -635,7 +644,8 @@ class XMLStream(asyncio.Protocol):
         self._writer = xml.XMLStreamWriter(
             dest,
             self._to,
-            nsmap={None: "jabber:client"},
+            nsmap={None: self._default_namespace},
+            from_=self._from,
             sorted_attributes=self._sorted_attributes)
 
     def reset(self):
