@@ -51,7 +51,7 @@ class TestPing(TestCase):
     async def test_ping_raises_error_condition(self):
         ping_svc = self.source.summon(aioxmpp.ping.PingService)
 
-        with self.assertRaisesRegexp(aioxmpp.XMPPCancelError,
+        with self.assertRaisesRegex(aioxmpp.XMPPCancelError,
                                      "service-unavailable"):
             await ping_svc.ping(self.unimplemented.local_jid)
 
