@@ -2006,6 +2006,7 @@ class TestXMLStream(unittest.TestCase):
         )
 
     def test_mute_forwards_to_debug_wrapper(self):
+        logging.getLogger("aioxmpp.XMLStream").setLevel(logging.DEBUG)
         t, p = self._make_stream(to=TEST_PEER)
 
         run_coroutine(t.run_test(
