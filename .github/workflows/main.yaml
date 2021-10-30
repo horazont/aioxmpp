@@ -37,10 +37,6 @@ jobs:
         # version available in debian stable
         - python-version: '3.7'
           test-type: e2e
-          e2e-software: prosody
-          e2e-version: '0.10'
-        - python-version: '3.7'
-          test-type: e2e
           e2e-software: ejabberd
           e2e-version: '18.09'
         - python-version: '3.7'
