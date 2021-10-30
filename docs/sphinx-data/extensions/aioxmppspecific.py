@@ -22,7 +22,7 @@
 import asyncio
 
 from sphinx import addnodes
-from sphinx.domains.python import PyModulelevel, PyClassmember
+from sphinx.domains.python import PyModule, PyMethod
 
 from docutils import nodes, utils
 from docutils.parsers.rst import roles
@@ -56,26 +56,26 @@ class SignalAwareMethodDocumenter(MethodDocumenter):
         return ret
 
 
-class PySignal(PyClassmember):
+class PySignal(PyMethod):
     def handle_signature(self, sig, signode):
-        ret = super(PySignal, self).handle_signature(sig, signode)
+        ret = super().handle_signature(sig, signode)
         signode.insert(0, addnodes.desc_annotation('signal ', 'signal '))
         return ret
 
     def run(self):
         self.name = 'py:method'
-        return PyClassmember.run(self)
+        return super().run()
 
 
-class PySyncSignal(PyClassmember):
+class PySyncSignal(PyMethod):
     def handle_signature(self, sig, signode):
-        ret = super(PySyncSignal, self).handle_signature(sig, signode)
-        signode.insert(0, addnodes.desc_annotation('coroutine signal ', 'coroutine signal '))
+        ret = super().handle_signature(sig, signode)
+        signode.insert(0, addnodes.desc_annotation('async signal ', 'async signal '))
         return ret
 
     def run(self):
         self.name = 'py:method'
-        return PyClassmember.run(self)
+        return super().run()
 
 
 def xep_role(typ, rawtext, text, lineno, inliner,
