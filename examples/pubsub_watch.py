@@ -26,6 +26,8 @@ import aioxmpp
 import aioxmpp.pubsub
 import aioxmpp.xml
 
+import lxml.etree as etree
+
 from framework import Example, exec_example
 
 
@@ -53,7 +55,7 @@ class PubSubWatch(Example):
         await super().run_example()
 
     def _on_item_published(self, jid, node, item, *, message=None):
-        print("PUBLISHED: {}".format(item.id_))
+        print("PUBLISHED: {}".format(item.id_), etree.tostring(item.unregistered_payload))
 
     def _on_item_retracted(self, jid, node, id_, *, message=None):
         print("RETRACTED: {}".format(id_))

@@ -1,2 +1,3 @@
 #!/bin/bash
-patch -p1 < 0001-pubsub.patch
+cd /usr/lib/prosody/modules/
+patch -p2 < /etc/prosody/0001-pubsub.patch

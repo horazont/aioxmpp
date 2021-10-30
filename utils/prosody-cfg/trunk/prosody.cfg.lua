@@ -11,6 +11,9 @@
 -- The only thing left to do is rename this file to remove the .dist ending, and fill in the
 -- blanks. Good luck, and happy Jabbering!
 
+plugin_paths = {
+  "/etc/prosody/plugins"
+}
 
 ---------- Server-wide settings ----------
 -- Settings in this section apply to the whole server and are the default settings

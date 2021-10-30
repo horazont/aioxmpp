@@ -30,9 +30,9 @@ prosody_branch = os.environ["PROSODY_BRANCH"]
 
 prosody = subprocess.Popen(
     [
-        "./prosody",
+        "prosody", "-F",
     ],
-    cwd=os.path.join(os.getcwd(), "prosody"),
+    cwd="/etc/prosody",
 )
 
 time.sleep(2)

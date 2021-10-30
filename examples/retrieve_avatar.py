@@ -70,7 +70,8 @@ class Avatar(Example):
 
     async def run_simple_example(self):
         metadata = await self.avatar.get_avatar_metadata(
-            self.remote_jid
+            self.remote_jid,
+            disable_pep=True
         )
 
         for metadatum in metadata:
