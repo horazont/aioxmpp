@@ -80,9 +80,11 @@ jobs:
         run: |
           set -euo pipefail
           export PATH=$PWD/lua_install/bin:$PATH
-          # enable source repositories for build dependencies
-          sudo sed -ri 's/^# deb-src/deb-src/' /etc/apt/sources.list /etc/apt/sources.list.d/*
+          echo deb http://packages.prosody.im/debian $(lsb_release -sc) main | sudo tee -a /etc/apt/sources.list
+          wget https://prosody.im/files/prosody-debian-packages.key -O- | sudo apt-key add -
           sudo apt-get update
+          printf '#!/bin/sh\nexit 101\n' | sudo tee /usr/sbin/policy-rc.d
+          sudo chmod +x /usr/sbin/policy-rc.d
           ./utils/install-prosody.sh
         env:
           WITH_BUILD_DEP: "yes"
