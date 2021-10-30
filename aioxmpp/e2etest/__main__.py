@@ -19,7 +19,11 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
-import nose
-from aioxmpp.e2etest import E2ETestPlugin
-
-nose.main(addplugins=[E2ETestPlugin()])
+import os
+import pathlib
+import sys
+os.chdir(str(pathlib.Path(__file__).parent.parent.parent))
+os.execv(
+    sys.executable,
+    [sys.executable, "-m", "pytest", "-p", "aioxmpp.e2etest"] + sys.argv[1:],
+)

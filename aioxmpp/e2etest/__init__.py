@@ -134,7 +134,7 @@ import logging
 import os
 import unittest
 
-from nose.plugins import Plugin
+import pytest
 
 from ..testutils import get_timeout
 from .utils import blocking
@@ -143,6 +143,8 @@ from .provision import Quirk  # NOQA: F401
 
 provisioner = None
 config = None
+only_e2etest = False
+e2etest_record = None
 timeout = get_timeout(1.0)
 
 
@@ -347,12 +349,6 @@ def blocking_timed(f):
 async def setup_package():
     global provisioner, config, timeout
     if config is None:
-        # AioxmppPlugin is not used -> skip all e2e tests
-        for subclass in TestCase.__subclasses__():
-            # XXX: this depends on unittest implementation details :)
-            subclass.__unittest_skip__ = True
-            subclass.__unittest_skip_why__ = \
-                "this is not the aioxmpp test runner"
         return
 
     timeout = config.getfloat("global", "timeout", fallback=timeout)
@@ -378,67 +374,6 @@ def teardown_package():
     loop.close()
 
 
-class E2ETestPlugin(Plugin):
-    name = "aioxmpp-e2e"
-
-    def options(self, options, env=os.environ):
-        options.add_option(
-            "--e2etest-config",
-            dest="aioxmpp_e2e_config",
-            metavar="FILE",
-            default=".local/e2etest.ini",
-            help="Configuration file for end-to-end tests "
-            "(default: .local/e2etest.ini)"
-        )
-        options.add_option(
-            "--e2etest-record",
-            dest="aioxmpp_e2e_record",
-            metavar="FILE",
-            default=None,
-            help="A file to write a transcript to"
-        )
-        options.add_option(
-            "--e2etest-only",
-            dest="aioxmpp_e2e_only",
-            action="store_true",
-            default=False,
-            help="If set, only E2E tests will be executed."
-        )
-
-    def configure(self, options, conf):
-        self.enabled = True
-        global config
-        config = configparser.ConfigParser()
-        with open(options.aioxmpp_e2e_config, "r") as f:
-            config.read_file(f)
-
-        if options.aioxmpp_e2e_record:
-            handler = logging.FileHandler(options.aioxmpp_e2e_record, "w")
-            formatter = logging.Formatter(
-                "%(name)s: %(levelname)s: %(message)s",
-                style="%"
-            )
-            handler.setFormatter(formatter)
-            logger = logging.getLogger("aioxmpp.e2etest.provision")
-            logger.addHandler(handler)
-
-        self.__only_e2etest = options.aioxmpp_e2e_only
-
-    @blocking
-    async def beforeTest(self, test):
-        global provisioner
-        if self.__only_e2etest and not isinstance(test.test, TestCase):
-            raise unittest.SkipTest("not an e2etest")
-        if provisioner is not None:
-            await provisioner.setup()
-
-    @blocking
-    async def afterTest(self, test):
-        global provisioner
-        if provisioner is not None:
-            await provisioner.teardown()
-
-
 class TestCase(unittest.TestCase):
     """
     A subclass of :class:`unittest.TestCase` for end-to-end test cases.
@@ -447,6 +382,9 @@ class TestCase(unittest.TestCase):
 
     .. autoattribute:: provisioner
     """
+
+    __unittest_skip__ = True
+    __unittest_skip_why__ = "this is not the aioxmpp test runner"
 
     @property
     def provisioner(self):
@@ -464,3 +402,98 @@ class TestCase(unittest.TestCase):
         """
         global provisioner
         return provisioner
+
+
+def pytest_load_initial_conftests(early_config, parser, args):
+    parser.addoption(
+        "--e2etest-config",
+        dest="aioxmpp_e2e_config",
+        default=".local/e2etest.ini",
+        metavar="FILE",
+        help="Configuration file for end-to-end tests "
+        "(default: .local/e2etest.ini)",
+    )
+    parser.addoption(
+        "--e2etest-record",
+        dest="aioxmpp_e2e_record",
+        metavar="FILE",
+        default=None,
+        help="A file to write a transcript to"
+    )
+    parser.addoption(
+        "--e2etest-only",
+        dest="aioxmpp_e2e_only",
+        action="store_true",
+        default=False,
+        help="If set, only E2E tests will be executed."
+    )
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "aioxmpp_e2etest: end-to-end test")
+
+
+def pytest_cmdline_main(config):
+    return _pytest_cmdline_main_impl(config)
+
+
+def _pytest_cmdline_main_impl(pytest_config):
+    global config, only_e2etest, e2etest_record
+    config = configparser.ConfigParser()
+    with open(pytest_config.option.aioxmpp_e2e_config, "r") as f:
+        config.read_file(f)
+
+    e2etest_record = pytest_config.option.aioxmpp_e2e_record
+    only_e2etest = pytest_config.option.aioxmpp_e2e_only
+    TestCase.__unittest_skip__ = False
+
+
+def pytest_sessionstart(session):
+    setup_package()
+
+
+def pytest_sessionfinish(session):
+    teardown_package()
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_pycollect_makeitem(collector, name, obj):
+    global config, only_e2etest
+    outcome = yield
+    item = outcome.get_result()
+    if isinstance(obj, type) and issubclass(obj, TestCase):
+        if config is None:
+            item.add_marker(pytest.mark.skip("e2e tests not enabled"))
+        else:
+            item.add_marker("aioxmpp_e2etest")
+    elif isinstance(obj, type) and issubclass(obj, unittest.TestCase):
+        if only_e2etest:
+            item.add_marker(pytest.mark.skip("only e2e tests enabled"))
+
+
+def pytest_runtest_setup(item):
+    global provisioner, e2etest_record
+    if item.get_closest_marker("aioxmpp_e2etest") is not None:
+        blocking(provisioner.setup)()
+
+
+def pytest_runtest_call(item):
+    if e2etest_record:
+        handler = logging.FileHandler(
+            e2etest_record, "w",
+        )
+        handler.setLevel(logging.DEBUG)
+        formatter = logging.Formatter(
+            "%(name)s: %(levelname)s: %(message)s",
+            style="%"
+        )
+        handler.setFormatter(formatter)
+        logger = logging.getLogger("aioxmpp.e2etest.provision")
+        logger.addHandler(handler)
+        logger.setLevel(logging.DEBUG)
+
+
+def pytest_runtest_teardown(item):
+    global provisioner
+    if item.get_closest_marker("aioxmpp_e2etest") is not None:
+        blocking(provisioner.teardown)()

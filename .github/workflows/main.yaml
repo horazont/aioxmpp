@@ -109,14 +109,14 @@ jobs:
       - name: Install aioxmpp and test utils
         run: |
           set -euo pipefail
-          pip install nose coveralls pyOpenSSL
+          pip install pytest pytest-cov coveralls pyOpenSSL
           pip install .
       - name: Run test suite
         run: |
           set -euo pipefail
           export PATH=$PWD/lua_install/bin:$PATH
           if [[ "x$TEST_TYPE" = 'xunit' ]]; then
-            nosetests --with-cover --cover-package aioxmpp tests
+            pytest --cov aioxmpp --cov-report xml tests
           else
             case "$E2E_SOFTWARE" in
               prosody)
