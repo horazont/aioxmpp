@@ -2571,15 +2571,16 @@ class XSOParser:
         # let Message be a XSO class, like in the XSO example
         result = None
         def catch_result(value):
-            nonlocal result
+            global result
             result = value
 
         parser = aioxmpp.xso.XSOParser()
         parser.add_class(Message, catch_result)
         sd = aioxmpp.xso.SAXDriver(parser)
-        lxml.sax.saxify(lmxl.etree.fromstring(
-            "<message id='foo' from='bar' type='chat' />"
-        ))
+        lxml.sax.saxify(lxml.etree.fromstring(
+            "<jc:message id='foo' from='bar' to='baz' type='chat' "
+            "xmlns:jc='jabber:client'/>"
+        ), sd)
 
 
     The following methods can be used to dynamically add and remove top-level
