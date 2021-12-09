@@ -163,7 +163,7 @@ class PresenceClient(aioxmpp.service.Service):
 
     def get_stanza(self, peer_jid):
         """
-        Return the last presence recieved for the given bare or full
+        Return the last presence received for the given bare or full
         `peer_jid`. If the last presence was unavailable, the return value is
         :data:`None`, as if no presence was ever received.
 

@@ -49,7 +49,7 @@ class StatusCode(enum.IntEnum):
 
         Before version 0.10, this enum did not exist and the numeric codes
         were used bare. Since this is an :class:`~enum.IntEnum`, it is possible
-        to use the named enum members and their numeric codes interchangably.
+        to use the named enum members and their numeric codes interchangeably.
 
     .. attribute:: NON_ANONYMOUS
         :annotation: = 100
@@ -76,7 +76,7 @@ class StatusCode(enum.IntEnum):
         :annotation: = 104
 
         Inform occupants that a non-privacy related configuration change has
-        occured.
+        occurred.
 
     .. attribute:: SELF
         :annotation: = 110

@@ -123,7 +123,7 @@ From XMPP Extension Proposals (XEPs)
 * :xep:`191` (Blocking Command), see :mod:`aioxmpp.blocking`
 * :xep:`198` (Stream Management), always enabled if supported by the server
 * :xep:`199` (XMPP Ping), used for aliveness-checks if Stream Management is not
-  avaliable and :mod:`aioxmpp.ping`
+  available and :mod:`aioxmpp.ping`
 * :xep:`203` (Delayed Delivery), see :mod:`aioxmpp.misc`
 * :xep:`249` (Direct MUC Invitations), see :mod:`aioxmpp.muc`
 * :xep:`297` (Stanza Forwarding), see :mod:`aioxmpp.misc`

@@ -39,7 +39,7 @@ class AbstractKey(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def verify(self, query_response):
         """
-        Verify whether the cache key maches a piece of service discovery
+        Verify whether the cache key matches a piece of service discovery
         information.
 
         :param query_response: The full :xep:`30` disco#info query response.

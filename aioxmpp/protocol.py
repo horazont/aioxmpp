@@ -498,7 +498,7 @@ class XMLStream(asyncio.Protocol):
         except Exception:
             self._logger.exception(
                 "unexpected exception while parsing stanza"
-                " bubbled up through parser. stream so ded.")
+                " bubbled up through parser. stream so dead.")
             raise errors.StreamError(
                 condition=errors.StreamErrorCondition.INTERNAL_SERVER_ERROR,
                 text="Internal error while parsing XML. Client logs have more"
@@ -716,7 +716,7 @@ class XMLStream(asyncio.Protocol):
 
         .. versionchanged:: 0.9
 
-           Exceptions occuring during serialisation of `obj` are re-raised and
+           Exceptions occurring during serialisation of `obj` are re-raised and
            *no* content is sent over the stream. The stream is still valid and
            usable afterwards.
 
@@ -770,7 +770,7 @@ class XMLStream(asyncio.Protocol):
 
     def features_future(self):
         """
-        Return a future which will recieve the next XML stream features (as
+        Return a future which will receive the next XML stream features (as
         return value) or the next XML stream error (as exception), whichever
         happens first.
 

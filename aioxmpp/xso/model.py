@@ -568,7 +568,7 @@ class Child(_ChildPropBase):
 
     def from_events(self, instance, ev_args, ctx):
         """
-        Detect the object to instanciate from the arguments `ev_args` of the
+        Detect the object to instantiate from the arguments `ev_args` of the
         ``"start"`` event. The new object is stored at the corresponding
         descriptor attribute on `instance`.
 
@@ -667,7 +667,7 @@ class Collector(_PropBase):
     known to any other descriptor into an XML tree. The root node has the tag
     of the XSO class it pertains to.
 
-    The default is fixed to the emtpy root node.
+    The default is fixed to the empty root node.
 
     .. versionchanged:: 0.10
 
@@ -1001,7 +1001,7 @@ class ChildText(_TypedPropBase):
         """
         Return an iterable yielding :attr:`tag`.
 
-        This is for compatiblity with the :class:`Child` interface.
+        This is for compatibility with the :class:`Child` interface.
         """
         return {self.tag}
 
@@ -2458,7 +2458,7 @@ class CapturingXSO(XSO, metaclass=CapturingXMLStreamClass):
 
     .. automethod:: parse_events
 
-    The :meth:`_set_captured_events` method can be overriden by subclasses to
+    The :meth:`_set_captured_events` method can be overridden by subclasses to
     make use of the captured events:
 
     .. automethod:: _set_captured_events

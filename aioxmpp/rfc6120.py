@@ -57,7 +57,7 @@ class BindFeature(xso.XSO):
 
        This attribute is either an instance of :class:`Required` or
        :data:`None`. The former indicates that the server requires resource
-       binding at this point in the stream negotation; :data:`None` indicates
+       binding at this point in the stream negotiation; :data:`None` indicates
        that it is not required.
 
        User code should just test the boolean value of this attribute and not

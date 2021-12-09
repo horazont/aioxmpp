@@ -1076,7 +1076,7 @@ class LanguageTag:
     @property
     def match_str(self):
         """
-        The string which is used for matching two lanugage tags. This is the
+        The string which is used for matching two language tags. This is the
         lower-cased version of the :attr:`print_str`.
         """
         return self._tag.lower()
@@ -1163,7 +1163,7 @@ class LanguageRange:
     @property
     def match_str(self):
         """
-        The string which is used for matching two lanugage tags. This is the
+        The string which is used for matching two language tags. This is the
         lower-cased version of the :attr:`print_str`.
         """
         return self._tag.lower()
@@ -1276,7 +1276,7 @@ def basic_filter_languages(languages, ranges):
 def lookup_language(languages, ranges):
     """
     Look up a single language in the sequence `languages` using the lookup
-    mechansim described in RFC4647. If no match is found, :data:`None` is
+    mechanism described in RFC4647. If no match is found, :data:`None` is
     returned. Otherwise, the first matching language is returned.
 
     `languages` must be a sequence of :class:`LanguageTag` objects, while

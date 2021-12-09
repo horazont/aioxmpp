@@ -201,7 +201,7 @@ class Example(metaclass=abc.ABCMeta):
 
     async def run_simple_example(self):
         raise NotImplementedError(
-            "run_simple_example must be overriden if run_example isn’t"
+            "run_simple_example must be overridden if run_example isn’t"
         )
 
     async def run_example(self):

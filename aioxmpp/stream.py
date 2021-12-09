@@ -100,7 +100,7 @@ of stanzas, there are some things to consider:
   sure that the new stanza has appropriate
   :attr:`~.stanza.StanzaBase.from_`, :attr:`~.stanza.StanzaBase.to` and
   :attr:`~.stanza.StanzaBase.id` values. There are no checks to enforce
-  this, because errorr handling at this point is peculiar. The stanzas will
+  this, because error handling at this point is peculiar. The stanzas will
   be sent as-is.
 
 * Similar to inbound filters, it is the responsibility of the filters that
@@ -125,7 +125,7 @@ modify incoming or outgoing stanzas before any normally registered handler
 processes them.
 
 In general, whenever you do something which *supplements* the use of the stanza
-with respect to the RFC but does not fulfill the orignial intent of the stanza,
+with respect to the RFC but does not fulfill the original intent of the stanza,
 it is advisable to use a filter instead of a callback on the actual stanza.
 
 Vice versa, if you were to develop a service which manages presence
@@ -291,7 +291,7 @@ class StanzaState(Enum):
     .. attribute:: FAILED
 
        It was attempted to send the stanza, but it failed to serialise to
-       valid XML or another non-fatal transport error occured.
+       valid XML or another non-fatal transport error occurred.
 
        This is a final state.
 
@@ -360,7 +360,7 @@ class StanzaToken:
        .. warning::
 
           This is no guarantee that the recipient received the stanza. Without
-          stream management, it can not even guarenteed that the server has
+          stream management, it can not even guaranteed that the server has
           seen the stanza.
 
           This is primarily useful as a synchronisation primitive between the
@@ -952,7 +952,7 @@ class StanzaStream:
     def _iq_request_coro_done_send_reply(self, request, task):
         """
         Called when an IQ request handler coroutine returns. `request` holds
-        the IQ request which triggered the excecution of the coroutine and
+        the IQ request which triggered the execution of the coroutine and
         `task` is the :class:`asyncio.Task` which tracks the running coroutine.
 
         Compose a response and send that response.
@@ -1214,7 +1214,7 @@ class StanzaStream:
         Send a stanza token `token` over the given `xmlstream`.
 
         Only sends if the `token` has not been aborted (see
-        :meth:`StanzaToken.abort`). Sends the state of the token acoording to
+        :meth:`StanzaToken.abort`). Sends the state of the token according to
         :attr:`sm_enabled`.
         """
         if token.state == StanzaState.ABORTED:
@@ -1285,7 +1285,7 @@ class StanzaStream:
     def register_iq_response_callback(self, from_, id_, cb):
         """
         Register a callback function `cb` to be called when a IQ stanza with
-        type ``result`` or ``error`` is recieved from the
+        type ``result`` or ``error`` is received from the
         :class:`~aioxmpp.JID` `from_` with the id `id_`.
 
         The callback is called at most once.
@@ -1335,7 +1335,7 @@ class StanzaStream:
 
           Also note that this exception does not derive from
           :class:`.errors.XMPPError`, as it cannot provide the same
-          attributes. Instead, it dervies from :class:`.errors.StanzaError`,
+          attributes. Instead, it derives from :class:`.errors.StanzaError`,
           from which :class:`.errors.XMPPError` also derives; to catch all
           possible stanza errors, catching :class:`.errors.StanzaError` is
           sufficient and future-proof.
@@ -1896,7 +1896,7 @@ class StanzaStream:
         :attr:`running` and possibly wait for it to become :data:`False` ---
         the task takes at least one loop through the event loop to terminate.
 
-        It is guarenteed that the task will not attempt to send stanzas over
+        It is guaranteed that the task will not attempt to send stanzas over
         the existing `xmlstream` after a call to :meth:`stop` has been made.
 
         It is legal to call :meth:`stop` even if the task is already
@@ -2100,7 +2100,7 @@ class StanzaStream:
         :class:`.nonza.SMEnabled`; it can be used to set a maximum time for
         which the server shall consider the stream to still be alive after the
         underlying transport (TCP) has failed. The server may impose its own
-        maximum or ignore the request, so there are no guarentees that the
+        maximum or ignore the request, so there are no guarantees that the
         session will stay alive for at most or at least `resumption_timeout`
         seconds. Passing a `resumption_timeout` of 0 is equivalent to passing
         false to `request_resumption` and takes precedence over
@@ -2257,7 +2257,7 @@ class StanzaStream:
            raises :class:`RuntimeError`.
 
            Accessing this attribute is expensive, as the list is copied. In
-           general, access to this attribute should not be neccessary at all.
+           general, access to this attribute should not be necessary at all.
 
         """
 

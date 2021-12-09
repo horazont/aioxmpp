@@ -143,7 +143,7 @@ class TestLRUDict(unittest.TestCase):
         self.d[object()] = object()
         self.assertTrue(self.d._test_consistency())
         # "ghost key": if one part of the data structure (the "last used") is
-        # updated before the check for existance of the key is made
+        # updated before the check for existence of the key is made
         # in this case, the second store would raise because there is a key
         # in the "last used" data structure which isn’t in the main data
         # structure

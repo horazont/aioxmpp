@@ -405,7 +405,7 @@ class PubSubClient(aioxmpp.service.Service):
         :rtype: :class:`~.forms.Data`
 
         By default, the request will be on behalf of the bare JID of the
-        client. It can be overriden using the `subscription_jid` argument.
+        client. It can be overridden using the `subscription_jid` argument.
 
         If available, the `subid` should also be specified.
 
@@ -447,7 +447,7 @@ class PubSubClient(aioxmpp.service.Service):
         :raises aioxmpp.errors.XMPPError: as returned by the service
 
         By default, the request will be on behalf of the bare JID of the
-        client. It can be overriden using the `subscription_jid` argument.
+        client. It can be overridden using the `subscription_jid` argument.
 
         If available, the `subid` should also be specified.
 

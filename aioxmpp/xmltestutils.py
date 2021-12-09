@@ -62,7 +62,7 @@ class XMLTestCase(unittest.TestCase):
                 self.assertSetEqual(
                     t1_childtags,
                     t2_childtags,
-                    "Child tag occurence differences at {}".format(
+                    "Child tag occurrence differences at {}".format(
                         element_path(tree2)))
 
             for tag, t1_children in t1_childmap.items():

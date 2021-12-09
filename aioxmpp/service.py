@@ -63,7 +63,7 @@ These decorators provide special functionality when used on methods of
                 "some:namespace"
             )
 
-            @aioxmpp.servie.depsignal(aioxmpp.DiscoServer, "on_info_changed")
+            @aioxmpp.service.depsignal(aioxmpp.DiscoServer, "on_info_changed")
             def handle_on_info_changed(self):
                 pass
 
@@ -73,7 +73,7 @@ These decorators provide special functionality when used on methods of
     .. code-block:: python
 
         class FooService(aioxmpp.service.Service):
-            @aioxmpp.servie.depsignal(aioxmpp.DiscoServer, "on_info_changed")
+            @aioxmpp.service.depsignal(aioxmpp.DiscoServer, "on_info_changed")
             def handle_on_info_changed(self):
                 pass
 
@@ -332,7 +332,7 @@ class Meta(abc.ABCMeta):
     general you should just inherit from :class:`Service` and define the
     dependency attributes as needed.
 
-    Only use :class:`Meta` explicitely if you know what you are doing,
+    Only use :class:`Meta` explicitly if you know what you are doing,
     and you most likely do not. :class:`Meta` is internal API and may
     change at any point.
 
@@ -342,10 +342,10 @@ class Meta(abc.ABCMeta):
     .. attribute:: ORDER_BEFORE
 
        An iterable of :class:`Service` classes before which the class which is
-       currently being declared needs to be instanciated.
+       currently being declared needs to be instantiated.
 
        Thus, any service which occurs in :attr:`ORDER_BEFORE` will be
-       instanciated *after* this class (if at all). Think of it as "*this*
+       instantiated *after* this class (if at all). Think of it as "*this*
        class is ordered *before* the classes in this attribute".
 
        .. versionadded:: 0.3
@@ -366,10 +366,10 @@ class Meta(abc.ABCMeta):
 
     .. attribute:: ORDER_AFTER
 
-       An iterable of :class:`Service` classes which will be instanciated
+       An iterable of :class:`Service` classes which will be instantiated
        *before* the class which is being declraed.
 
-       Classes which are declared in this attribute are always instanciated
+       Classes which are declared in this attribute are always instantiated
        before this class is instantiated. Think of it as "*this* class is
        ordered *after* the classes in this attribute".
 
@@ -404,7 +404,7 @@ class Meta(abc.ABCMeta):
 
     .. versionchanged:: 0.9
 
-       The :attr:`ORDER_AFTER` and :attr:`ORDER_BEFORE` attribtes do not
+       The :attr:`ORDER_AFTER` and :attr:`ORDER_BEFORE` attribute do not
        change after class creation. In earlier versions they contained
        the transitive completion of the dependency relation.
 
@@ -445,8 +445,8 @@ class Meta(abc.ABCMeta):
         class Fourth(metaclass=service.Meta):
             ORDER_BEFORE = [Bar]
 
-    ``Baz`` and ``Fourth`` will be instanciated before ``Bar`` and ``Bar`` will
-    be instanciated before ``Foo``. There is no dependency relationship between
+    ``Baz`` and ``Fourth`` will be instantiated before ``Bar`` and ``Bar`` will
+    be instantiated before ``Foo``. There is no dependency relationship between
     ``Baz`` and ``Fourth``.
     """
 
@@ -594,7 +594,7 @@ class Meta(abc.ABCMeta):
 
     def orders_after(self, other, *, visited=None):
         """
-        Return whether `self` depends on `other` and will be instanciated
+        Return whether `self` depends on `other` and will be instantiated
         later.
 
         :param other: Another service.
@@ -663,7 +663,7 @@ class Service(metaclass=Meta):
     `logger_base` may be a :class:`logging.Logger` instance or :data:`None`. If
     it is :data:`None`, a logger is automatically created, by taking the fully
     qualified name of the :class:`Service` subclass which is being
-    instanciated. Otherwise, the logger is passed to :meth:`derive_logger` and
+    instantiated. Otherwise, the logger is passed to :meth:`derive_logger` and
     the result is used as value for the :attr:`logger` attribute.
 
     To implement your own service, derive from :class:`Service`. If your
@@ -815,7 +815,7 @@ class HandlerSpec(collections.namedtuple(
             "require_deps",
         ])):
     """
-    Specification of the effects of the decorator at initalisation and shutdown
+    Specification of the effects of the decorator at initialisation and shutdown
     time.
 
     :param key: Context manager and arguments pair.

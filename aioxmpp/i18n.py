@@ -23,7 +23,7 @@
 :mod:`~aioxmpp.i18n` -- Helper functions for localizing text
 ############################################################
 
-This module provides facilities to faciliate the internationalization of
+This module provides facilities to facilitate the internationalization of
 applications using :mod:`aioxmpp`.
 
 .. autoclass:: LocalizingFormatter
@@ -77,7 +77,7 @@ class LocalizingFormatter(string.Formatter):
     it is used.
 
     In addition to date and time formatting, numbers which use the ``n`` format
-    type are also formatted with babel. If the format specificaton is empty
+    type are also formatted with babel. If the format specification is empty
     (except for the trailing ``n``), :func:`babel.numbers.format_number` is
     used. Otherwise, the remainder of the format specification is passed as
     format to :func:`babel.numbers.format_decimal`.

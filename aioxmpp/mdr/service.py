@@ -84,7 +84,7 @@ class DeliveryReceiptsService(aioxmpp.service.Service):
         :return: The message tracker for the stanza.
         :rtype: :class:`.tracking.MessageTracker`
 
-        The `stanza` gets a :xep:`184` reciept request attached and internal
+        The `stanza` gets a :xep:`184` receipt request attached and internal
         handlers are set up to update the `tracker` state once a confirmation
         is received.
 

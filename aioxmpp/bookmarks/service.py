@@ -184,7 +184,7 @@ class BookmarkClient(service.Service):
                 except IndexError:
                     # the classification is exhausted, this means
                     # all entries in this bin are equal by the
-                    # defininition of bookmark equivalence!
+                    # definition of bookmark equivalence!
                     common = min(len(old), len(new))
                     assert old[:common] == new[:common]
                     return (old[common:], new[common:])
@@ -305,7 +305,7 @@ class BookmarkClient(service.Service):
     async def add_bookmark(self, new_bookmark, *, max_retries=3):
         """
         Add a bookmark and check whether it was successfully added to the
-        bookmark list. Already existant bookmarks are not added twice.
+        bookmark list. Already existent bookmarks are not added twice.
 
         :param new_bookmark: the bookmark to add
         :type new_bookmark: an instance of :class:`~bookmark_xso.Bookmark`
@@ -362,7 +362,7 @@ class BookmarkClient(service.Service):
                               bookmark list after `max_retries`
                               retries.
 
-        If there are multiple occurences of the same bookmark exactly
+        If there are multiple occurrences of the same bookmark exactly
         one is removed.
 
         This does nothing if the bookmarks does not match an existing
@@ -376,10 +376,10 @@ class BookmarkClient(service.Service):
         """
         async with self._lock:
             bookmarks = await self._get_bookmarks()
-            occurences = bookmarks.count(bookmark_to_remove)
+            occurrences = bookmarks.count(bookmark_to_remove)
 
             try:
-                if not occurences:
+                if not occurrences:
                     return
 
                 modified_bookmarks = list(bookmarks)
@@ -390,7 +390,7 @@ class BookmarkClient(service.Service):
                 bookmarks = await self._get_bookmarks()
                 new_occurences = bookmarks.count(bookmark_to_remove)
                 while retries < max_retries:
-                    if new_occurences < occurences:
+                    if new_occurences < occurrences:
                         break
                     modified_bookmarks = list(bookmarks)
                     modified_bookmarks.remove(bookmark_to_remove)
@@ -399,7 +399,7 @@ class BookmarkClient(service.Service):
                     new_occurences = bookmarks.count(bookmark_to_remove)
                     retries += 1
 
-                if new_occurences >= occurences:
+                if new_occurences >= occurrences:
                     raise RuntimeError("Could not remove bookmark")
             finally:
                 self._diff_emit_update(bookmarks)

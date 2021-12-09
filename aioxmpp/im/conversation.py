@@ -312,7 +312,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
     .. note::
 
         The `member` argument common to many signals is never :data:`None` and
-        alwyas an instance of a subclass of
+        always an instance of a subclass of
         :class:`~.AbstractConversationMember`. However, the `member` may not be
         part of the :attr:`members` of the conversation. For example, it may be
         the :attr:`service_member` object which is never part of
@@ -321,7 +321,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
 
     .. signal:: on_message(msg, member, source, tracker=None, **kwargs)
 
-       A message occured in the conversation.
+       A message occurred in the conversation.
 
        :param msg: Message which was received.
        :type msg: :class:`aioxmpp.Message`
@@ -394,7 +394,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
        :type presence: :class:`aioxmpp.Presence`
 
        If the `presence` stanza affects multiple resources, `resource` holds
-       the affected resource and the event is emmited once per affected
+       the affected resource and the event is emitted once per affected
        resource.
 
        However, the `presence` stanza affects only a single resource,
@@ -494,7 +494,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
 
         Often, `exc` will be a :class:`aioxmpp.errors.XMPPError` indicating
         an error emitted from an involved server, such as permission problems,
-        conflicts or non-existant peers.
+        conflicts or non-existent peers.
 
         This signal can only be emitted instead of :meth:`on_enter` and not
         after the room has been entered. If the conversation is terminated

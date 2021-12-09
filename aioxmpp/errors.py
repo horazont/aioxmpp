@@ -521,7 +521,7 @@ class SecurityNegotiationFailure(StreamNegotiationFailure):
 
 class SASLUnavailable(SecurityNegotiationFailure):
     # we use this to tell the Client that SASL has not been available at all,
-    # or that we could not agree on mechansims.
+    # or that we could not agree on mechanisms.
     # it might be helpful to notify the peer about this before dying.
     pass
 
@@ -575,7 +575,7 @@ class UserError(Exception):
     def localize(self, formatter, translator):
         """
         Return a localized version of the `localizable_string` passed to the
-        consturctor. It is formatted using the `formatter` with the `args` and
+        constructor. It is formatted using the `formatter` with the `args` and
         `kwargs` passed to the constructor of :class:`UserError`.
         """
         return self.localizable_string.localize(
@@ -595,7 +595,7 @@ class UserValueError(UserError, ValueError):
 class MultiOSError(OSError):
     """
     Describe an error situation which has been caused by the sequential
-    occurence of multiple other `exceptions`.
+    occurrence of multiple other `exceptions`.
 
     The `message` shall be descriptive and will be prepended to a concatenation
     of the error messages of the given `exceptions`.
@@ -620,7 +620,7 @@ class MultiOSError(OSError):
 
 class GatherError(RuntimeError):
     """
-    Describe an error situation which has been caused by the occurence
+    Describe an error situation which has been caused by the occurrence
     of multiple other `exceptions`.
 
     The `message` shall be descriptive and will be prepended to a concatenation

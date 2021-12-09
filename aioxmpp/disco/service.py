@@ -681,7 +681,7 @@ class DiscoClient(service.Service):
         response. If the timeout triggers, :class:`TimeoutError` is raised.
 
         If :meth:`~.Client.send` raises an
-        exception, all queries which were running simultanously for the same
+        exception, all queries which were running simultaneously for the same
         target re-raise that exception. The result is not cached though. If a
         new query is sent at a later point for the same target, a new query is
         actually sent, independent of the value chosen for `require_fresh`.
@@ -960,7 +960,7 @@ class RegisteredFeature:
 
         When this attribute is changed to :data:`True`, the feature is
         registered. When the attribute is changed to :data:`False`, the feature
-        is unregisterd.
+        is unregistered.
         """
         return self.__enabled
 

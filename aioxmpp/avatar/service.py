@@ -188,7 +188,7 @@ class AbstractAvatarDescriptor:
     Description of the properties of and how to retrieve a specific
     avatar.
 
-    The following attribues are available for all instances:
+    The following attributes are available for all instances:
 
     .. autoattribute:: remote_jid
 
@@ -408,7 +408,7 @@ class VCardAvatarDescriptor(AbstractAvatarDescriptor):
         self._image_bytes = image_bytes
 
     def __eq__(self, other):
-        # NOTE: we explicitely do *not* check for the equality of
+        # NOTE: we explicitly do *not* check for the equality of
         # image bytes: image bytes is a hidden optimization
         return (isinstance(other, VCardAvatarDescriptor) and
                 super().__eq__(other))
@@ -571,7 +571,7 @@ class AvatarService(service.Service):
         Note, that this reduces traffic, since it makes the presence
         stanzas smaller and we no longer have to recalculate the hash,
         this also disables vCard advertisement for all other
-        ressources of the bare local jid, by the business rules of
+        resources of the bare local jid, by the business rules of
         :xep:`0153`.
 
         Note that, when enabling this feature again the vCard has to
@@ -659,7 +659,7 @@ class AvatarService(service.Service):
                     stanza.xep0153_x.photo.lower() !=
                     self._vcard_id.lower()):
 
-                # do not rehash if we alread have a rehash task that
+                # do not rehash if we already have a rehash task that
                 # was triggered by an update with the same hash
                 if (self._vcard_rehashing_for is None or
                         self._vcard_rehashing_for !=
@@ -832,7 +832,7 @@ class AvatarService(service.Service):
         :param jid: the JID for which to retrieve the avatar metadata.
         :type jid: :class:`aioxmpp.JID`
         :param require_fresh: if true, do not return results from the
-            avatar metadata chache, but retrieve them again from the server.
+            avatar metadata cache, but retrieve them again from the server.
         :type require_fresh: :class:`bool`
         :param disable_pep: if true, do not try to retrieve the avatar
             via pep, only try the vCard fallback. This usually only

@@ -181,7 +181,7 @@ class Cache:
         instance) to the user-level database keyed with the hash function type
         `hash_` and the `node` URL. The `entry` is **not** validated to
         actually map to `node` with the given `hash_` function, it is expected
-        that the caller perfoms the validation.
+        that the caller performs the validation.
         """
         copied_entry = copy.copy(entry)
         self._memory_overlay[key] = copied_entry
@@ -323,7 +323,7 @@ class EntityCapsService(aioxmpp.service.Service):
         processed and no Capability Hash Sets or Capability Nodes will be
         generated.
 
-        The hash algortihms used for generating Capability Hash Sets are those
+        The hash algorithms used for generating Capability Hash Sets are those
         from :data:`aioxmpp.hashes.default_hash_algorithms`.
         """
         return self._xep390_feature.enabled

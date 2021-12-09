@@ -209,7 +209,7 @@ async def discover_server_features(disco, peer, recurse_into_items=True,
     `peer`. For each JID discovered that way, :func:`discover_server_features`
     is re-invoked (with `recurse_into_items` set to false). The resulting
     mappings are merged with the mapping obtained from querying the features of
-    `peer` (existing entries are *not* overriden -- so `peer` takes
+    `peer` (existing entries are *not* overridden -- so `peer` takes
     precedence).
     """
 
@@ -268,7 +268,7 @@ async def discover_server_identities(disco, peer, recurse_into_items=True):
     :func:`discover_server_identities` is re-invoked (with `recurse_into_items`
     set to false). The resulting mappings are merged with the mapping obtained
     from querying the identities of `peer` (existing entries are *not*
-    overriden -- so `peer` takes precedence).
+    overridden -- so `peer` takes precedence).
     """
 
     server_info = await disco.query_info(peer)
@@ -723,7 +723,7 @@ class StaticPasswordProvisioner(_AutoConfiguredProvisioner):
     This is for use with servers which support neither SASL ANONYMOUS nor
     a ``mod_auth_any`` equivalent.
 
-    The configuration of this provisioner is slightly unwieldly since we do
+    The configuration of this provisioner is slightly unwieldy since we do
     not want to add a dependency to a more sane configuration file format. Here
     is an example on how to configure a provisioner with two accounts:
 

@@ -48,7 +48,7 @@ using:
 
 It needs to be configured though. For this, an ini-style configuration file
 (using :mod:`configparser`) is read. The default location is
-``./.local/e2etest.ini``, but it can be overriden with the ``--e2etest-config``
+``./.local/e2etest.ini``, but it can be overridden with the ``--e2etest-config``
 command line option.
 
 .. note::

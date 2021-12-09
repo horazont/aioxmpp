@@ -104,14 +104,14 @@ Security Fixes
 --------------
 
 * CVE-2019-1000007: Fix incorrect error handling in :mod:`aioxmpp.xso` when a
-  supressing :meth:`aioxmpp.xso.XSO.xso_error_handler` is in use.
+  suppressing :meth:`aioxmpp.xso.XSO.xso_error_handler` is in use.
 
-  Under certain circumstances, it is possible that the handling of supressed
+  Under certain circumstances, it is possible that the handling of suppressed
   error causes another error later on because the parsing stack mis-counts the
   depth in which it is inside the XML tree. This makes elements appear in the
   wrong place, typically leading to further errors.
 
-  In the worst case, using a supressing
+  In the worst case, using a suppressing
   :meth:`~aioxmpp.xso.XSO.xso_error_handler` in specific circumstances can be
   vulnerable to denial of service and data injection into the XML stream.
 
@@ -260,7 +260,7 @@ Minor features and bug fixes
   port number, while the standards allows omit the port number.
 
 * Fix incorrect serialisation of nested namespace declarations for the same URI.
-  One such occurence is often encountered when using the
+  One such occurrence is often encountered when using the
   ``<{urn:xmpp:forward:0}forwarded/>`` element (see
   :class:`aioxmpp.misc.Forwarded`). It can host a ``<{jabber:client}message/>``.
   Since we declare all namespaces of XSOs as prefixless, the nested message needs
@@ -398,7 +398,7 @@ New major features
 
 * *Recognizability of Occupants across Rejoins/Reboots*: The
   :attr:`aioxmpp.im.conversation.AbstractConversationMember.uid`
-  attribute holds a (reasonably) unique string indentifying the occupant. If
+  attribute holds a (reasonably) unique string identifying the occupant. If
   the :attr:`~aioxmpp.im.conversation.AbstractConversationMember.uid` of two
   member objects compares equal, an application can be reasonably sure that
   the two members refer to the same identity. If the UIDs of two members are
@@ -1334,7 +1334,7 @@ Minor features and bug fixes
 
   The more correct :exc:`TypeError` is now raised.
 
-* The handling of stanzas with unparseable attributes and stanzas originating
+* The handling of stanzas with unparsable attributes and stanzas originating
   from the clients bare JID (i.e. from the clients server on behalf on the
   account) has improved.
 
@@ -1811,7 +1811,7 @@ Version 0.5
 
 * In 0.5.4, :mod:`aioxmpp.network` was re-written. More details will follow in
   the 0.6 changelog. The takeaway is that the network stack now automatically
-  reloads the DNS configuration after the first timeout, to accomodate to
+  reloads the DNS configuration after the first timeout, to accommodate to
   changing resolvers.
 
 Version 0.4
@@ -1849,7 +1849,7 @@ Version 0.4
   in its declaration.
 
 * :class:`aioxmpp.stream.StanzaStream` has a positional, optional argument
-  (`local_jid`) for ejabberd compatiblity.
+  (`local_jid`) for ejabberd compatibility.
 
 * Several fixes and workarounds, finally providing ejabberd compatibility:
 
