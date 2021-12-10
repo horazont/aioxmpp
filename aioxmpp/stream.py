@@ -794,7 +794,7 @@ class StanzaStream:
 
         self._sm_enabled = False
 
-        self._broker_lock = asyncio.Lock(loop=loop)
+        self._broker_lock = asyncio.Lock()
 
         self.app_inbound_presence_filter = AppFilter()
         self.service_inbound_presence_filter = callbacks.Filter()

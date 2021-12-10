@@ -28,7 +28,7 @@ class AsyncDeque:
         super().__init__()
         self._loop = loop
         self._data = collections.deque()
-        self._non_empty = asyncio.Event(loop=self._loop)
+        self._non_empty = asyncio.Event()
         self._non_empty.clear()
 
     def __len__(self):

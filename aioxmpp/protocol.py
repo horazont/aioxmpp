@@ -899,7 +899,7 @@ async def send_and_wait_for(xmlstream, send, wait_for,
             ],
             timeout=timeout,
             return_when=asyncio.FIRST_COMPLETED,
-            loop=xmlstream._loop)
+        )
 
         for other_fut in pending:
             other_fut.cancel()
