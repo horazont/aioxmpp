@@ -846,8 +846,7 @@ class Client:
         try:
             await self.stream.resume_sm(xmlstream)
         except errors.StreamNegotiationFailure as exc:
-            self.logger.warn("failed to resume stream (%s)",
-                             exc)
+            self.logger.warning("failed to resume stream (%s)", exc)
             return False
         return True
 
@@ -869,7 +868,7 @@ class Client:
             features[nonza.StreamManagementFeature]
         except KeyError:
             if self.stream.sm_enabled:
-                self.logger.warn("server isn’t advertising SM anymore")
+                self.logger.warning("server isn’t advertising SM anymore")
                 self.stream.stop_sm()
             server_can_do_sm = False
 
