@@ -453,7 +453,7 @@ class TransportMock(InteractivityMock,
         while not self._queue.empty() or self._actions:
             done, pending = await asyncio.wait(
                 [
-                    self._queue.get(),
+                    asyncio.ensure_future(self._queue.get()),
                     self._done
                 ],
                 return_when=asyncio.FIRST_COMPLETED
@@ -665,7 +665,7 @@ class XMLStreamMock(InteractivityMock):
         while not self._queue.empty() or self._actions:
             done, pending = await asyncio.wait(
                 [
-                    self._queue.get(),
+                    asyncio.ensure_future(self._queue.get()),
                     self._done
                 ],
                 return_when=asyncio.FIRST_COMPLETED
