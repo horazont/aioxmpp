@@ -567,8 +567,8 @@ class XMLStream(asyncio.Protocol):
             # these states are fine, common actions below
             pass
         else:
-            self._logger.warn("unexpected eof_received (in %s state)",
-                              self._smachine.state)
+            self._logger.warning("unexpected eof_received (in %s state)",
+                                 self._smachine.state)
             # common actions below
 
         self._smachine.state = State.CLOSING_STREAM_FOOTER_RECEIVED
@@ -937,6 +937,8 @@ def send_stream_error_and_close(
         condition=condition,
         text=text))
     if custom_condition is not None:
-        logger.warn("custom_condition argument to send_stream_error_and_close"
-                    " not implemented")
+        logger.warning(
+            "custom_condition argument to send_stream_error_and_close"
+            " not implemented",
+        )
     xmlstream.close()
