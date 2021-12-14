@@ -1202,6 +1202,7 @@ class StanzaStream:
         It is legal (but pretty useless) to call this method while the stream
         is :attr:`running`.
         """
+        self._logger.debug("flushing incoming queue")
         while True:
             try:
                 stanza_obj = self._incoming_queue.get_nowait()
@@ -1972,6 +1973,19 @@ class StanzaStream:
         if self.sm_enabled:
             self.stop_sm()
 
+    def _drain_incoming(self):
+        """
+        Drain the incoming queue **without** processing any contents.
+        """
+        self._logger.debug("draining incoming queue")
+        while True:
+            # this cannot loop for infinity because we do not yield control
+            # and the queue cannot be filled across threads.
+            try:
+                self._incoming_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+
     async def _run(self, xmlstream):
         self._xmlstream = xmlstream
         self._update_xmlstream_limits()
@@ -2010,10 +2024,31 @@ class StanzaStream:
             # caught by the calls to get()
             self._logger.debug("task terminating, rescuing stanzas and "
                                "clearing handlers")
-            if incoming_fut.done() and not incoming_fut.exception():
-                self._incoming_queue.putleft_nowait(incoming_fut.result())
+            # Drain the incoming queue:
+            # 1. Either we have an SM-resumable stream and we'll SM-resume it,
+            #    in which case we can reply to stanzas in here; however, then
+            #    we'd get them re-transmitted anyway.
+            # 2. Or the stream is not SM-resumed, in which case it would be
+            #    invalid to reply to anything in the incoming queue or process
+            #    it in any way, as it may refer to old, stale state.
+            #    Imagine an incremental roster update slipping in here and
+            #    getting processed after a reconnect. Terrible. Let's flush
+            #    this queue immediately.
+            if incoming_fut.done():
+                # discard
+                try:
+                    incoming_fut.result()
+                except BaseException:  # noqa
+                    # we truly do not care, because we are going to drain the
+                    # queue anyway. if anything is fatally wrong with the
+                    # queue, it'll reraise there. if anything is fatally
+                    # wrong with the event loop, it'll hit us elsewhere
+                    # eventually. if it was successful, good, let's drop the
+                    # stanza because we want to drain right now.
+                    pass
             else:
                 incoming_fut.cancel()
+            self._drain_incoming()
 
             if active_fut.done() and not active_fut.exception():
                 self._active_queue.putleft_nowait(active_fut.result())

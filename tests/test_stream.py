@@ -1571,7 +1571,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertFalse(cb.mock_calls)
 
-    def test_rescue_unprocessed_incoming_stanza_on_stop(self):
+    def test_discard_unprocessed_incoming_stanza_on_stop(self):
         pres = make_test_presence()
 
         self.stream.start(self.xmlstream)
@@ -1581,26 +1581,10 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.recv_stanza(pres)
         self.stream.stop()
 
-        self.assertEqual(
-            (pres, None),
-            run_coroutine(self.stream._incoming_queue.get())
-        )
-
-    def test_unprocessed_incoming_stanza_does_not_get_lost_after_stop(self):
-        pres = make_test_presence()
-
-        self.stream.start(self.xmlstream)
-
         run_coroutine(asyncio.sleep(0))
 
-        self.stream.stop()
-
-        self.stream.recv_stanza(pres)
-
-        self.assertEqual(
-            (pres, None),
-            run_coroutine(self.stream._incoming_queue.get())
-        )
+        with self.assertRaises(asyncio.QueueEmpty):
+            self.stream._incoming_queue.get_nowait()
 
     def test_fail_on_unknown_stanza_class(self):
         caught_exc = None
