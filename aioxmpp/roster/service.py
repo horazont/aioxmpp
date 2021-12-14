@@ -323,7 +323,7 @@ class RosterClient(aioxmpp.service.Service):
 
     .. signal:: on_subscribe(stanza)
 
-       Fires when a peer requested a subscription. The whole stanza recevied is
+       Fires when a peer requested a subscription. The whole stanza received is
        included as `stanza`.
 
        .. seealso::
@@ -343,7 +343,7 @@ class RosterClient(aioxmpp.service.Service):
        push.
 
        Unless your application is interested in the specific cause of a
-       subscription state change, it is not neccessary to use this signal; the
+       subscription state change, it is not necessary to use this signal; the
        subscription state change will be covered by
        :meth:`on_entry_subscription_state_changed`.
 
@@ -354,7 +354,7 @@ class RosterClient(aioxmpp.service.Service):
        included as `stanza` argument) *before* sending the roster push.
 
        Unless your application is interested in the specific cause of a
-       subscription state change, it is not neccessary to use this signal; the
+       subscription state change, it is not necessary to use this signal; the
        subscription state change will be covered by
        :meth:`on_entry_subscription_state_changed`.
 

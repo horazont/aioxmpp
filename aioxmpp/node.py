@@ -303,7 +303,7 @@ async def connect_xmlstream(
     """
     Prepare and connect a :class:`aioxmpp.protocol.XMLStream` to a server
     responsible for the given `jid` and authenticate against that server using
-    the SASL mechansims described in `metadata`.
+    the SASL mechanisms described in `metadata`.
 
     :param jid: Address of the user for which the connection is made.
     :type jid: :class:`aioxmpp.JID`
@@ -476,12 +476,12 @@ class Client:
     .. note::
 
        If `max_initial_attempts` is :data:`None`, the stream will try
-       indefinitly to connect to the server even if the connection has
+       indefinitely to connect to the server even if the connection has
        never succeeded yet. This is may mask problems with the configuration of
        the client itself, because the client cannot successfully distinguish
        permanent problems arising from the configuration (of the client or the
        server) from problems arising from transient problems such as network
-       faliures.
+       failures.
 
        This may severely degrade usabilty, because the client is then stuck in
        a connect loop without any usable feedback. Setting a bound for the
@@ -494,7 +494,7 @@ class Client:
     .. versionchanged:: 0.4
 
        Since 0.4, support for legacy XMPP sessions has been implemented. Mainly
-       for compatiblity with ejabberd.
+       for compatibility with ejabberd.
 
     .. versionchanged:: 0.8
 
@@ -1066,7 +1066,7 @@ class Client:
             visited.add(class_)
 
             # summon dependencies before taking len(self._services) as
-            # the instanciation index of the service
+            # the instantiation index of the service
             dependencies = {
                 depclass: self._summon(depclass, visited)
                 for depclass in class_.PATCHED_ORDER_AFTER
@@ -1115,7 +1115,7 @@ class Client:
         emitted.
 
         Writing this attribute is not allowed, as changing the JID introduces a
-        lot of issues with respect to reusability of the stream. Instanciate a
+        lot of issues with respect to reusability of the stream. Instantiate a
         new :class:`Client` if you need to change the bare part of the JID.
 
         .. note::
@@ -1436,7 +1436,7 @@ class PresenceManagedClient(Client):
            use :meth:`set_presence`.
 
         Upon setting this attribute, the :class:`PresenceManagedClient` will do
-        whatever neccessary to achieve the given presence. If the presence is
+        whatever necessary to achieve the given presence. If the presence is
         an `available` presence, the client will attempt to connect to the
         server. If the presence is `unavailable` and the client is currently
         connected, it will disconnect.

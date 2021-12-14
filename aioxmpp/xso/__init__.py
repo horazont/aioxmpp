@@ -534,7 +534,7 @@ Predefined XSO base classes
 ===========================
 
 Some patterns reoccur when using this subpackage. For these, base classes are
-provided which faciliate the use.
+provided which facilitate the use.
 
 .. autoclass:: AbstractTextChild
 

@@ -225,7 +225,7 @@ can be categorized into four categories:
     cannot hold one of each type. Two different descriptors, or a non-scalar
     descriptor is needed for that.
 
-*Non-scalar Child Desciptors*
+*Non-scalar Child Descriptors*
     which handle multiple child elements. These are then aggregated in
     different types of containers depending on the specific descriptor.
 

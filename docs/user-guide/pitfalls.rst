@@ -44,7 +44,7 @@ following manner:
             pass
 
 Ensure that this snippet is executed before the application exits, even in
-the case that an error occured.
+the case that an error occurred.
 
 .. note::
 
@@ -122,5 +122,5 @@ For example, when trying to connect to ``192.168.122.1``, you may see::
     aioxmpp.network.ValidationError: nameserver error, most likely DNSSEC validation failed
 
 You should be using :attr:`aioxmpp.Client.override_peer` or an equivalent
-mechansim. Note that the exception will still occur if the connection attempt to
+mechanism. Note that the exception will still occur if the connection attempt to
 the override fails. Bare IPs as target hosts are generally not a good idea.

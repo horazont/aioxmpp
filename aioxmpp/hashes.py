@@ -32,7 +32,7 @@ digests (:class:`Hash`) and hash algorithms to be used (:class:`HashUsed`).
 This allows other extensions to easily embed hash digests in their protocols
 (:class:`HashesParent`, :class:`HashesUsedParent`).
 
-The service :class:`HashService` registeres the disco features for the
+The service :class:`HashService` registers the disco features for the
 supported hash functions and allows querying hash functions supported by
 you and another entity on the Jabber network supporting :xep:`300`.
 
@@ -144,7 +144,7 @@ def hash_from_algo(algo):
 
     :param algo: The algorithm identifier as defined in :xep:`300`.
     :type algo: :class:`str`
-    :raises NotImplementedError: if the hash algortihm is not supported by
+    :raises NotImplementedError: if the hash algorithm is not supported by
         :mod:`hashlib`.
     :raises ValueError: if the hash algorithm MUST NOT be supported.
     :return: A hash object from :mod:`hashlib` or compatible.
@@ -346,7 +346,7 @@ default_hash_algorithms = {
 
 class HashService(service.Service):
     """
-    The service component of the :xep:`300` support. This service registeres
+    The service component of the :xep:`300` support. This service registers
     the features and allows to query the hash functions supported by us and
     a remote entity:
 

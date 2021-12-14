@@ -1,7 +1,7 @@
 aioxmpp Examples
 ################
 
-Most of these examples are built ontop of ``framework.py`` (also in this
+Most of these examples are built on top of ``framework.py`` (also in this
 directory). The only exceptions are those starting with ``quickstart_`` (they
 are basically content of the quickstart guide and should be able to stand on
 their own, serving as full examples) and ``xmpp_bridge.py``.

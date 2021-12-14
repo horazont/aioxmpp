@@ -158,7 +158,7 @@ if __name__ == "__main__":
                                     search_for_prog=args.prog)
 
     if len(pidmap) > 1:
-        print("process selector was ambigous")
+        print("process selector was ambiguous")
         _, conns = select_process(pidmap)
     elif pidmap:
         _, conns = list(pidmap.values())[0]

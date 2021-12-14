@@ -63,9 +63,9 @@ class PingService(aioxmpp.service.Service):
         not the fact that a reply is sent from the client), it may not be
         desirable under all circumstances.
 
-        So especially when developing a Service which does not *reqiure* that
+        So especially when developing a Service which does not *require* that
         the application replies to pings (for example, when implementing a
-        stream or group chat aliveness check), it is preferrable to use the
+        stream or group chat aliveness check), it is preferable to use the
         global function.
 
         When implementing an application where it is desirable to reply to

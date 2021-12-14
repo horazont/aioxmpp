@@ -301,7 +301,7 @@ class MessageTracker:
         :raise RuntimeError: if the tracker is closed.
 
         The state of the tracker is set to the `new_state`. The
-        :attr:`response` is also overriden with the new value, no matter if the
+        :attr:`response` is also overridden with the new value, no matter if the
         new or old value is :data:`None` or not. The :meth:`on_state_changed`
         event is emitted.
 
@@ -362,7 +362,7 @@ class BasicTrackingService(aioxmpp.service.Service):
     Specifically, the stanza is tracked using the means of
     :class:`~.StanzaToken`, that is, until it is acknowledged by the server. In
     addition, error stanzas in reply to the message are also tracked (but they
-    do not override states occuring after
+    do not override states occurring after
     :attr:`~.MessageState.DELIVERED_TO_SERVER`).
 
     Tracking stanzas:

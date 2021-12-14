@@ -25,7 +25,7 @@
 
 This module is used to implement SASL in :mod:`aioxmpp.security_layer`. It
 provides a state machine for use by the different SASL mechanisms and
-implementations of some SASL mechansims.
+implementations of some SASL mechanisms.
 
 It provides an XMPP adaptor for :mod:`aiosasl`.
 

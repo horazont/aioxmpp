@@ -28,7 +28,7 @@ from aioxmpp.utils import namespaces
 
 class SHIMService(aioxmpp.service.Service):
     """
-    This service implements :xep:`131` feature advertisment.
+    This service implements :xep:`131` feature advertisement.
 
     It registers the ``http://jabber.org/protocol/shim`` node with the
     :class:`.DiscoServer`. It publishes the supported headers on that node as

@@ -279,7 +279,7 @@ async def gather_reraise_multi(*fut_or_coros, message="gather_reraise_multi"):
     :param fut_or_coros: the futures or coroutines to wait for
     :type fut_or_coros: future or coroutine
     :param message: the message included with the raised
-        :class:`aioxmpp.errrors.GatherError` in the case of failure.
+        :class:`aioxmpp.errors.GatherError` in the case of failure.
     :type message: :class:`str`
     :returns: the list of the results of the arguments.
     :raises aioxmpp.errors.GatherError: if any of the futures or
@@ -499,7 +499,7 @@ class AlivenessMonitor:
         When the last data reception was longer than this limit ago,
         :meth:`on_deadtime_soft_limit_tripped` emits once.
 
-        Changing this makes the monitor re-check its limits immidately. Setting
+        Changing this makes the monitor re-check its limits immediately. Setting
         this to :data:`None` disables the soft limit check.
 
         Note that setting this to a value greater than
@@ -522,7 +522,7 @@ class AlivenessMonitor:
         When the last data reception was longer than this limit ago,
         :meth:`on_deadtime_hard_limit_tripped` emits once.
 
-        Changing this makes the monitor re-check its limits immidately. Setting
+        Changing this makes the monitor re-check its limits immediately. Setting
         this to :data:`None` disables the hard limit check.
 
         Note that setting this to a value less than

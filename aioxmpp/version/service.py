@@ -38,7 +38,7 @@ class VersionServer(aioxmpp.service.Service):
     .. warning::
 
         Do **not** depend on this service in another service. This service
-        exposes possibily private or sensitive information over the XMPP
+        exposes possibly private or sensitive information over the XMPP
         network without any filtering. Implicitly summoning this service via
         a dependency is thus discouraged.
 
@@ -189,7 +189,7 @@ async def query_version(stream: aioxmpp.stream.StanzaStream,
     :type stream: :class:`aioxmpp.stream.StanzaStream`
     :param target: The address of the entity to query.
     :type target: :class:`aioxmpp.JID`
-    :raises OSError: if a connection issue occured before a reply was received
+    :raises OSError: if a connection issue occurred before a reply was received
     :raises aioxmpp.errors.XMPPError: if an XMPP error was returned instead
         of a reply.
     :rtype: :class:`aioxmpp.version.xso.Query`

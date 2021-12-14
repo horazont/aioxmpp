@@ -1213,10 +1213,10 @@ class Testgroup_and_order_srv_records(unittest.TestCase):
 
         return {
             host: {
-                index: round(indicies[index]/(N*sum_of_weights), 2)
+                index: round(indices[index]/(N*sum_of_weights), 2)
                 for index in range(0, len(records))
             }
-            for host, indicies in host_map.items()
+            for host, indices in host_map.items()
         }
 
     def _test_monte_carlo(self, weights, **kwargs):

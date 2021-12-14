@@ -216,10 +216,10 @@ class BoundField(metaclass=abc.ABCMeta):
         from the `field_xso`, shadowing the information from the declaration of
         the field on the class.
 
-        This method is must be overriden and is thus marked abstract. However,
+        This method is must be overridden and is thus marked abstract. However,
         when called from a subclass, it loads the :attr:`desc`, :attr:`label`
         and :attr:`required` from the given `field_xso`. Subclasses are
-        supposed to implement a mechansim to load options and/or values from
+        supposed to implement a mechanism to load options and/or values from
         the `field_xso` and then call this implementation through
         :func:`super`.
         """
@@ -250,7 +250,7 @@ class BoundField(metaclass=abc.ABCMeta):
         values are declared. This is useful when generating a reply to a form
         received by a peer, as it avoids sending a modified form.
 
-        This method is must be overriden and is thus marked abstract. However,
+        This method is must be overridden and is thus marked abstract. However,
         when called from a subclass, it creates the :class:`~.Field` instance
         and initialises its :attr:`~.Field.var`, :attr:`~.Field.type_`,
         :attr:`~.Field.desc`, :attr:`~.Field.required` and

@@ -59,7 +59,7 @@ def check_against_tables(chars, tables):
     that is, functions which return :data:`True` if the character is in the
     table.
 
-    The function returns the first character occuring in any of the tables or
+    The function returns the first character occurring in any of the tables or
     :data:`None` if no character matches.
     """
 

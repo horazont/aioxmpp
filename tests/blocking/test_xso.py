@@ -28,7 +28,7 @@ import aioxmpp.blocking.xso as blocking_xso
 
 from aioxmpp.utils import namespaces
 
-TEST_JID1 = aioxmpp.JID.fromstr("foo@exmaple.com")
+TEST_JID1 = aioxmpp.JID.fromstr("foo@example.com")
 TEST_JID2 = aioxmpp.JID.fromstr("spam.example.com")
 
 

@@ -724,7 +724,7 @@ class TextChildMap(AbstractElementType):
     :class:`.xso.AbstractTextChild`, which means that it must have the language
     and text at :attr:`~.xso.AbstractTextChild.lang` and
     :attr:`~.xso.AbstractTextChild.text`, respectively and support the
-    same-named keyword arguments for those attributes at the consturctor.
+    same-named keyword arguments for those attributes at the constructor.
 
     For an example see the source of :class:`aioxmpp.Message`.
 

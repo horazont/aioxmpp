@@ -24,7 +24,7 @@
 ##############################################################
 
 This module provides a :mod:`aioxmpp.tracking` service which tracks :xep:`184`
-replies to messages and accordinly updates attached
+replies to messages and accordingly updates attached
 :class:`~aioxmpp.tracking.MessageTracker` objects.
 
 .. versionadded:: 0.10

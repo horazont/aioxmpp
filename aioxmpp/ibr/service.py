@@ -164,7 +164,7 @@ class RegistrationService(Service):
         """
         Cancels the currents client's account with the server.
 
-        Even if the cancelation is succesful, this method will raise an
+        Even if the cancellation is successful, this method will raise an
         exception due to he account no longer exists for the server, so the
         client will fail.
         To continue with the execution, this method should be surrounded by a

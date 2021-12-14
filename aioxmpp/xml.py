@@ -375,7 +375,7 @@ class XMPPXMLGenerator:
         Also note that calling :meth:`startPrefixMapping` is not mandatory; you
         can use any namespace you like at any time. If you use a namespace
         whose URI has not been associated with a prefix yet, a free prefix will
-        automatically be chosen. To avoid unneccessary performance penalties,
+        automatically be chosen. To avoid unnecessary performance penalties,
         do not use prefixes of the form ``"ns{:d}".format(n)``, for any
         non-negative number of `n`.
 

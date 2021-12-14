@@ -95,7 +95,7 @@ Now, simply running
 
    pip3 install aioxmpp
 
-should install everything neccessary to run aioxmpp.
+should install everything necessary to run aioxmpp.
 
 .. note::
 

@@ -492,7 +492,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
     .. signal:: on_message(msg, member, source, **kwargs)
 
-        A message occured in the conversation.
+        A message occurred in the conversation.
 
         :param msg: Message which was received.
         :type msg: :class:`aioxmpp.Message`
@@ -598,7 +598,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         :type muc_nick: :class:`str`
 
         The `member` is matched by nickname. It is possible that the member is
-        not in the room at the time the topic chagne is received (for example
+        not in the room at the time the topic change is received (for example
         on a join).
 
         `muc_nick` is always the nickname of the entity who changed the topic.

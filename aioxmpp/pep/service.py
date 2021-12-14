@@ -251,7 +251,7 @@ class RegisteredPEPNode:
     """
     Handle for registered PEP nodes.
 
-    *Never* instanciate this class yourself. Use
+    *Never* instantiate this class yourself. Use
     :class:`~aioxmpp.pep.register_pep_node` or
     :attr:`~aioxmpp.pep.PEPClient.claim_pep_node` to obtain instances.
 
@@ -444,7 +444,7 @@ class register_pep_node(service.Descriptor):
     @property
     def notify(self):
         """
-        Wether we register the ``+nofity`` feature.
+        Whether we register the ``+nofity`` feature.
         """
         return self._notify
 

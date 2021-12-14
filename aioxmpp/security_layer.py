@@ -593,7 +593,7 @@ class AbstractPinStore(metaclass=abc.ABCMeta):
         :meth:`export`.
 
         If *override* is true, the existing data in the pin store will be
-        overriden with the data from `data`. Otherwise, the `data` will be
+        overridden with the data from `data`. Otherwise, the `data` will be
         merged into the store.
         """
 
@@ -757,7 +757,7 @@ class SASLProvider:
 
     def _find_supported(self, features, mechanism_classes):
         """
-        Find the first mechansim class which supports a mechanism announced in
+        Find the first mechanism class which supports a mechanism announced in
         the given stream features.
 
         :param features: Current XMPP stream features
@@ -892,7 +892,7 @@ class PasswordSASLProvider(SASLProvider):
                               authenticate with.
     :type password_provider: coroutine function
     :param max_auth_attempts: Maximum number of authentication attempts with a
-                              single mechansim.
+                              single mechanism.
     :type max_auth_attempts: positive :class:`int`
 
     `password_provider` must be a coroutine taking two arguments, a JID and an
@@ -1067,7 +1067,7 @@ class SecurityLayer(collections.namedtuple(
        This is a callable returning a :class:`OpenSSL.SSL.Context` instance
        which is to be used for any SSL operations for the connection.
 
-       The :class:`OpenSSL.SSL.Context` instances should not be resued between
+       The :class:`OpenSSL.SSL.Context` instances should not be reused between
        connection attempts, as the certificate verifiers may set options which
        cannot be disabled anymore.
 

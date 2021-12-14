@@ -161,7 +161,7 @@ async def repeated_query(qname, rdtype,
                          executor=None):
     """
     Repeatedly fire a DNS query until either the number of allowed attempts
-    (`nattempts`) is excedeed or a non-error result is returned (NXDOMAIN is
+    (`nattempts`) is exceeded or a non-error result is returned (NXDOMAIN is
     a non-error result).
 
     If `nattempts` is :data:`None`, it is set to 3 if `resolver` is
@@ -180,7 +180,7 @@ async def repeated_query(qname, rdtype,
     validation and if the AD flag is missing in the response,
     :class:`ValueError` is raised. If `require_ad` is :data:`False`, the
     resolver is asked to do DNSSEC validation nevertheless, but missing
-    validation (in constrast to failed validation) is not an error.
+    validation (in contrast to failed validation) is not an error.
 
     .. note::
 
