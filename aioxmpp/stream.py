@@ -898,7 +898,7 @@ class StanzaStream:
             except Exception:
                 pass
             self.on_failure(err)
-            self._logger.exception("broker task failed")
+            self._logger.debug("broker task failed", exc_info=True)
 
     def _xmlstream_failed(self, exc):
         self._xmlstream_exception = exc
