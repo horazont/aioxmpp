@@ -119,7 +119,7 @@ class Moderator(Example):
         done, pending = await asyncio.wait(
             [
                 self.room_future,
-                self.stop_event.wait(),
+                asyncio.create_task(self.stop_event.wait()),
             ],
             return_when=asyncio.FIRST_COMPLETED
         )
@@ -144,4 +144,4 @@ class Moderator(Example):
 
 
 if __name__ == "__main__":
-    exec_example(MucLogger())
+    exec_example(Moderator())
