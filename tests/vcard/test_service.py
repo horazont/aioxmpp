@@ -142,3 +142,22 @@ class TestService(unittest.TestCase):
         self.assertEqual(arg.type_, aioxmpp.IQType.SET)
         self.assertEqual(arg.to, None)
         self.assertIs(arg.payload, vcard)
+
+    def test_set_vcard_for_foreign_jid(self):
+        some_jid = aioxmpp.JID.fromstr("foo@bar.baz")
+
+        with unittest.mock.patch.object(self.cc, "send",
+                                        new=CoroutineMock()) as mock_send:
+            vcard = vcard_xso.VCard()
+            run_coroutine(self.s.set_vcard(vcard, jid=some_jid))
+
+        self.assertEqual(len(mock_send.mock_calls), 1)
+        try:
+            (_, (arg,), kwargs), = mock_send.mock_calls
+        except ValueError:
+            self.fail("send called with wrong signature")
+        self.assertEqual(len(kwargs), 0)
+        self.assertIsInstance(arg, aioxmpp.IQ)
+        self.assertEqual(arg.type_, aioxmpp.IQType.SET)
+        self.assertEqual(arg.to, some_jid)
+        self.assertIs(arg.payload, vcard)

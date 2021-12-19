@@ -66,7 +66,7 @@ class VCardService(service.Service):
             else:
                 raise
 
-    async def set_vcard(self, vcard):
+    async def set_vcard(self, vcard, jid=None):
         """
         Store the vCard `vcard` for the connected entity.
 
@@ -86,5 +86,6 @@ class VCardService(service.Service):
         iq = aioxmpp.IQ(
             type_=aioxmpp.IQType.SET,
             payload=vcard,
+            to=jid,
         )
         await self.client.send(iq)

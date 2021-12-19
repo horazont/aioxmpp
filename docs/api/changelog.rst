@@ -30,6 +30,8 @@ New examples
 
 * `roster_watch.py`: Stay connected and watch for roster changes.
 
+* `set_muc_avatar.py`: Set the avatar of a MUC.
+
 New major features
 ------------------
 
@@ -61,6 +63,9 @@ Minor features and bug fixes
 
 * :meth:`aioxmpp.muc.Service.get_affiliated` added to query affiliations of
   a MUC.
+
+* :meth:`aioxmpp.vcard.Service.set_vcard` now supports an optional `jid`
+  argument to set vCards of foreign entities (e.g. to set a MUC avatar).
 
 .. _api-changelog-0.12:
 
