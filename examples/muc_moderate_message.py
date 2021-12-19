@@ -31,16 +31,6 @@ import aioxmpp.structs
 from framework import Example, exec_example
 
 
-class StanzaID(aioxmpp.xso.XSO):
-    TAG = ("urn:xmpp:sid:0", "stanza-id")
-
-    id_ = aioxmpp.xso.Attr("id", default=None)
-    by = aioxmpp.xso.Attr("by", type_=aioxmpp.xso.JID(), default=None)
-
-
-aioxmpp.stanza.Message.xep0359_stanza_ids = aioxmpp.xso.ChildList([StanzaID])
-
-
 class Moderate(aioxmpp.xso.XSO):
     TAG = ("urn:xmpp:message-moderate:0", "moderate")
 
@@ -58,14 +48,7 @@ class ApplyTo(aioxmpp.xso.XSO):
     payload = aioxmpp.xso.Child([Moderate])
 
 
-def get_stanza_id_by(msg, entity):
-    for sid in msg.xep0359_stanza_ids:
-        if sid.by == entity:
-            return sid.id_
-    return None
-
-
-class MucLogger(Example):
+class Moderator(Example):
     def prepare_argparse(self):
         super().prepare_argparse()
 
