@@ -26,6 +26,8 @@ New examples
   :xep:`215`. This is useful in the context of testing STUN/TURN
   configuration.
 
+* `ping.py`, to send :xep:`199` to one or more remote JIDs.
+
 New major features
 ------------------
 
