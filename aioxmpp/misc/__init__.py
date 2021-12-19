@@ -92,6 +92,33 @@ an element using the :class:`JSONContainer` format.
 .. autoclass:: JSONContainerType
 
 
+Unique and Stable Stanza IDs (:xep:`359`)
+=========================================
+
+:xep:`359` defines a way to attach additional IDs to a stanza, allowing
+entities on the path from the sender to the recipient to signal under which ID
+they know a specific stanza. This is most notably used by MAM (:xep:`313`).
+
+.. autoclass:: StanzaID(*[, id_][, by])
+
+.. autoclass:: OriginID()
+
+.. attribute:: aioxmpp.Message.xep0359_stanza_ids
+
+    This is a mapping which associates the `by` value of a stanza ID with the
+    list of IDs (as strings or :data:`None` if the attribute was not set)
+    assigned by that entity. Normally, there should only ever be a single ID
+    assigned, but misbehaving parties on the path could inject IDs for other
+    entities.
+
+    To allow code handling the ID selection deterministically in such cases,
+    all IDs are exposed.
+
+.. attribute:: aioxmpp.Message.xep0359_origin_id
+
+    The :class:`OriginID` object, if any.
+
+
 Pre-Authenticated Roster Subcription (:xep:`379`)
 =================================================
 
@@ -137,4 +164,8 @@ from .pars import Preauth  # NOQA: F401
 from .openpgp_legacy import (
     OpenPGPEncrypted,
     OpenPGPSigned,
+)
+from .stanzaid import (  # NOQA: F401
+    StanzaID,
+    OriginID,
 )

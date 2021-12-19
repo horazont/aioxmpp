@@ -133,6 +133,7 @@ From XMPP Extension Proposals (XEPs)
 * :xep:`308` (Last Message Correction), schema-only, see :mod:`aioxmpp.misc`
 * :xep:`333` (Chat Markers), schema-only, see :mod:`aioxmpp.misc`
 * :xep:`335` (JSON Containers), see :mod:`aioxmpp.misc`
+* :xep:`359` (Unique and Stable Stanza IDs), see :mod:`aioxmpp.misc`
 * :xep:`363` (HTTP Upload), see :mod:`aioxmpp.httpupload`
 * :xep:`368` (SRV records for XMPP over TLS)
 * :xep:`379` (Pre-Authenticared Roster Subscription), schema-only, see

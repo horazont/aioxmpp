@@ -8,6 +8,12 @@ Changelog
 Version 0.13
 ============
 
+New XEP implementations
+-----------------------
+
+* Support for the :xep:`0359` (Unique and Stable Stanza IDs) schema in
+  :mod:`aioxmpp.misc`.
+
 New major features
 ------------------
 
