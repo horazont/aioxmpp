@@ -20,6 +20,8 @@ New examples
 * `muc_moderate_message.py` to remove a message (using a makeshift
   implementation of :xep:`0425`) from a MUC.
 
+* `get_muc_affiliations.py` to query affiliated JIDs from a given MUC.
+
 New major features
 ------------------
 
@@ -45,6 +47,12 @@ Breaking changes
   version of Sphinx to build the docs.
 
   This is probably the last release to support Python 3.5.
+
+Minor features and bug fixes
+----------------------------
+
+* :meth:`aioxmpp.muc.Service.get_affiliated` added to query affiliations of
+  a MUC.
 
 .. _api-changelog-0.12:
 

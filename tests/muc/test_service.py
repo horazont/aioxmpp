@@ -6352,6 +6352,77 @@ class TestService(unittest.TestCase):
         with self.assertRaises(KeyError):
             self.s.get_muc(TEST_MUC_JID.replace(localpart="foo"))
 
+    def test_get_affiliation(self):
+        affiliation = "admin"
+
+        with unittest.mock.patch.object(
+                self.cc,
+                "send",
+                new=CoroutineMock()) as send_iq:
+            response = muc_xso.AdminQuery()
+            item = muc_xso.AdminItem()
+            item.jid = TEST_ENTITY_JID.replace(resource="", localpart="e1")
+            response.items.append(item)
+            item = muc_xso.AdminItem()
+            item.jid = TEST_ENTITY_JID.replace(resource="", localpart="e2")
+            response.items.append(item)
+            item = muc_xso.AdminItem()
+            item.jid = TEST_ENTITY_JID.replace(resource="", localpart="e3")
+            response.items.append(item)
+
+            send_iq.return_value = response
+
+            result = run_coroutine(self.s.get_affiliated(
+                TEST_MUC_JID,
+                affiliation,
+            ))
+
+        _, (iq,), _ = send_iq.mock_calls[-1]
+
+        self.assertIsInstance(
+            iq,
+            aioxmpp.stanza.IQ
+        )
+        self.assertEqual(
+            iq.type_,
+            aioxmpp.structs.IQType.GET
+        )
+        self.assertEqual(
+            iq.to,
+            TEST_MUC_JID,
+        )
+
+        self.assertIsInstance(
+            iq.payload,
+            muc_xso.AdminQuery
+        )
+
+        self.assertEqual(
+            len(iq.payload.items),
+            1
+        )
+        item = iq.payload.items[0]
+        self.assertIsInstance(
+            item,
+            muc_xso.AdminItem
+        )
+        self.assertIsNone(item.nick)
+        self.assertIsNone(item.reason)
+        self.assertEqual(
+            item.affiliation,
+            affiliation,
+        )
+        self.assertIsNone(item.jid)
+
+        self.assertCountEqual(
+            result,
+            [
+                TEST_ENTITY_JID.replace(localpart="e{}".format(i),
+                                        resource="")
+                for i in range(1, 4)
+            ]
+        )
+
     def test_set_affiliation(self):
         new_affiliation = "owner"
 

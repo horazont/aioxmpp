@@ -1883,9 +1883,11 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
 
     .. automethod:: get_room_config
 
-    .. automethod:: set_affiliation
-
     .. automethod:: set_room_config
+
+    .. automethod:: get_affiliated
+
+    .. automethod:: set_affiliation
 
     Global events:
 
@@ -2362,6 +2364,35 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
         ]._add_conversation(room)
 
         return room, fut
+
+    async def get_affiliated(self, mucjid, affiliation):
+        """
+        Retrieve the list of JIDs with the given affiliation with a MUC.
+
+        :param mucjid: The bare JID identifying the MUC.
+        :type mucjid: :class:`~aioxmpp.JID`
+        :param affiliation: The affiliation level to query.
+        :type affiliation: :class:`str`
+        :raises: :class:`aioxmpp.errors.XMPPAuthError` if the client does not
+            have sufficient privileges to query affiliations of the given
+            level.
+        :return: Collection of JIDs with the given affiliation.
+        """
+        req = aioxmpp.stanza.IQ(
+            type_=aioxmpp.structs.IQType.GET,
+            to=mucjid,
+        )
+        req.payload = muc_xso.AdminQuery(
+            items=[
+                muc_xso.AdminItem(affiliation=affiliation),
+            ]
+        )
+
+        resp = await self.client.send(req)
+        return [
+            item.jid
+            for item in resp.items
+        ]
 
     async def set_affiliation(self, mucjid, jid, affiliation, *, reason=None):
         """
