@@ -6,7 +6,7 @@ Online documentation
 
 If you want to read documentation without building it yourself, please check the
 online documentation available on `our website
-<https://docs.zombofant.net/aioxmpp/devel/>`_. It is automatically updated when
+<https://docs.zombofant.net/aioxmpp/0.13/>`_. It is automatically updated when
 a commit is pushed to devel. Documentation for specific aioxmpp versions is
 available at `<https://docs.zombofant.net/aioxmpp/>`_.
 
