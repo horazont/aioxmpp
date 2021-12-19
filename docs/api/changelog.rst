@@ -3,6 +3,37 @@
 Changelog
 #########
 
+.. _api-changelog-0.13:
+
+Version 0.13
+============
+
+New major features
+------------------
+
+Breaking changes
+----------------
+
+* *Potentially breaking change*: :meth:`aioxmpp.muc.Room.on_presence_changed`
+  now emits for *all* normal (non-unavailable, non-roster-management) presence
+  stanzas received from an occupant.
+
+  Previously, the signal would only emit for cases where the presence show or
+  the status text had changed. This, however, made it impossible for user code
+  to stay up-to-date with the contents of custom extensions transmitted via
+  presence stanzas.
+
+  This was reported on
+  `GitHub as issue #341 <https://github.com/horazont/aioxmpp/issues/341>`_ by
+  `@raj2569 <https://github.com/raj2569>`_.
+
+* The dependencies and compatibility has been improved, potentially breaking
+  some setups. aioxmpp now supports Python 3.10 and is better prepared for
+  Python 3.11, has bumped some of its dependencies and requires a more modern
+  version of Sphinx to build the docs.
+
+  This is probably the last release to support Python 3.5.
+
 .. _api-changelog-0.12:
 
 Version 0.12
@@ -52,22 +83,6 @@ Version 0.12.2
   correctly.
 
   Again reported by `@zak333 <https://github.com/zak333>`_, thanks.
-
-Version 0.12.3
---------------
-
-* *Potentially breaking change*: :meth:`aioxmpp.muc.Room.on_presence_changed`
-  now emits for *all* normal (non-unavailable, non-roster-management) presence
-  stanzas received from an occupant.
-
-  Previously, the signal would only emit for cases where the presence show or
-  the status text had changed. This, however, made it impossible for user code
-  to stay up-to-date with the contents of custom extensions transmitted via
-  presence stanzas.
-
-  This was reported on
-  `GitHub as issue #341 <https://github.com/horazont/aioxmpp/issues/341>`_ by
-  `@raj2569 <https://github.com/raj2569>`_.
 
 .. _api-changelog-0.11:
 
