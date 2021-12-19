@@ -14,6 +14,12 @@ New XEP implementations
 * Support for the :xep:`0359` (Unique and Stable Stanza IDs) schema in
   :mod:`aioxmpp.misc`.
 
+New examples
+------------
+
+* `muc_moderate_message.py` to remove a message (using a makeshift
+  implementation of :xep:`0425`) from a MUC.
+
 New major features
 ------------------
 
