@@ -22,6 +22,10 @@ New examples
 
 * `get_muc_affiliations.py` to query affiliated JIDs from a given MUC.
 
+* `get_external_services.py` to query external services exposed via
+  :xep:`215`. This is useful in the context of testing STUN/TURN
+  configuration.
+
 New major features
 ------------------
 
