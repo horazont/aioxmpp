@@ -28,6 +28,8 @@ New examples
 
 * `ping.py`, to send :xep:`199` to one or more remote JIDs.
 
+* `roster_watch.py`: Stay connected and watch for roster changes.
+
 New major features
 ------------------
 
