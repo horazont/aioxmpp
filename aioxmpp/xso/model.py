@@ -1559,6 +1559,12 @@ class ChildValueMultiMap(_ChildPropBase):
     be substituted by passing them to `mapping_type`. Candidate for that are
     :class:`multidict.CIMultiDict`.
 
+    .. note::
+
+        :class:`multidict.MultiDict` (even the non-case-insensitve version)
+        requires that the keys are strings, so there is only limited use in
+        the context of :mod:`aioxmpp`.
+
     .. versionadded:: 0.6
     """
 

@@ -63,46 +63,14 @@ class TestStanzaID(unittest.TestCase):
     def test_message_attribute(self):
         self.assertIsInstance(
             aioxmpp.Message.xep0359_stanza_ids,
-            xso.ChildValueMultiMap,
+            xso.ChildList,
         )
-        self.assertEqual(
-            aioxmpp.Message.xep0359_stanza_ids.type_,
-            stanzaid_xso.StanzaIDType,
+        self.assertSetEqual(
+            aioxmpp.Message.xep0359_stanza_ids._classes,
+            {
+                stanzaid_xso.StanzaID,
+            },
         )
-
-
-class TestStanzaIDType(unittest.TestCase):
-    def test_is_xso_element_type(self):
-        self.assertTrue(issubclass(
-            stanzaid_xso.StanzaIDType,
-            xso.AbstractElementType,
-        ))
-
-    def test_xso_classes(self):
-        self.assertCountEqual(
-            stanzaid_xso.StanzaIDType.get_xso_types(),
-            [
-                misc_xso.StanzaID,
-            ],
-        )
-
-    def test_unpack_extracts_by_and_id(self):
-        si = misc_xso.StanzaID(
-            id_="some-id",
-            by=aioxmpp.JID.fromstr("foo@bar/baz"),
-        )
-        self.assertEqual(
-            (aioxmpp.JID.fromstr("foo@bar/baz"), "some-id"),
-            stanzaid_xso.StanzaIDType.unpack(si),
-        )
-
-    def test_pack_packs_by_and_id_into_stanza_id_object(self):
-        si = stanzaid_xso.StanzaIDType.pack(
-            (aioxmpp.JID.fromstr("local@domain/res"), "some-id"),
-        )
-        self.assertIsInstance(si, misc_xso.StanzaID)
-        self.assertEqual(si.id_, "some-id")
-        self.assertEqual(si.by, aioxmpp.JID.fromstr("local@domain/res"))
 
 
 class TestOriginID(unittest.TestCase):

@@ -1096,7 +1096,8 @@ class StanzaStream:
     def _process_incoming_erroneous_stanza(self, stanza_obj, exc):
         self._logger.debug(
             "erroneous stanza received (may be incomplete): %r",
-            stanza_obj
+            stanza_obj,
+            exc_info=exc,
         )
 
         try:
