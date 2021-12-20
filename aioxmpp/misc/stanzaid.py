@@ -59,21 +59,6 @@ class StanzaID(xso.XSO):
         self.by = by
 
 
-class StanzaIDType(xso.AbstractElementType):
-    @classmethod
-    def get_xso_types(self):
-        return [StanzaID]
-
-    @classmethod
-    def pack(self, v):
-        by, id_ = v
-        return StanzaID(id_=id_, by=by)
-
-    @classmethod
-    def unpack(self, obj):
-        return obj.by, obj.id_
-
-
 class OriginID(xso.XSO):
     """
     Represent a :xep:`359` Origin ID.
@@ -99,7 +84,5 @@ class OriginID(xso.XSO):
         self.id_ = id_
 
 
-Message.xep0359_stanza_ids = xso.ChildValueMultiMap(
-    StanzaIDType,
-)
+Message.xep0359_stanza_ids = xso.ChildList([StanzaID])
 Message.xep0359_origin_id = xso.Child([OriginID])

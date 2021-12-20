@@ -5,8 +5,14 @@ Changelog
 
 .. _api-changelog-0.13:
 
-Version 0.13
-============
+Version 0.13.1
+==============
+
+.. note::
+
+    0.13.0 existed briefly, but a fatal bug in the :xep:`0359` support meant
+    that aioxmpp would drop *all* message stanzas with a XEP-0359 Stanza ID
+    tag in them, so that has been yanked.
 
 New XEP implementations
 -----------------------

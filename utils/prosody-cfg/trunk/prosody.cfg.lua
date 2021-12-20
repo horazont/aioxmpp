@@ -153,6 +153,9 @@ log = {
 
 VirtualHost "localhost"
 Component "muc.localhost" "muc"
+modules_enabled = {
+	"muc_mam";
+}
 Component "pubsub.localhost" "pubsub"
 default_unowned_affiliation = "owner"
 Component "upload.localhost" "http_upload"
