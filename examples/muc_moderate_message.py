@@ -71,10 +71,13 @@ class Moderator(Example):
 
         self.argparse.add_argument(
             "msgid",
+            nargs="+",
         )
 
         self.argparse.add_argument(
-            "reason",
+            "--reason",
+            default="spam",
+            help="default: spam"
         )
 
     def configure(self):
@@ -130,17 +133,18 @@ class Moderator(Example):
         for fut in pending:
             fut.cancel()
 
-        payload = ApplyTo()
-        payload.id_ = self.args.msgid
-        payload.payload = Moderate()
-        payload.payload.reason = self.args.reason
-        payload.payload.retract_flag = True
+        for msgid in self.args.msgid:
+            payload = ApplyTo()
+            payload.id_ = msgid
+            payload.payload = Moderate()
+            payload.payload.reason = self.args.reason
+            payload.payload.retract_flag = True
 
-        await self.client.send(aioxmpp.IQ(
-            type_=aioxmpp.IQType.SET,
-            to=self.muc_jid,
-            payload=payload,
-        ))
+            await self.client.send(aioxmpp.IQ(
+                type_=aioxmpp.IQType.SET,
+                to=self.muc_jid,
+                payload=payload,
+            ))
 
 
 if __name__ == "__main__":
