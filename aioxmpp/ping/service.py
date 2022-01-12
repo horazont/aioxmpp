@@ -25,6 +25,8 @@ import aioxmpp.disco
 import aioxmpp.service
 import aioxmpp.structs
 
+from aioxmpp.node import Client
+from aioxmpp.stanza import IQ
 from aioxmpp.utils import namespaces
 
 from . import xso as ping_xso
@@ -49,10 +51,10 @@ class PingService(aioxmpp.service.Service):
     )
 
     @aioxmpp.service.iq_handler(aioxmpp.structs.IQType.GET, ping_xso.Ping)
-    async def handle_ping(self, request):
+    async def handle_ping(self, request: IQ) -> ping_xso.Ping:
         return ping_xso.Ping()
 
-    async def ping(self, peer):
+    async def ping(self, peer: structs.JID) -> None:
         """
         Wrapper around :func:`aioxmpp.ping.ping`.
 
@@ -84,7 +86,7 @@ class PingService(aioxmpp.service.Service):
         return await ping(self.client, peer)
 
 
-async def ping(client, peer):
+async def ping(client: Client, peer: JID) -> None:
     """
     Ping a peer.
 
