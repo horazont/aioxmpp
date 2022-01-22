@@ -118,7 +118,7 @@ def configure_tls_config(section):
     There is also the ``no_verify`` option, which, if set to true, will disable
     certificate verification altogether. This does not much harm if you are
     testing against localhost anyways and saves the configuration nuisance for
-    certificate pinning. ``no_verfiy`` takes precedence over ``pin_store`` and
+    certificate pinning. ``no_verify`` takes precedence over ``pin_store`` and
     ``pin_type``.
     """
 
