@@ -48,7 +48,7 @@ install_requires = [
     'babel~=2.3',
     'dnspython>=1.0,<3.0',
     lxml_constraint,
-    'multidict<6,>=2.0',
+    'multidict<7,>=2.0',
     sortedcollections_constraint,
     'pyOpenSSL',
     'pyasn1',
