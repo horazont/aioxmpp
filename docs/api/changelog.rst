@@ -5,6 +5,15 @@ Changelog
 
 .. _api-changelog-0.13:
 
+Version 0.13.2
+==============
+
+* Fix hard loop on malformed server stream manegement response.
+
+  This was reported on
+  `GitHub as issue #382 <https://github.com/horazont/aioxmpp/issues/382>`_ by
+  `@jahrome <https://github.com/jahrome>`_.
+
 Version 0.13.1
 ==============
 
