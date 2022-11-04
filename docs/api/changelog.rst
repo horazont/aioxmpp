@@ -3,6 +3,29 @@
 Changelog
 #########
 
+.. _api-changelog-0.14:
+
+Version 0.14
+==============
+
+New XEP implementations
+-----------------------
+
+* Support for the :xep:`9` (Jabber-RPC) schema in
+  :mod:`aioxmpp.rpc`.
+
+New examples
+------------
+
+New major features
+------------------
+
+Breaking changes
+----------------
+
+Minor features and bug fixes
+----------------------------
+
 .. _api-changelog-0.13:
 
 Version 0.13.2

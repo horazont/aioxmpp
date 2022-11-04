@@ -128,6 +128,7 @@ from .disco import DiscoServer, DiscoClient  # NOQA: F401
 from .entitycaps import EntityCapsService  # NOQA: F401
 from .muc import MUCClient  # NOQA: F401
 from .pubsub import PubSubClient  # NOQA: F401
+from .rpc import RPCServer, RPCClient # NOQA: F401
 from .shim import SHIMService  # NOQA: F401
 from .adhoc import AdHocClient, AdHocServer  # NOQA: F401
 from .avatar import AvatarService  # NOQA: F401
