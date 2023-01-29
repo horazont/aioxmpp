@@ -763,7 +763,10 @@ class Testproxy_property(unittest.TestCase):
     def test_rejects_deletes_by_default(self):
         self.assertTrue(hasattr(self.obj.member, "attr"))
 
-        with self.assertRaisesRegex(AttributeError, "can't delete attribute"):
+        with self.assertRaisesRegex(
+                AttributeError,
+                r"(can't delete attribute|property of .* has no deleter)"
+        ):
             self.pp.__delete__(self.obj)
 
         self.assertTrue(hasattr(self.obj.member, "attr"))
@@ -773,7 +776,10 @@ class Testproxy_property(unittest.TestCase):
 
         pp = utils.proxy_property("member", "attr", readonly=True)
 
-        with self.assertRaisesRegex(AttributeError, "can't set attribute"):
+        with self.assertRaisesRegex(
+                AttributeError,
+                r"(can't set attribute|property of .* has no setter)"
+        ):
             pp.__set__(self.obj, unittest.mock.sentinel.value)
 
         self.assertEqual(

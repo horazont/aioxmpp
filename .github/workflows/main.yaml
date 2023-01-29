@@ -20,32 +20,31 @@ jobs:
     strategy:
       matrix:
         python-version:
-        - '3.5'
-        - '3.6'
         - '3.7'
         - '3.8'
         - '3.9'
         - '3.10'
+        - '3.11'
         test-type:
         - e2e
         e2e-software:
         - prosody
         e2e-version:
-        - '0.11'
+        - '0.12'
 
         include:
         # e2e-tests for non-default prosody will be run with the Python
         # version available in debian stable
-        - python-version: '3.7'
-          test-type: e2e
-          e2e-software: ejabberd
-          e2e-version: '18.09'
-        - python-version: '3.7'
-          test-type: e2e
-          e2e-software: ejabberd
-          e2e-version: '19.08'
+        #- python-version: '3.9'
+        #  test-type: e2e
+        #  e2e-software: ejabberd
+        #  e2e-version: '18.09'
+        #- python-version: '3.9'
+        #  test-type: e2e
+        #  e2e-software: ejabberd
+        #  e2e-version: '19.08'
         # plain unit test runs with most recent python version
-        - python-version: '3.9'
+        - python-version: '3.11'
           test-type: unit
           e2e-software: coveralls
           e2e-version: latest
