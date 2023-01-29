@@ -1,0 +1,14 @@
+--- a/plugins/mod_pubsub/mod_pubsub.lua	Tue Apr 04 01:31:51 2017 +0200
++++ b/plugins/mod_pubsub/mod_pubsub.lua	Tue Apr 04 20:58:01 2017 +0200
+@@ -125,7 +125,10 @@
+ end);
+ 
+ local admin_aff = module:get_option_string("default_admin_affiliation", "owner");
+-local function get_affiliation(jid)
++local function get_affiliation(jid, node, action)
++        if action == "create" then
++                return "owner";
++        end
+ 	local bare_jid = jid_bare(jid);
+ 	if bare_jid == module.host or usermanager.is_admin(bare_jid, module.host) then
+ 		return admin_aff;
