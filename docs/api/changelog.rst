@@ -5,15 +5,6 @@ Changelog
 
 .. _api-changelog-0.13:
 
-Version 0.13.2
-==============
-
-* Fix hard loop on malformed server stream manegement response.
-
-  This was reported on
-  `GitHub as issue #382 <https://github.com/horazont/aioxmpp/issues/382>`_ by
-  `@jahrome <https://github.com/jahrome>`_.
-
 Version 0.13.1
 ==============
 
@@ -81,6 +72,24 @@ Minor features and bug fixes
 
 * :meth:`aioxmpp.vcard.Service.set_vcard` now supports an optional `jid`
   argument to set vCards of foreign entities (e.g. to set a MUC avatar).
+
+Version 0.13.3
+--------------
+
+.. note::
+
+    Version 0.13.2 exists, but only bumped a dependency.
+
+* Fix hard loop on malformed server stream manegement response.
+
+  This was reported on
+  `GitHub as issue #382 <https://github.com/horazont/aioxmpp/issues/382>`_ by
+  `@jahrome <https://github.com/jahrome>`_.
+
+* Fix issue with unittests in newer Python versions. This was reported on
+  `GitHub as issue #385 <https://github.com/horazont/aioxmpp/issues/385>`_
+  from a
+  `Debian downstream issue (1028835) <https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1028835>`_.
 
 .. _api-changelog-0.12:
 
