@@ -976,6 +976,15 @@ class Client:
             # cancelled, this means a clean shutdown is requested
             await self.stream.close()
             raise
+        except errors.StreamError as exc:
+            self.logger.error("failed to negotiate stream features",
+                              exc_info=True)
+            if self.stream.sm_enabled:
+                self.logger.warning(
+                    "discarding SM state because of error during negotiation",
+                )
+                self.stream.stop_sm()
+            raise
         finally:
             self.logger.info("stopping stream")
             self.stream.stop()

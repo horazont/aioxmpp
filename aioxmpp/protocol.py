@@ -443,6 +443,11 @@ class XMLStream(asyncio.Protocol):
                     xso.tag_to_str((exc.ev_args[0], exc.ev_args[1]))
                 )) from None
         else:
+            self._logger.warning(
+                "unhandled exception during parsing: %r "
+                "(see full traceback later, this will kill the stream)",
+                exc,
+            )
             context = exc.__context__ or exc.__cause__
             raise exc from context
 

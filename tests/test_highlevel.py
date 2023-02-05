@@ -26,6 +26,7 @@ stream dumps.
 """
 
 import asyncio
+import contextlib
 import unittest
 
 from datetime import timedelta
@@ -33,6 +34,7 @@ from datetime import timedelta
 import aioxmpp.structs
 
 from aioxmpp.testutils import (
+    CoroutineMock,
     TransportMock,
     run_coroutine,
     run_coroutine_with_peer
@@ -593,3 +595,263 @@ class TestProtocol(unittest.TestCase):
         self.assertTrue(failure_fut.done())
         self.assertIsInstance(failure_fut.exception(), ConnectionError)
         self.assertIn("timeout", str(failure_fut.exception()))
+
+    def test_malformed_sm_failed_does_not_cause_loop(self):
+        import aioxmpp.protocol
+        import aioxmpp.stream
+        import aioxmpp.node
+
+        version = (1, 0)
+
+        async def mk_pair():
+            fut = asyncio.Future()
+            p = aioxmpp.protocol.XMLStream(
+                to=TEST_PEER,
+                sorted_attributes=True,
+                features_future=fut,
+            )
+            t = TransportMock(self, p)
+            await t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(
+                                PEER_STREAM_HEADER_TEMPLATE.format(
+                                    minor=version[1],
+                                    major=version[0]).encode("utf-8")),
+                            TransportMock.Receive(
+                                b"<stream:features>"
+                                b"<sm xmlns='urn:xmpp:sm:3'/>"
+                                b"</stream:features>"
+                            )
+                        ]
+                    ),
+                ],
+                partial=True
+            )
+            features = await fut
+            return t, p, features
+
+        t, p, features = run_coroutine(mk_pair())
+
+        client = aioxmpp.node.Client(
+            local_jid=TEST_FROM,
+            security_layer=aioxmpp.make_security_layer(
+                password_provider="foobar2342",
+            )._replace(tls_required=False),
+            max_initial_attempts=None,
+        )
+        client.backoff_start = timedelta(seconds=0.05)
+
+        id_counter = 0
+
+        def autoset_id_impl(st):
+            nonlocal id_counter
+            if getattr(st, "id_", None) is None:
+                st.id_ = str(id_counter)
+                id_counter += 1
+
+        with contextlib.ExitStack() as stack:
+            connect_xmlstream = stack.enter_context(
+                unittest.mock.patch("aioxmpp.node.connect_xmlstream",
+                                    new=CoroutineMock())
+            )
+            connect_xmlstream.return_value = (None, p, features)
+
+            autoset_id = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.stanza.StanzaBase.autoset_id",
+                autospec=True,
+            ))
+            autoset_id.side_effect = autoset_id_impl
+
+            done_future = asyncio.Future()
+            client.on_stream_established.connect(
+                done_future,
+                client.on_stream_established.AUTO_FUTURE,
+            )
+            client.on_failure.connect(
+                done_future,
+                client.on_failure.AUTO_FUTURE,
+            )
+            client.start()
+
+            run_coroutine_with_peer(
+                done_future,
+                t.run_test(
+                    [
+                        TransportMock.Write(
+                            b'<iq id="0" type="set">'
+                            b'<bind xmlns="urn:ietf:params:xml:ns:xmpp-bind"/>'
+                            b'</iq>',
+                            response=[
+                                TransportMock.Receive(
+                                    b'<iq id="0" type="result">'
+                                    b'<bind xmlns="urn:ietf:params:xml:ns:xmpp-bind">'
+                                    b'<jid>foo@bar.example/fnord</jid>'
+                                    b'</bind>'
+                                    b'</iq>'
+                                )
+                            ]
+                        ),
+                        TransportMock.Write(
+                            b'<enable xmlns="urn:xmpp:sm:3" resume="true"/>',
+                            response=[
+                                TransportMock.Receive(
+                                    b'<enabled xmlns="urn:xmpp:sm:3"'
+                                    b' resume="true" id="dronf"/>'
+                                )
+                            ]
+                        ),
+                    ],
+                    partial=True
+                )
+            )
+
+            done_future = asyncio.Future()
+            client.on_stream_suspended.connect(
+                done_future,
+                client.on_stream_suspended.AUTO_FUTURE,
+            )
+            client.on_failure.connect(
+                done_future,
+                client.on_failure.AUTO_FUTURE,
+            )
+
+            # XXX: we are using try/except here instead of self.assertRaises,
+            # because assertRaises calls traceback.clear_frames which for some
+            # reason not clear to me in Python 3.9 and earlier causes the
+            # _main() (from client._main_task) to be killed.
+            #
+            # This makes no sense, because _main_task is strongly referenced
+            # from client, and we can even later print client._main_task. It
+            # also doesn't go through __del__ of the task wrapped in
+            # ensure_future, nor does it call close(), so this is really weird.
+            #
+            # I suspect some bug in clear_frames itself in Python 3.9 and
+            # earlier, but given that we're at py 3.11 at this point and the
+            # use of clear_frames is hopefully rather exotic, I'm not
+            # inclined to debug further.
+            #
+            # Finding this out was a weekend **not** well-spent. At least I
+            # learnt that `traceback.print_stack` reveals useful details even
+            # in coroutines.
+            try:
+                run_coroutine_with_peer(
+                    done_future,
+                    t.run_test(
+                        [],
+                        stimulus=[
+                            TransportMock.LoseConnection(
+                                ConnectionError("ohno"),
+                            )
+                        ],
+                        partial=True,
+                    )
+                )
+            except ConnectionError:
+                pass
+
+            t, p, features = run_coroutine(mk_pair())
+            connect_xmlstream.return_value = (None, p, features)
+
+            done_future = asyncio.Future()
+            client.on_stream_destroyed.connect(
+                done_future,
+                client.on_stream_destroyed.AUTO_FUTURE,
+            )
+            client.on_failure.connect(
+                done_future,
+                client.on_failure.AUTO_FUTURE,
+            )
+
+            run_coroutine(
+                t.run_test(
+                    [
+                        TransportMock.Write(
+                            b'<resume xmlns="urn:xmpp:sm:3" h="0"'
+                            b' previd="dronf"/>',
+                        ),
+                    ],
+                    partial=True
+                )
+            )
+
+            # we have to delay the next attempt in order to re-mock stuff,
+            # because the thing won't back-off in this specific condition
+            connect_xmlstream.side_effect = ConnectionError()
+
+            run_coroutine(
+                t.run_test(
+                    [
+                        TransportMock.Write(
+                            b'<stream:error><text xmlns="urn:ietf:params:xml:ns:xmpp-streams">Internal error while parsing XML. Client logs have more details.</text><internal-server-error xmlns="urn:ietf:params:xml:ns:xmpp-streams"/></stream:error>'
+                            b'</stream:stream>'
+                        ),
+                        TransportMock.WriteEof(),
+                        TransportMock.Close(),
+                    ],
+                    stimulus=[
+                        TransportMock.Receive(
+                            b'<failed xmlns="urn:xmpp:sm:3">'
+                            b'<error type="cancel">'
+                            b"<item-not-found"
+                            b" xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>"
+                            b"<text xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'>"
+                            b"Unknown session"
+                            b"</text>"
+                            b"</error>"
+                            b"</failed>"
+                        )
+                    ],
+                    partial=True,
+                ),
+            )
+
+            t, p, features = run_coroutine(mk_pair())
+            connect_xmlstream.return_value = (None, p, features)
+            connect_xmlstream.side_effect = None
+
+            done_future = asyncio.Future()
+            client.on_stream_established.connect(
+                done_future,
+                client.on_stream_established.AUTO_FUTURE,
+            )
+            client.on_failure.connect(
+                done_future,
+                client.on_failure.AUTO_FUTURE,
+            )
+
+            run_coroutine_with_peer(
+                done_future,
+                t.run_test(
+                    [
+                        TransportMock.Write(
+                            b'<iq id="1" type="set">'
+                            b'<bind xmlns="urn:ietf:params:xml:ns:xmpp-bind">'
+                            b'<resource>fnord</resource>'
+                            b'</bind>'
+                            b'</iq>',
+                            response=[
+                                TransportMock.Receive(
+                                    b'<iq id="1" type="result">'
+                                    b'<bind xmlns="urn:ietf:params:xml:ns:xmpp-bind">'
+                                    b'<jid>foo@bar.example/fnord</jid>'
+                                    b'</bind>'
+                                    b'</iq>'
+                                )
+                            ]
+                        ),
+                        TransportMock.Write(
+                            b'<enable xmlns="urn:xmpp:sm:3" resume="true"/>',
+                            response=[
+                                TransportMock.Receive(
+                                    b'<enabled xmlns="urn:xmpp:sm:3"'
+                                    b' resume="true" id="dronf"/>'
+                                )
+                            ]
+                        ),
+                    ],
+                    partial=True
+                )
+            )
