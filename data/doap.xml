@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<Project xmlns="http://usefulinc.com/ns/doap#" xmlns:foaf="http://xmlns.com/foaf/0.1/" xmlns:xmpp="https://linkmauve.fr/ns/xmpp-doap#">
+    <name>aioxmpp</name>
+
+    <created>2014-08-06</created>
+
+    <shortdesc xml:lang="en">A pure-python XMPP library using the asyncio standard library module.</shortdesc>
+
+    <homepage rdf:resource="https://github.com/horazont/aioxmpp"/>
+    <download-page rdf:resource="https://github.com/horazont/aioxmpp/releases"/>
+    <bug-database rdf:resource="https://github.com/horazont/aioxmpp/issues"/>
+    <developer-forum rdf:resource="xmpp:aioxmpp@conference.zombofant.net?join"/>
+    <support-forum rdf:resource="xmpp:aioxmpp@conference.zombofant.net?join"/>
+
+    <license rdf:resource="https://raw.githubusercontent.com/horazont/aioxmpp/devel/LICENSES"/>
+
+    <language>en</language>
+
+    <programming-language>Python</programming-language>
+
+    <os>Linux</os>
+    <os>macOS</os>
+    <os>FreeBSD</os>
+    <os>OpenBSD</os>
+    <os>NetBSD</os>
+
+    <category rdf:resource="https://linkmauve.fr/ns/xmpp-doap#category-library"/>
+
+    <maintainer>
+        <foaf:Person>
+            <foaf:name>horazont</foaf:name>
+            <foaf:homepage rdf:resource="https://github.com/horazont"/>
+        </foaf:Person>
+    </maintainer>
+
+    <repository>
+        <GitRepository>
+            <browse rdf:resource="https://github.com/horazont/aioxmpp"/>
+            <location rdf:resource="https://github.com/horazont/aioxmpp.git"/>
+        </GitRepository>
+    </repository>
+</Project>
+</rdf:RDF>
