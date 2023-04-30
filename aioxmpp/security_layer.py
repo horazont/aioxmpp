@@ -129,6 +129,7 @@ import pyasn1_modules.rfc2459
 import OpenSSL.SSL
 
 import aiosasl
+import aiosasl.channel_binding_methods
 
 from . import errors, sasl, nonza, xso, protocol
 from .utils import namespaces
@@ -944,6 +945,18 @@ class PasswordSASLProvider(SASLProvider):
         classes = [
             aiosasl.SCRAM
         ]
+
+        cb_provider = None
+        if hasattr(aiosasl, "SCRAMPLUS"):
+            if tls_transport is not None:
+                cb_provider = aiosasl.channel_binding_methods.TLSUnique(
+                    tls_transport.get_extra_info("ssl_object")
+                )
+                classes.insert(
+                    0,
+                    aiosasl.SCRAMPLUS,
+                )
+
         if tls_transport is not None:
             classes.append(aiosasl.PLAIN)
 
@@ -955,7 +968,10 @@ class PasswordSASLProvider(SASLProvider):
             if mechanism_class is None:
                 return False
 
-            mechanism = mechanism_class(credential_provider)
+            if issubclass(mechanism_class, aiosasl.SCRAMPLUS):
+                mechanism = mechanism_class(credential_provider, cb_provider)
+            else:
+                mechanism = mechanism_class(credential_provider)
             last_auth_error = None
             for nattempt in range(self._max_auth_attempts):
                 try:
