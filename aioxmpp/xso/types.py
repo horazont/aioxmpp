@@ -39,9 +39,7 @@ import re
 import unicodedata
 import warnings
 
-import pytz
-
-from datetime import datetime, timedelta, date, time
+from datetime import datetime, timedelta, date, time, timezone
 
 from .. import structs, i18n
 
@@ -357,8 +355,6 @@ class DateTime(AbstractCDataType):
     converted to UTC before emitting the legacy format. The timezone designator
     is never emitted with the legacy format, and ignored if given.
 
-    This class makes use of :mod:`pytz`.
-
     .. versionadded:: 0.5
 
        The `legacy` argument was added.
@@ -387,7 +383,7 @@ class DateTime(AbstractCDataType):
             else:
                 hour_offset = int(hour_offset)
                 minute_offset = int(minute_offset)
-            tzinfo = pytz.utc
+            tzinfo = timezone.utc
             offset = timedelta(minutes=minute_offset + 60 * hour_offset)
             v = v[:m.start()]
         else:
@@ -401,14 +397,20 @@ class DateTime(AbstractCDataType):
                 dt = datetime.strptime(v, "%Y-%m-%dT%H:%M:%S")
             except ValueError:
                 dt = datetime.strptime(v, "%Y%m%dT%H:%M:%S")
-                tzinfo = pytz.utc
+                tzinfo = timezone.utc
                 offset = timedelta(0)
 
         return dt.replace(tzinfo=tzinfo) - offset
 
     def format(self, v):
         if v.tzinfo:
-            v = pytz.utc.normalize(v)
+            if isinstance(v, datetime):
+                v = v.astimezone(timezone.utc)
+            elif isinstance(v, time):
+                v = datetime.combine(datetime.now().date(), v).astimezone(timezone.utc)
+            else:
+                raise TypeError(f'must be a time or datetime object')
+
         if self.legacy:
             return v.strftime("%Y%m%dT%H:%M:%S")
 
@@ -468,7 +470,7 @@ class Time(AbstractCDataType):
             else:
                 hour_offset = int(hour_offset)
                 minute_offset = int(minute_offset)
-            tzinfo = pytz.utc
+            tzinfo = timezone.utc
             offset = timedelta(minutes=minute_offset + 60 * hour_offset)
             v = v[:m.start()]
         else:
@@ -484,7 +486,12 @@ class Time(AbstractCDataType):
 
     def format(self, v):
         if v.tzinfo:
-            v = pytz.utc.normalize(v)
+            if isinstance(v, datetime):
+                v = v.astimezone(timezone.utc)
+            elif isinstance(v, time):
+                v = datetime.combine(datetime.now().date(), v).astimezone(timezone.utc)
+            else:
+                raise TypeError(f'must be a time or datetime object')
 
         result = v.strftime("%H:%M:%S")
         if v.microsecond:
@@ -498,7 +505,7 @@ class Time(AbstractCDataType):
             raise TypeError("must be a time object")
         if t.tzinfo is None:
             return t
-        if t.tzinfo == pytz.utc:
+        if t.tzinfo == timezone.utc:
             return t
         raise ValueError("time must have UTC timezone or none at all")
 
