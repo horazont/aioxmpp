@@ -88,14 +88,13 @@ class BlockingClient(service.Service):
     on_initial_blocklist_received = callbacks.Signal()
 
     async def _check_for_blocking(self):
-        server_info = await self._disco.query_info(
+        account_info = await self._disco.query_info(
             self.client.local_jid.replace(
                 resource=None,
-                localpart=None,
             )
         )
 
-        if namespaces.xep0191 not in server_info.features:
+        if namespaces.xep0191 not in account_info.features:
             self._blocklist = None
             raise RuntimeError("server does not support blocklists!")
 

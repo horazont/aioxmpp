@@ -30,7 +30,7 @@ from aioxmpp.utils import namespaces
 from aioxmpp.e2etest import (
     blocking,
     blocking_timed,
-    require_feature,
+    require_account_feature,
     TestCase,
 )
 
@@ -42,7 +42,7 @@ TEST_JID3 = aioxmpp.structs.JID.fromstr("quux@bar.example/baz")
 
 class TestBlocking(TestCase):
 
-    @require_feature(namespaces.xep0191)
+    @require_account_feature(namespaces.xep0191)
     def setUp(self, *features):
         pass
 
