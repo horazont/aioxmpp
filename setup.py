@@ -54,6 +54,7 @@ install_requires = [
     'pyasn1',
     'pyasn1_modules',
     'tzlocal>=1.2',
+    'pytz>=2023.3',
 ]
 
 if tuple(map(int, setuptools.__version__.split(".")[:3])) < (6, 0, 0):
