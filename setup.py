@@ -53,6 +53,7 @@ install_requires = [
     'pyOpenSSL',
     'pyasn1',
     'pyasn1_modules',
+    'tzdata; os_name == "nt"',  # needed for Windows
     'tzlocal>=1.2',
 ]
 

@@ -84,8 +84,9 @@ class LocalizingFormatter(string.Formatter):
 
     Examples::
 
-      >>> import pytz, babel, datetime, aioxmpp.i18n
-      >>> tz = pytz.timezone("Europe/Berlin")
+      >>> import babel, datetime, aioxmpp.i18n
+      >>> from zoneinfo import ZoneInfo
+      >>> tz = ZoneInfo("Europe/Berlin")
       >>> dt = datetime.datetime(year=2015, 5, 5, 15, 55, 55, tzinfo=tz)
       >>> fmt = aioxmpp.i18n.LocalizingFormatter(locale=babel.Locale("en_GB"))
       >>> fmt.format("{}", dt)
@@ -116,7 +117,7 @@ class LocalizingFormatter(string.Formatter):
 
         if isinstance(value, datetime):
             if value.tzinfo is not None:
-                value = tzinfo.normalize(value)
+                value.astimezone(tzinfo),
             if format_spec:
                 return babel.dates.format_datetime(value,
                                                    locale=locale,
@@ -170,7 +171,7 @@ class LocalizingFormatter(string.Formatter):
 
         if isinstance(value, datetime):
             return babel.dates.format_datetime(
-                tzinfo.normalize(value),
+                value.astimezone(tzinfo),
                 locale=locale)
         elif isinstance(value, timedelta):
             return babel.dates.format_timedelta(value, locale=locale)
@@ -204,7 +205,7 @@ class LocalizableString:
 
     Examples::
 
-      >>> import aioxmpp.i18n, pytz, babel, gettext
+      >>> import aioxmpp.i18n, babel, gettext
       >>> fmt = aioxmpp.i18n.LocalizingFormatter()
       >>> translator = gettext.NullTranslations()
       >>> s1 = aioxmpp.i18n.LocalizableString(

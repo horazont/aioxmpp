@@ -32,9 +32,8 @@ import warnings
 
 from enum import Enum, IntEnum
 
-import pytz
-
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timezone
+from zoneinfo import ZoneInfo
 
 import aioxmpp.xso as xso
 import aioxmpp.structs as structs
@@ -431,13 +430,13 @@ class TestDateTimeType(unittest.TestCase):
     def test_parse_example(self):
         t = xso.DateTime()
         self.assertEqual(
-            datetime(2014, 1, 26, 19, 40, 10, tzinfo=pytz.utc),
+            datetime(2014, 1, 26, 19, 40, 10, tzinfo=timezone.utc),
             t.parse("2014-01-26T19:40:10Z"))
 
     def test_parse_timezoned(self):
         t = xso.DateTime()
         self.assertEqual(
-            datetime(2014, 1, 26, 19, 40, 10, tzinfo=pytz.utc),
+            datetime(2014, 1, 26, 19, 40, 10, tzinfo=timezone.utc),
             t.parse("2014-01-26T20:40:10+01:00"))
 
     def test_parse_local(self):
@@ -455,7 +454,7 @@ class TestDateTimeType(unittest.TestCase):
     def test_parse_milliseconds_timezoned(self):
         t = xso.DateTime()
         self.assertEqual(
-            datetime(2014, 1, 26, 19, 40, 10, 123456, tzinfo=pytz.utc),
+            datetime(2014, 1, 26, 19, 40, 10, 123456, tzinfo=timezone.utc),
             t.parse("2014-01-26T20:40:10.123456+01:00"))
 
     def test_parse_need_time(self):
@@ -472,7 +471,7 @@ class TestDateTimeType(unittest.TestCase):
         t = xso.DateTime()
         self.assertEqual(
             "2014-01-26T19:40:10Z",
-            t.format(datetime(2014, 1, 26, 19, 40, 10, tzinfo=pytz.utc))
+            t.format(datetime(2014, 1, 26, 19, 40, 10, tzinfo=timezone.utc))
         )
 
     def test_format_timezoned_microseconds(self):
@@ -480,7 +479,7 @@ class TestDateTimeType(unittest.TestCase):
         self.assertEqual(
             "2014-01-26T19:40:10.1234Z",
             t.format(datetime(2014, 1, 26, 19, 40, 10, 123400,
-                              tzinfo=pytz.utc))
+                              tzinfo=timezone.utc))
         )
 
     def test_format_naive(self):
@@ -501,40 +500,37 @@ class TestDateTimeType(unittest.TestCase):
         t = xso.DateTime()
         self.assertEqual(
             "2014-01-26T19:40:10Z",
-            t.format(pytz.timezone("Europe/Berlin").localize(
-                datetime(2014, 1, 26, 20, 40, 10)
-            ))
+            t.format(datetime(2014, 1, 26, 20, 40, 10, tzinfo=ZoneInfo("Europe/Berlin"))
+            )
         )
 
     def test_parse_xep0082_examples(self):
         t = xso.DateTime()
         self.assertEqual(
             t.parse("1969-07-21T02:56:15Z"),
-            datetime(1969, 7, 21, 2, 56, 15, tzinfo=pytz.utc)
+            datetime(1969, 7, 21, 2, 56, 15, tzinfo=timezone.utc)
         )
         self.assertEqual(
             t.parse("1969-07-20T21:56:15-05:00"),
-            datetime(1969, 7, 21, 2, 56, 15, tzinfo=pytz.utc)
+            datetime(1969, 7, 21, 2, 56, 15, tzinfo=timezone.utc)
         )
 
     def test_parse_legacy_format(self):
         t = xso.DateTime()
         self.assertEqual(
             t.parse("19690721T02:56:15"),
-            datetime(1969, 7, 21, 2, 56, 15, tzinfo=pytz.utc)
+            datetime(1969, 7, 21, 2, 56, 15, tzinfo=timezone.utc)
         )
 
     def test_emit_legacy_format_with_switch(self):
         t = xso.DateTime(legacy=True)
         self.assertEqual(
             "19690721T02:56:15",
-            t.format(datetime(1969, 7, 21, 2, 56, 15, tzinfo=pytz.utc))
+            t.format(datetime(1969, 7, 21, 2, 56, 15, tzinfo=timezone.utc))
         )
         self.assertEqual(
             "20140126T19:40:10",
-            t.format(pytz.timezone("Europe/Berlin").localize(
-                datetime(2014, 1, 26, 20, 40, 10)
-            ))
+            t.format(datetime(2014, 1, 26, 20, 40, 10, tzinfo=ZoneInfo("Europe/Berlin")))
         )
 
     def test_require_datetime(self):
@@ -612,13 +608,13 @@ class TestTime(unittest.TestCase):
     def test_parse_example(self):
         t = xso.Time()
         self.assertEqual(
-            time(19, 40, 10, tzinfo=pytz.utc),
+            time(19, 40, 10, tzinfo=timezone.utc),
             t.parse("19:40:10Z"))
 
     def test_parse_timezoned(self):
         t = xso.Time()
         self.assertEqual(
-            time(19, 40, 10, tzinfo=pytz.utc),
+            time(19, 40, 10, tzinfo=timezone.utc),
             t.parse("20:40:10+01:00"))
 
     def test_parse_local(self):
@@ -636,14 +632,14 @@ class TestTime(unittest.TestCase):
     def test_parse_milliseconds_timezoned(self):
         t = xso.Time()
         self.assertEqual(
-            time(19, 40, 10, 123456, tzinfo=pytz.utc),
+            time(19, 40, 10, 123456, tzinfo=timezone.utc),
             t.parse("20:40:10.123456+01:00"))
 
     def test_format_timezoned(self):
         t = xso.Time()
         self.assertEqual(
             "19:40:10Z",
-            t.format(time(19, 40, 10, tzinfo=pytz.utc))
+            t.format(time(19, 40, 10, tzinfo=timezone.utc))
         )
 
     def test_format_timezoned_microseconds(self):
@@ -651,7 +647,7 @@ class TestTime(unittest.TestCase):
         self.assertEqual(
             "19:40:10.1234Z",
             t.format(time(19, 40, 10, 123400,
-                          tzinfo=pytz.utc))
+                          tzinfo=timezone.utc))
         )
 
     def test_format_naive(self):
@@ -673,8 +669,7 @@ class TestTime(unittest.TestCase):
         with self.assertRaisesRegex(
                 ValueError,
                 "time must have UTC timezone or none at all"):
-            t.coerce(pytz.timezone("Europe/Berlin").localize(
-                datetime(2014, 1, 26, 20, 40, 10)
+            t.coerce(datetime(2014, 1, 26, 20, 40, 10, tzinfo=ZoneInfo("Europe/Berlin")
             ).timetz())
 
     def test_coerce_accepts_naive_timezone(self):
@@ -685,7 +680,7 @@ class TestTime(unittest.TestCase):
 
     def test_coerce_accepts_utc_timezone(self):
         t = xso.Time()
-        v = time(20, 40, 10, tzinfo=pytz.utc)
+        v = time(20, 40, 10, tzinfo=timezone.utc)
         result = t.coerce(v)
         self.assertEqual(v, result)
 
