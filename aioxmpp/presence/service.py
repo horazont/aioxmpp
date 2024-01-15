@@ -236,6 +236,183 @@ class PresenceClient(aioxmpp.service.Service):
                 self.on_changed(st.from_, st)
 
 
+class DirectedPresenceHandle:
+    """
+    Represent a directed presence relationship with a peer.
+
+    Directed Presence is specified in :rfc:`6121` section 4.6. Since the users
+    server is not responsible for distributing presence updates to peers to
+    which the client has sent directed presence, special handling is needed.
+    (The only presence automatically sent by a client’s server to a peer which
+    has received directed presence is the
+    :attr:`~aioxmpp.PresenceType.UNAVAILABLE` presence which is created when
+    the client disconnects.)
+
+        .. note::
+
+            Directed presence relationships get
+            :meth:`unsubscribed <unsubscribe>` immediately when the stream is
+            destroyed. This is because the peer has received
+            :attr:`~aioxmpp.PresenceType.UNAVAILABLE` presence from the client’s
+            server.
+
+    .. autoattribute:: address
+
+    .. autoattribute:: muted
+
+    .. autoattribute:: presence_filter
+
+    .. automethod:: set_muted
+
+    .. automethod:: unsubscribe
+
+    .. automethod:: send_presence
+    """
+
+    def __init__(self, service: "PresenceServer", peer: aioxmpp.JID,
+                 muted: bool = False):
+        super().__init__()
+        self._address = peer
+        self._service = service
+        self._muted = muted
+        self._presence_filter = None
+        self._unsubscribed = False
+
+    def _require_subscribed(self):
+        if self._unsubscribed:
+            raise RuntimeError("directed presence relationship is unsubscribed")
+
+    @property
+    def address(self) -> aioxmpp.JID:
+        """
+        The address of the peer. This attribute is read-only.
+
+        To change the address of a peer,
+        :meth:`aioxmpp.PresenceServer.rebind_directed_presence` can be used.
+        """
+        return self._address
+
+    @property
+    def muted(self) -> bool:
+        """
+        Flag to indicate whether the directed presence relationship is *muted*.
+
+        If the relationship is **not** muted, presence updates made through the
+        :class:`PresenceServer` will be unicast to the peer entity of the
+        relationship.
+
+        For a muted relationships, presence updates will *not* be automatically
+        sent to the peer.
+
+        The *muted* behaviour is useful if presence updates need to be managed
+        by a service for some reason.
+
+        This attribute is read-only. It must be modified through
+        :meth:`set_muted`.
+        """
+        return self._muted
+
+    @property
+    def presence_filter(self):
+        """
+        Optional callback which is invoked on the presence stanza before it is
+        sent.
+
+        This is called whenever a presence stanza is sent for this relationship
+        by the :class:`PresenceServer`. This is not invoked for presence stanzas
+        sent to the peer by other means (e.g. :meth:`aioxmpp.Client.send`).
+
+        If the :attr:`presence_filter` is not :data:`None`, it is called with
+        the presence stanza as its only argument. It must either return the
+        presence stanza, or :data:`None`. If it returns :data:`None`, the
+        presence stanza is not sent.
+
+        The callback operates on a copy of the presence stanza to prevent
+        modifications from leaking into other presence relationships; making a
+        copy inside the callback is not required or recommended.
+        """
+        return self._presence_filter
+
+    @presence_filter.setter
+    def presence_filter(self, new_callback):
+        self._presence_filter = new_callback
+
+    def set_muted(self, muted: bool, *, send_update_now: bool = True):
+        """
+        Change the :attr:`muted` state of the relationship.
+
+        (This is not a setter to the property due to the additional options
+        which are available when changing the :attr:`muted` state.)
+
+        :param muted: The new muted state.
+        :type muted: :class:`bool`
+        :param send_update_now: Whether to send a presence update to the peer
+            immediately.
+        :type send_update_now: :class:`bool`
+        :raises RuntimeError: if the presence relationship has been destroyed
+            with :meth:`unsubscribe`
+
+        If `muted` is equal to :attr:`muted`, this method does nothing.
+
+        If `muted` is :data:`True`, the presence relationship will be muted.
+        `send_update_now` is ignored.
+
+        If `muted` is :data:`False`, the presence relationship will be unmuted.
+        If `send_update_now` is :data:`True`, the current presence is sent to
+        the peer immediately.
+        """
+        self._require_subscribed()
+
+        muted = bool(muted)
+        if muted == self._muted:
+            return
+
+        self._muted = muted
+        self._service._emit_presence_directed(self)
+
+    def unsubscribe(self):
+        """
+        Destroy the directed presence relationship.
+
+        The presence relationship becomes useless afterwards. Any additional
+        calls to the methods will result in :class:`RuntimeError`. No additional
+        updates wil be sent to the peer automatically (except, of course, if
+        a new relationship is created).
+
+        If the presence relationship is still active when the method is called,
+        :attr:`~aioxmpp.PresenceType.UNAVAILABLE` presence is sent to the peer
+        immediately. Otherwise, no stanza is sent. The stanza is passed through
+        the :attr:`presence_filter`.
+
+        .. note::
+
+            Directed presence relationships get unsubscribed immediately when
+            the stream is destroyed. This is because the peer has received
+            :attr:`~aioxmpp.PresenceType.UNAVAILABLE` presence from the client’s
+            server.
+
+        This operation is idempotent.
+        """
+        if self._unsubscribed:
+            return
+
+        self._service._unsubscribe_peer_directed(self)
+        self._unsubscribed = True
+
+    def resend_presence(self):
+        """
+        Resend the current presence to the directed peer.
+
+        :raises RuntimeError: if the presence relationship has been destroyed
+            with :meth:`unsubscribe`
+
+        This forces a presence send, even if the relationship is muted. The
+        :attr:`presence_filter` is invoked as normal.
+        """
+        self._require_subscribed()
+        self._service._emit_presence_directed(self)
+
+
 class PresenceServer(aioxmpp.service.Service):
     """
     Manage the presence broadcast by the client.
@@ -287,6 +464,7 @@ class PresenceServer(aioxmpp.service.Service):
         self._state = aioxmpp.PresenceState(False)
         self._status = {}
         self._priority = 0
+        self._directed_sessions = {}
 
         client.before_stream_established.connect(
             self._before_stream_established
@@ -415,6 +593,15 @@ class PresenceServer(aioxmpp.service.Service):
             self.on_presence_changed()
             return self.resend_presence()
 
+    def _emit_presence_directed(self, session):
+        st = self.make_stanza()
+        st.to = session.address
+        if session.presence_filter is not None:
+            st = session.presence_filter(st)
+        if st is None:
+            return
+        self.client.enqueue(st)
+
     def resend_presence(self):
         """
         Re-send the currently configured presence.
@@ -423,11 +610,164 @@ class PresenceServer(aioxmpp.service.Service):
                  stream is not established.
         :rtype: :class:`~.stream.StanzaToken`
 
+        This will also emit all non-muted directed presences.
+
         .. note::
 
            :meth:`set_presence` automatically broadcasts the new presence if
            any of the parameters changed.
         """
 
-        if self.client.established:
-            return self.client.enqueue(self.make_stanza())
+        if not self.client.established:
+            return
+
+        main_token = self.client.enqueue(self.make_stanza())
+
+        for sessions in self._directed_sessions.values():
+            for session in sessions.values():
+                if session.muted:
+                    continue
+                self._emit_presence_directed(session)
+
+        return main_token
+
+    def subscribe_peer_directed(self,
+                                peer: aioxmpp.JID,
+                                muted: bool = False):
+        """
+        Create a directed presence relationship with a peer.
+
+        :param peer: The address of the peer. This can be a full or bare JID.
+        :type peer: :class:`aioxmpp.JID`
+        :param muted: Flag to create the relationship in muted state.
+        :type muted: :class:`bool`
+        :rtype: :class:`DirectedPresenceHandle`
+        :return: The new directed presence handle.
+
+        `peer` is the address of the peer which is going to receive directed
+        presence. For each bare JID, there can only exist either a single bare
+        JID directed presence relationship, or zero or more full JID directed
+        presence relationships. It is not possible to have a bare JID directed
+        presence relationship and a full JID directed presence relationship for
+        the same bare JID.
+
+        If `muted` is :data:`False` (the default), the current presence is
+        unicast to `peer` when the relationship is created and the relationship
+        is created with :attr:`~.DirectedPresenceHandle.muted` set to
+        :data:`False`.
+
+        If `muted` is :data:`True`, no presence is sent when the relationship is
+        created, and it is created with :attr:`~.DirectedPresenceHandle.muted`
+        set to :data:`True`.
+
+        If the user of this method needs to set a
+        :attr:`~.DirectedPresenceHandle.presence_filter` on the relationship,
+        creating it with `muted` set to true is the only way to achieve this
+        before the initial directed presence to the peer is sent.
+
+        The newly created handle is returned.
+        """
+        bare_peer = peer.bare()
+        try:
+            sessions = self._directed_sessions[bare_peer]
+        except KeyError:
+            sessions = self._directed_sessions[bare_peer] = {}
+        else:
+            if (
+                    # bare JID registration with any existing registration is
+                    # always a conflict
+                    (peer.resource is None and sessions) or
+                    # full JID registration with None or the resource in the
+                    # sessions is a conflict, too
+                    (peer.resource in sessions or None in sessions)):
+                raise ValueError(
+                    "cannot create multiple directed presence sessions for the "
+                    "same peer")
+
+        result = sessions[peer.resource] = DirectedPresenceHandle(
+            self,
+            peer,
+            muted=muted,
+        )
+
+        if not muted:
+            self._emit_presence_directed(result)
+
+        return result
+
+    def _unsubscribe_peer_directed(self, handle: DirectedPresenceHandle):
+        bare_peer = handle.address.bare()
+        resource = handle.address.resource
+        sessions = self._directed_sessions[bare_peer]
+        assert sessions[resource] is handle
+        del sessions[resource]
+        if not sessions:
+            del self._directed_sessions[bare_peer]
+
+    def rebind_directed_presence(self,
+                                 relationship: DirectedPresenceHandle,
+                                 new_peer: aioxmpp.JID):
+        """
+        Modify the peer of an existing directed presence relationship.
+
+        :param relationship: The relationship to operate on.
+        :type relationship: :class:`DirectedPresenceHandle`
+        :param new_peer: The new destination address of the relationship.
+        :type new_peer: :class:`aioxmpp.JID`
+        :raises RuntimeError: if the `relationship` has been destroyed with
+            :meth:`~DirectedPresenceHandle.unsubscribe` already.
+        :raises ValueError: if another relationship for `new_peer` exists and
+            is active
+
+        This changes the peer :attr:`~.DirectedPresenceHandle.address` of the
+        `relationship` to `new_peer`. The conditions for peer addresses of
+        directed presence relationships as described in
+        :meth:`subscribe_peer_directed` are enforced in this operation. If they
+        are violated, :class:`ValueError` is raised.
+
+        If the `relationship` has already been closed/destroyed using
+        :meth:`~DirectedPresenceHandle.unsubscribe`, :class:`RuntimeError` is
+        raised.
+        """
+        if new_peer == relationship.address:
+            return
+
+        previous_bare = relationship.address.bare()
+
+        prev_sessions = self._directed_sessions[previous_bare]
+
+        bare_peer = new_peer.bare()
+        try:
+            new_sessions = self._directed_sessions[bare_peer]
+        except KeyError:
+            new_sessions = self._directed_sessions[bare_peer] = {}
+        else:
+            # bare_peer already has sessions, we need to do checks
+            check_sessions = new_sessions
+            if check_sessions is prev_sessions:
+                # we take a copy and remove the current resource from it,
+                # because it doesn’t play a role in the check (it will be
+                # removed anyways)
+                check_sessions = dict(check_sessions)
+                del check_sessions[relationship.address.resource]
+
+            if (
+                    # bare JID registration with any existing registration is
+                    # always a conflict
+                    (new_peer.resource is None and check_sessions) or
+                    # full JID registration with None or the resource in the
+                    # sessions is a conflict, too
+                    (new_peer.resource in new_sessions or
+                     None in check_sessions)
+                    ):
+                raise ValueError(
+                    "cannot create multiple directed presence sessions for the "
+                    "same peer")
+
+        if prev_sessions is new_sessions:
+            del prev_sessions[relationship.address.resource]
+        else:
+            self._unsubscribe_peer_directed(relationship)
+
+        new_sessions[new_peer.resource] = relationship
+        relationship._address = new_peer
